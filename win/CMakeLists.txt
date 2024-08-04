@@ -27,16 +27,16 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 	${CMAKE_SOURCE_DIR}/putty/windows
 	)
 
-# target_link_libraries(${PROJECT_NAME} libwt)
-# target_link_libraries(${PROJECT_NAME} zlibstatic)
-# target_link_libraries(${PROJECT_NAME} libcurl_static)
-# target_link_libraries(${PROJECT_NAME} scintilla)
+target_link_libraries(${PROJECT_NAME} libwt)
+target_link_libraries(${PROJECT_NAME} zlibstatic)
+target_link_libraries(${PROJECT_NAME} libcurl_static)
+target_link_libraries(${PROJECT_NAME} scintilla)
 # The library from PuTTY codebase
-# target_link_libraries(${PROJECT_NAME} guiterminal)
-# target_link_libraries(${PROJECT_NAME} eventloop)
-# target_link_libraries(${PROJECT_NAME} network)
-# target_link_libraries(${PROJECT_NAME} settings)
-# target_link_libraries(${PROJECT_NAME} utils)
-# target_link_libraries(${PROJECT_NAME} guimisc)
-
+target_link_libraries(${PROJECT_NAME} guiterminal)
+target_link_libraries(${PROJECT_NAME} eventloop)
+target_link_libraries(${PROJECT_NAME} network)
+target_link_libraries(${PROJECT_NAME} settings)
+target_link_libraries(${PROJECT_NAME} utils)
+target_link_libraries(${PROJECT_NAME} guimisc)
+target_link_libraries(${PROJECT_NAME} libterm)
 

@@ -4,28 +4,37 @@
 
 #pragma once
 
-class CView : public CScrollWindowImpl<CView>
+#define DECLARE_TTYWND_CLASS(WndClassName) \
+static ATL::CWndClassInfo& GetWndClassInfo() \
+{ \
+	static ATL::CWndClassInfo wc = \
+	{ \
+		{ sizeof(WNDCLASSEX), CS_HREDRAW | CS_VREDRAW /*| CS_DBLCLKS*/, StartWindowProc, \
+		  0, 0, NULL, NULL, NULL, (HBRUSH)(COLOR_WINDOW + 1), NULL, WndClassName, NULL }, \
+		NULL, NULL, IDC_IBEAM, TRUE, 0, _T("") \
+	}; \
+	return wc; \
+}
+
+#define MESSAGE_PUTTYMSG(func) \
+	{ \
+		bHandled = TRUE; \
+		lResult = func(m_hWnd, uMsg, wParam, lParam, bHandled); \
+		if(bHandled) \
+			return TRUE; \
+	}
+
+class CTTYView : public CWindowImpl<CTTYView>
 {
 public:
-	DECLARE_WND_CLASS(NULL)
+	DECLARE_TTYWND_CLASS(NULL)
 
 	BOOL PreTranslateMessage(MSG* pMsg)
 	{
-		pMsg;
 		return FALSE;
 	}
 
-	void DoPaint(CDCHandle dc)
-	{
-		//TODO: Add your drawing code here
-	}
-
-	BEGIN_MSG_MAP(CView)
-		CHAIN_MSG_MAP(CScrollWindowImpl<CView>)
+	BEGIN_MSG_MAP(CTTYView)
+		MESSAGE_PUTTYMSG(PuTTY_WndProc)
 	END_MSG_MAP()
-
-// Handler prototypes (uncomment arguments if needed):
-//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-//	LRESULT CommandHandler(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
-//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
 };

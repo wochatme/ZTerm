@@ -5,7 +5,7 @@
 #define IDC_BTN_BROWSER                 3
 #define IDC_BTN_FONT                    4
 #define IDCANCEL4                       5
-#define IDD_ABOUTBOX                    100
+#define IDD_ABOUTZTERM                  100
 #define IDR_MAINFRAME                   128
 
 #define IDR_ASKQUESTION                 160
