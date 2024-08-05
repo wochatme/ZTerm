@@ -32,7 +32,10 @@ extern CAppModule _Module;
 
 #include <atlwin.h>
 
-#include <atlwin.h>
+#include "scintilla/include/Sci_Position.h"
+#include "scintilla/include/scintilla.h"
+#include "curl/curl.h"
+#include "zlib.h"
 
 #include <uxtheme.h>
 #include <vssym32.h>
@@ -40,6 +43,9 @@ extern CAppModule _Module;
 #pragma comment(lib, "gdi32.lib")
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "Imm32.lib")
+#pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "crypt32.lib")
+#pragma comment(lib, "Bcrypt.lib")
 
 #if defined _M_IX86
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")

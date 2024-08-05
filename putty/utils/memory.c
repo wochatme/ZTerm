@@ -980,7 +980,7 @@ MemoryContextCreate(MemoryContext node,
  * Note: don't call this directly; go through the wrapper macro
  * AllocSetContextCreate.
  */
-MemoryContext
+static MemoryContext
 AllocSetContextCreateInternal(MemoryContext parent,
 	const char* name,
 	Size minContextSize,

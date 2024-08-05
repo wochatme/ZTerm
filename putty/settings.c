@@ -1112,7 +1112,7 @@ void load_open_settings(settings_r *sesskey, Conf *conf)
     gppb(sesskey, "SunkenEdge", false, conf, CONF_sunken_edge);
     gppi(sesskey, "WindowBorder", 1, conf, CONF_window_border);
     gppi(sesskey, "CurType", 0, conf, CONF_cursor_type);
-    gppb(sesskey, "BlinkCur", false, conf, CONF_blink_cur);
+    gppb(sesskey, "BlinkCur", true, conf, CONF_blink_cur);
     /* pedantic compiler tells me I can't use conf, CONF_beep as an int * :-) */
     gppi(sesskey, "Beep", 1, conf, CONF_beep);
     gppi(sesskey, "BeepInd", 0, conf, CONF_beep_ind);
@@ -1148,8 +1148,13 @@ void load_open_settings(settings_r *sesskey, Conf *conf)
     gppb(sesskey, "DisableBidi", false, conf, CONF_no_bidi);
     gppb(sesskey, "WinNameAlways", true, conf, CONF_win_name_always);
     gpps(sesskey, "WinTitle", "", conf, CONF_wintitle);
+#if 0
     gppi(sesskey, "TermWidth", 80, conf, CONF_width);
     gppi(sesskey, "TermHeight", 24, conf, CONF_height);
+#endif 
+    gppi(sesskey, "TermWidth", 148, conf, CONF_width);
+    gppi(sesskey, "TermHeight", 40, conf, CONF_height);
+
     gppfont(sesskey, "Font", conf, CONF_font);
     gppi(sesskey, "FontQuality", FQ_DEFAULT, conf, CONF_font_quality);
     gppi(sesskey, "FontVTMode", VT_UNICODE, conf, CONF_vtmode);

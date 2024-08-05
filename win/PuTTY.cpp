@@ -13,6 +13,9 @@ extern "C" {
 #include "security-api.h"
 #include "win-gui-seat.h"
 #include "tree234.h"
+
+/* please check this function in putty/terminal/copyscreen.h */
+wchar_t* putty_copy_screen(Terminal* term, const int* clipboards, int n_clipboards);
 ////////////////////////////////////////////////
 #ifdef __cplusplus
 }
@@ -2879,6 +2882,20 @@ LRESULT PuTTY_WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, BOO
     case WM_LBUTTONDOWN:
     case WM_MBUTTONDOWN:
     case WM_RBUTTONDOWN:
+        if (term && !terminal_has_focus)
+        {
+            SetFocus(hwnd);
+#if 0
+            terminal_has_focus = true;
+            term_set_focus(term, true);
+            CreateCaret(hwnd, caretbm, font_width, font_height);
+            ShowCaret(hwnd);
+            flash_window(0);               /* stop */
+            compose_state = 0;
+            term_update(term);
+#endif 
+            break;
+        }
     case WM_LBUTTONUP:
     case WM_MBUTTONUP:
     case WM_RBUTTONUP:
@@ -6639,6 +6656,29 @@ void PuTTY_CopyAll(void)
     {
         term_copyall(term, clips_system, lenof(clips_system));
     }
+}
+
+size_t PuTTY_ScreenCopy(wchar_t* caller_buff, size_t max_length, size_t* required_size)
+{
+    size_t wlen = 0;
+    wchar_t* screen_buf = putty_copy_screen(term, clips_system, lenof(clips_system));
+
+    if (screen_buf && caller_buff)
+    {
+        wlen = wcslen(screen_buf);
+        if (required_size)
+        {
+            *required_size = wlen;
+        }
+
+        if (wlen <= max_length)
+        {
+            wmemcpy_s(caller_buff, max_length, screen_buf, wlen);
+        }
+        else wlen = 0;
+        sfree(screen_buf);
+    }
+    return wlen;
 }
 
 void PuTTY_EnterSizing(void)

@@ -23,11 +23,46 @@
 
 #define IDM_ABOUT		0x1010
 
+#define XWIN_TTY	0x01
+#define XWIN_GPT	0x02
+#define XWIN_ASK	0x04
+#define XWIN_TB0	0x08  // the tab header of TTY window
+#define XWIN_TB1	0x10
+
+#define TIMER_SHOWAI	30
+#define TIMER_WAITAI	666
+#define TIMER_ASKGPT	999
+
+#define TOOLTIP_ASKGPT	1
+#define TOOLTIP_HIDEAI	2
+
 class CMainFrame : 
 	public CFrameWindowImpl<CMainFrame>, 
 	public CUpdateUI<CMainFrame>,
 	public CMessageFilter, public CIdleHandler
 {
+	U8	m_tabCount = 0;
+public:
+	U8 m_winStatus = 0;
+	int m_nWaitCount = 0;
+	int m_nAIPane = SPLIT_PANE_RIGHT;
+	int m_nPercentage = 100;
+	int m_nAskWindowHeight = ASK_WINDOW_HEIGHT;
+
+	RECT m_rectAskQuestion = { 0 };
+	RECT m_rectHideChatGPT = { 0 };
+	BOOL m_bSetCursor = FALSE;
+	CBitmap m_bmpAskQuestion;
+	CBitmap m_bmpHideChatGPT;
+	// we have 5 child windows within the main window
+	CGPTView m_viewGPT;
+	CAskView m_viewAsk;
+	CTTYView m_viewTTY;
+	CTabView m_viewTab;
+	CTabView m_viewTabGPT;
+
+	WTL::CToolTipCtrl m_tooltip;
+
 public:
 	enum { m_nPanesCount = 2, m_nPropMax = INT_MAX, m_cxyStep = 10 };
 
@@ -38,7 +73,9 @@ public:
 	HWND m_hWndFocusSave;
 	int m_nDefActivePane;
 	int m_cxySplitBar;              // splitter bar width/height
-	HCURSOR m_hCursor;
+	HCURSOR m_hCursorWE;
+	HCURSOR m_hCursorNS;
+	HCURSOR m_hCursorHand;
 	int m_cxyMin;                   // minimum pane size
 	int m_cxyBarEdge;              	// splitter bar edge
 	bool m_bFullDrag;
@@ -53,7 +90,7 @@ public:
 	// Constructor
 	CMainFrame() :
 		m_xySplitterPos(-1), m_xySplitterPosNew(-1), m_hWndFocusSave(NULL),
-		m_nDefActivePane(SPLIT_PANE_NONE), m_cxySplitBar(4), m_hCursor(NULL), m_cxyMin(0), m_cxyBarEdge(0),
+		m_nDefActivePane(SPLIT_PANE_NONE), m_cxySplitBar(4), m_hCursorWE(NULL), m_cxyMin(0), m_cxyBarEdge(0),
 		m_bFullDrag(true), m_cxyDragOffset(0), m_nProportionalPos(0), m_bUpdateProportionalPos(true),
 		m_dwExtendedStyle(SPLIT_PROPORTIONAL), m_nSinglePane(SPLIT_PANE_NONE),
 		m_xySplitterDefPos(-1), m_bProportionalDefPos(false)
@@ -62,13 +99,13 @@ public:
 		m_hWndPane[SPLIT_PANE_RIGHT] = NULL;
 
 		::SetRectEmpty(&m_rcSplitter);
+
+		m_bmpAskQuestion.LoadBitmap(IDR_ASKQUESTION);
+		m_bmpHideChatGPT.LoadBitmap(IDR_HIDECHATGPT);
 	}
 
 public:
 	DECLARE_FRAME_WND_CLASS(NULL, IDR_MAINFRAME)
-
-	CTTYView m_viewTTY;
-	CTabView m_viewTab;
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg)
 	{
@@ -90,6 +127,8 @@ public:
 		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
 		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
+		MESSAGE_HANDLER(WM_TIMER, OnTimer)
+		MESSAGE_RANGE_HANDLER(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
 		if (IsInteractive())
 		{
 			MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
@@ -100,22 +139,109 @@ public:
 			MESSAGE_HANDLER(WM_CAPTURECHANGED, OnCaptureChanged)
 			MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
 		}
+#ifndef NDEBUG
+		MESSAGE_HANDLER(WM_PUTTY_NOTIFY, OnPuTTYNotify)
+#endif 
+		MESSAGE_HANDLER(WM_PUTTY_KEYMSG, OnPuTTYKeyMessage)
+		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
+		MESSAGE_HANDLER(WM_GETMINMAXINFO, OnGetMinMaxInfo)
 		MESSAGE_HANDLER(WM_MOUSEACTIVATE, OnMouseActivate)
 		MESSAGE_HANDLER(WM_SETTINGCHANGE, OnSettingChange)
 		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_ENTERSIZEMOVE, OnEnterSizeMove)
 		MESSAGE_HANDLER(WM_EXITSIZEMOVE, OnExitSizeMove)
+		MESSAGE_HANDLER(WM_SYSCOMMAND, OnSysCommand)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+		COMMAND_ID_HANDLER(ID_VIEW_ASKGPT, OnAskGPT)
 		CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
+
+#ifndef NDEBUG
+	LRESULT OnPuTTYNotify(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		wchar_t title[128] = { 0 };
+		swprintf((wchar_t*)title, 128, L"ZTerm - R:%d | C:%d", (int)wParam, (int)lParam);
+		SetWindowTextW(title);
+
+		return 0;
+	}
+#endif 
+	LRESULT OnPuTTYKeyMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (lParam == 0)
+		{
+			int count = 0;
+			switch (wParam)
+			{
+			case VK_TAB:
+				count = m_viewTab.GetItemCount();
+				if (count > 1)
+				{
+					int idx = 0;
+					int sel = m_viewTab.GetCurSel();
+
+					idx = (sel < count - 1) ? (sel + 1) : 0;
+					XCustomTabItem* pItem = m_viewTab.GetItem(idx);
+					if (pItem)
+					{
+						void* handle = pItem->GetPrivateData();
+						BOOL bRet = PuTTY_SwitchSession(handle);
+						if (bRet)
+						{
+							m_viewTab.SetCurSel(idx, false);
+						}
+					}
+				}
+				break;
+			case VK_INSERT:
+				DoNewSession();
+				break;
+			case VK_DELETE:
+				DoRemoveSession();
+				break;
+			case VK_HOME:
+				DoAIAssistant();
+				break;
+			default:
+				break;
+			}
+		}
+		return 0;
+	}
+
+	LRESULT OnAskGPT(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		//MessageBox(L"Home", L"X", MB_OK);
+		return 0;
+	}
+
+	LRESULT OnMouseMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (m_tooltip.IsWindow())
+		{
+			MSG msg = { m_hWnd, uMsg, wParam, lParam };
+			m_tooltip.RelayEvent(&msg);
+		}
+		bHandled = FALSE;
+		return 1;
+	}
 
 	LRESULT OnEnterSizeMove(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		PuTTY_EnterSizing();
 		bHandled = FALSE;
+		return 0;
+	}
+	
+	LRESULT OnGetMinMaxInfo(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
+	{
+		// to keep the minimal size of the main window
+		LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+		lpMMI->ptMinTrackSize.x = 800;
+		lpMMI->ptMinTrackSize.y = 300;
 		return 0;
 	}
 	LRESULT OnExitSizeMove(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -132,23 +258,74 @@ public:
 
 		Init();
 
+		ATLASSERT(!m_tooltip.IsWindow());
+#if 0
+		if (!m_tooltip.IsWindow())
+#endif 
+		{
+			// Be sure InitCommonControlsEx is called before this,
+			//  with one of the flags that includes the tooltip control
+			m_tooltip.Create(m_hWnd, NULL, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP /* | TTS_BALLOON */, WS_EX_TOOLWINDOW);
+			if (m_tooltip.IsWindow())
+			{
+				m_tooltip.SetWindowPos(HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+				m_tooltip.SetDelayTime(TTDT_INITIAL, ::GetDoubleClickTime());
+				m_tooltip.SetDelayTime(TTDT_AUTOPOP, ::GetDoubleClickTime() * 20);
+				m_tooltip.SetDelayTime(TTDT_RESHOW, ::GetDoubleClickTime() / 5);
+
+				m_tooltip.AddTool(m_hWnd, L"Quick Ask", &rcDefault, TOOLTIP_ASKGPT);
+				m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant\tCtrl+Home", &rcDefault, TOOLTIP_HIDEAI);
+			}
+		}
+
+		m_viewAsk.Create(m_hWnd, rcDefault, NULL, dwStyle);
+		m_viewTabGPT.Create(m_hWnd, rcDefault, NULL, dwStyle);
+		m_viewGPT.Create(m_hWnd, rcDefault, NULL, dwStyle);
+
+		m_viewAsk.ShowWindow(SW_HIDE);
+		m_viewTabGPT.ShowWindow(SW_HIDE);
+		m_viewGPT.ShowWindow(SW_HIDE);
+
 		dwStyle |= WS_VISIBLE;
+		m_viewTab.Create(m_hWnd, rcDefault, NULL, dwStyle);
 		dwStyle |= WS_VSCROLL;
 		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle);
 
-		SetSplitterPanes(m_viewTTY, NULL, false);
+		if (m_viewTab.IsWindow())
+		{
+			m_viewTab.ModifyStyle(0, CTCS_TOOLTIPS | CTCS_CLOSEBUTTON | CTCS_SCROLL /* |CTCS_DRAGREARRANGE */);
+			m_viewTab.InsertItem(0, L"CMD.EXE - 0", -1, L"command line", true);
+			m_tabCount = 1;
+		}
+		if (m_viewTabGPT.IsWindow())
+		{
+			m_viewTabGPT.ModifyStyle(0, CTCS_TOOLTIPS | CTCS_CLOSEBUTTON);
+			m_viewTabGPT.InsertItem(0, L"AI Chat", -1, L"Ask AI for help", true);
+		}
+
+		m_winStatus = XWIN_TTY | XWIN_TB0;
+		SetSplitterPanes(m_viewTTY, m_viewGPT, false);
 		m_nSinglePane = SPLIT_PANE_LEFT;
 		SetActivePane(SPLIT_PANE_LEFT);
 
 		m = GetSystemMenu(FALSE);
 		AppendMenu(m, MF_SEPARATOR, 0, 0);
-		AppendMenu(m, MF_ENABLED, IDM_ABOUT, L"About ZTerm");
+		AppendMenu(m, MF_ENABLED, ZT_IDM_NEWWINDOW, L"New Window");
+		AppendMenu(m, MF_ENABLED, ZT_IDM_NEWSESS, L"Ne&w Session\tCtrl+Insert");
+		AppendMenu(m, MF_ENABLED, ZT_IDM_RECONF, L"TTY Settings...");
+		AppendMenu(m, MF_ENABLED, ZT_IDM_COPYALL, L"C&opy All to Clipboard");
+		AppendMenu(m, MF_SEPARATOR, 0, 0);
+		AppendMenu(m, MF_ENABLED, ZT_IDM_ABOUT, L"About ZTerm");
+		AppendMenu(m, MF_SEPARATOR, 0, 0);
+		AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Show AI Assistant\tCtrl+Home");
 
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
 		ATLASSERT(pLoop != NULL);
 		pLoop->AddMessageFilter(this);
 		pLoop->AddIdleHandler(this);
+
+		SetTimer(TIMER_ASKGPT, TIMER_ASKGPT);
 
 		return 0;
 	}
@@ -161,8 +338,431 @@ public:
 		pLoop->RemoveMessageFilter(this);
 		pLoop->RemoveIdleHandler(this);
 
+		KillTimer(TIMER_ASKGPT);
+
+		if (m_tooltip.IsWindow())
+		{
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_ASKGPT);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_HIDEAI);
+			// Also sets the contained m_hWnd to NULL
+			m_tooltip.DestroyWindow();
+		}
+
+		/* in case PuTTY hide the cursor based on configuration */
+		ShowCursor(TRUE);
+
 		bHandled = FALSE;
 		return 1;
+	}
+
+	LRESULT OnTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (wParam == TIMER_ASKGPT)
+		{
+			BOOL found = FALSE;
+			MessageTask* p;
+
+			EnterCriticalSection(&g_csReceMsg);
+			//////////////////////////////////////////
+			p = g_receQueue;
+			while (p)
+			{
+				if (p->msg_state == 0) /* this message is new message */
+				{
+					if (p->msg_body && p->msg_length)
+					{
+						m_viewGPT.AppendText((const char*)p->msg_body, p->msg_length);
+						found = TRUE;
+					}
+					p->msg_state = 1;
+					break;
+				}
+				p = p->next;
+			}
+			//////////////////////////////////////////
+			LeaveCriticalSection(&g_csReceMsg);
+
+			if (found)
+			{
+				KillTimer(TIMER_WAITAI);
+				m_nWaitCount = 0;
+			}
+			zx_PushIntoSendQueue(NULL); // clean up the last processed message task
+			Invalidate();
+		}
+		else if (wParam == TIMER_SHOWAI)
+		{
+			if (m_nPercentage >= 75)
+			{
+				if (m_nPercentage >= 95)
+					m_nPercentage--;
+				else if (m_nPercentage >= 90)
+					m_nPercentage -= 2;
+				else
+					m_nPercentage -= 5;
+
+				if (m_nPercentage >= 75)
+					SetSplitterPosPct(m_nPercentage, false);
+				else
+					SetSplitterPosPct(75, false);
+
+				SetSinglePaneMode(SPLIT_PANE_NONE);
+				CalculateButtonPosition();
+				Invalidate();
+			}
+			else
+			{
+				KillTimer(TIMER_SHOWAI);
+			}
+		}
+		else if (wParam == TIMER_WAITAI)
+		{
+			char txt[32] = { 0 };
+			char* p = txt;
+
+			if (m_nWaitCount == 0)
+			{
+				*p++ = '\n';
+				*p++ = 0xF0;
+				*p++ = 0x9F;
+				*p++ = 0x99;
+				*p++ = 0x82;
+				*p++ = '\n';
+				*p++ = 'T';
+				*p++ = 'h';
+				*p++ = 'i';
+				*p++ = 'n';
+				*p++ = 'k';
+				*p++ = 'i';
+				*p++ = 'n';
+				*p++ = 'g';
+				*p++ = ' ';
+				*p++ = '.';
+				m_viewGPT.AppendText((const char*)txt, 16);
+			}
+			else
+			{
+				txt[0] = '.'; txt[1] = '\0';
+				m_viewGPT.AppendText((const char*)txt, 1);
+			}
+			m_nWaitCount++;
+
+			if (m_nWaitCount > 100)
+			{
+				KillTimer(TIMER_WAITAI);
+				m_nWaitCount = 0;
+			}
+		}
+		return 0;
+	}
+
+	LRESULT OnSysCommand(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		switch (wParam & ~0xF) /* low 4 bits reserved to Windows */
+		{
+		case ZT_IDM_NEWSESS:
+			DoNewSession();
+			break;
+		case ZT_IDM_ASKGPT:
+			DoAIAssistant();
+			break;
+		case ZT_IDM_COPYALL:
+			PuTTY_CopyAll();
+			break;
+		case ZT_IDM_NEWWINDOW:
+		{
+			WCHAR exeFile[MAX_PATH + 1] = { 0 };
+			DWORD len = GetModuleFileNameW(HINST_THISCOMPONENT, exeFile, MAX_PATH);
+			if (len)
+			{
+				STARTUPINFOW si = { 0 };
+				PROCESS_INFORMATION pi = { 0 };
+				si.cb = sizeof(STARTUPINFOW);
+				CreateProcessW(NULL, exeFile, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+			}
+		}
+			break;
+
+#if 0
+		case IDM_RECONF:
+			PuTTY_DoConfiguration(m_hWnd);
+			break;
+		case IDM_AICONF:
+			//PuTTY_SwitchSession();
+#if 0
+			{
+
+				CSettingDlg dlg;
+				dlg.DoModal();
+			}
+#endif 
+			break;
+		case IDM_NEWSESS:
+			if (PuTTY_NewSession())
+			{
+				int idx = m_viewTab.GetItemCount();
+				m_viewTab.InsertItem(idx, L"cmd.exe", -1, L"command line", true);
+			}
+			break;
+		case IDM_NEWWINDOW:
+		{
+			WCHAR exeFile[MAX_PATH + 1] = { 0 };
+			DWORD len = GetModuleFileNameW(HINST_THISCOMPONENT, exeFile, MAX_PATH);
+			if (len)
+			{
+				STARTUPINFOW si = { 0 };
+				PROCESS_INFORMATION pi = { 0 };
+				si.cb = sizeof(STARTUPINFOW);
+				CreateProcessW(NULL, exeFile, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi);
+			}
+		}
+		break;
+		case IDM_ABOUT:
+		{
+			CAboutDlg dlg;
+			dlg.DoModal();
+		}
+		break;
+#endif 
+		default:
+			bHandled = FALSE;
+			break;
+		}
+		return 0;
+	}
+
+	void DoAskNotification(U32 code)
+	{
+		if ((m_winStatus & XWIN_ASK) && code == SCN_CHARADDED)
+		{
+			/* does the user hold Ctrl key? */
+			bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0;
+
+			char ch = m_viewAsk.GetLastChar();
+			if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
+			{
+				bool share_screen = false;
+				U8 offset = 0;
+				U32 length = 0;
+				U8* p = m_viewAsk.GetInputData(length, offset, share_screen);
+				m_viewAsk.SetText("");
+				if (p)
+				{
+					U8* screen_data;
+					U32 mt_len, screen_len;
+					MessageTask* mt = nullptr;
+					m_viewGPT.AppendText((const char*)p, length);
+
+					ATLASSERT(length > offset);
+					U8* q = p + offset;
+					length -= offset;
+
+					// the TTY window is not visible, so we cannot get the screen data
+					if ((XWIN_TTY & m_winStatus) == 0)
+						share_screen = false;
+
+					screen_len = 0;
+					screen_data = nullptr;
+					if (share_screen)
+					{
+						screen_data = m_viewTTY.GetScreenData(screen_len);
+					}
+					if (screen_len)
+						screen_len += 8;
+
+					mt_len = sizeof(MessageTask) + length + screen_len + 1;
+
+					mt = (MessageTask*)wt_palloc(g_sendMemPool, mt_len);
+					if (mt)
+					{
+						U8* s = (U8*)mt;
+						mt->next = NULL;
+						mt->msg_state = 0;
+						mt->msg_length = length + screen_len;
+						mt->msg_body = s + sizeof(MessageTask);
+						s = mt->msg_body;
+						memcpy_s(s, length, q, length);
+						if (screen_len)
+						{
+							ATLASSERT(screen_len > 8);
+							s += length;
+							*s++ = '"'; *s++ = '"'; *s++ = '"'; *s++ = '\n';
+							memcpy_s(s, screen_len - 8, screen_data, screen_len - 8);
+							s += screen_len - 8;
+							*s++ = '\n'; *s++ = '"'; *s++ = '"'; *s++ = '"';
+							*s = '\0';
+						}
+						zx_PushIntoSendQueue(mt);
+						m_nWaitCount = 0;
+						SetTimer(TIMER_WAITAI, TIMER_WAITAI);
+					}
+				}
+			}
+		}
+	}
+
+	LRESULT OnNotify(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		NMHDR* pNMHDR = (NMHDR*)lParam;
+		if (pNMHDR)
+		{
+			if (pNMHDR->hwndFrom == m_viewAsk)
+			{
+				DoAskNotification(pNMHDR->code);
+			}
+			else if (pNMHDR->hwndFrom == m_viewTab)
+			{
+				NMCTCITEM* pNMCTCITEM = (NMCTCITEM*)lParam;
+
+				int idx = pNMCTCITEM->iItem;
+				int count = m_viewTab.GetItemCount();
+
+				m_viewTTY.SetFocus();
+				terminal_has_focus = true;
+
+				switch (pNMHDR->code)
+				{
+				case NM_CLICK:
+					if (idx >= 0 && idx < count)
+					{
+						XCustomTabItem* pItem = m_viewTab.GetItem(idx);
+						if (pItem)
+						{
+							void* handle = pItem->GetPrivateData();
+							BOOL bRet = PuTTY_SwitchSession(handle);
+							return 0;
+						}
+					}
+					break;
+				case CTCN_CLOSE:
+					if (idx >= 0 && idx < count && count > 1)
+					{
+						int choice = MessageBox(L"Are you sure to close this session?", L"Close Session", MB_YESNO);
+						if (choice == IDYES)
+						{
+							XCustomTabItem* pItem = m_viewTab.GetItem(idx);
+							if (pItem)
+							{
+								void* handle = pItem->GetPrivateData();
+								int nRet = PuTTY_RemoveSession(handle);
+								if (nRet == SELECT_RIGHTSIDE || nRet == SELECT_LEFTSIDE)
+								{
+									m_viewTab.DeleteItem(idx, true, false);
+								}
+							}
+						}
+					}
+					break;
+				default:
+					bHandled = FALSE;
+				}
+			}
+		}
+		return 0;
+	}
+
+	void AttachTerminalHandle(void* term)
+	{
+		int idx = m_viewTab.GetCurSel();
+		XCustomTabItem* pIterm = m_viewTab.GetItem(idx);
+		if (pIterm)
+		{
+			pIterm->SetPrivateData(term);
+		}
+	}
+
+	void DoNewSession()
+	{
+		void* term = PuTTY_NewSession();
+		if (term)
+		{
+			wchar_t title[128] = { 0 };
+			int idx = m_viewTab.GetItemCount();
+			if(idx < 10)
+				swprintf((wchar_t*)title, 128, L"CMD.EXE - %d", m_tabCount++);
+			else
+				swprintf((wchar_t*)title, 128, L"CMD.EXE -%d", m_tabCount++);
+
+			m_viewTab.InsertItem(idx, title, -1, L"command line", true);
+
+			XCustomTabItem* pIterm = m_viewTab.GetItem(idx);
+			if (pIterm)
+			{
+				pIterm->SetPrivateData(term);
+			}
+			m_viewTTY.SetFocus();
+			terminal_has_focus = true;
+		}
+		else
+		{
+			MessageBox(L"You can open 60 tabs at maximum", L"Maximum Tabs Are Reached", MB_OK);
+		}
+	}
+
+	void DoRemoveSession()
+	{
+		int count = m_viewTab.GetItemCount();
+		if (count > 1)
+		{
+			int choice = MessageBox(L"Are you sure to close this session?", L"Close Session", MB_YESNO);
+			if (choice == IDYES)
+			{
+				int idx = m_viewTab.GetCurSel();
+				XCustomTabItem* pItem = m_viewTab.GetItem(idx);
+				if (pItem)
+				{
+					void* handle = pItem->GetPrivateData();
+					int nRet = PuTTY_RemoveSession(handle);
+					if (nRet == SELECT_RIGHTSIDE || nRet == SELECT_LEFTSIDE)
+					{
+						m_viewTab.DeleteItem(idx, true, false);
+					}
+				}
+			}
+		}
+		m_viewTTY.SetFocus();
+		terminal_has_focus = true;
+	}
+
+	void DoAIAssistant()
+	{
+		static BOOL bFirst = TRUE;
+		HMENU m = GetSystemMenu(FALSE);
+
+		DeleteMenu(m, ZT_IDM_ASKGPT, MF_BYCOMMAND);
+		if (bFirst)
+		{
+			AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Hide AI Assistant\tCtrl+Home");
+			bFirst = FALSE;
+			m_nPercentage = 100;
+			SetTimer(TIMER_SHOWAI, TIMER_SHOWAI);
+			m_tooltip.Activate(TRUE);
+			InterlockedExchange(&g_threadPing, 1);
+		}
+		else
+		{
+			if (m_nSinglePane != SPLIT_PANE_NONE)
+			{
+				m_tooltip.Activate(TRUE);
+				InterlockedExchange(&g_threadPing, 1);
+				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Hide AI Assistant");
+				SetSinglePaneMode(SPLIT_PANE_NONE);
+				m_winStatus = XWIN_TTY | XWIN_TB0 | XWIN_GPT | XWIN_TB1 | XWIN_ASK;
+				CalculateButtonPosition();
+				Invalidate();
+			}
+			else
+			{
+				m_tooltip.Activate(FALSE);
+				// when AI window is hidden, we disable PING test
+				InterlockedExchange(&g_threadPing, 0);
+				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Show AI Assistant");
+				SetActivePane(SPLIT_PANE_LEFT);
+				SetSinglePaneMode(SPLIT_PANE_LEFT);
+				m_winStatus = XWIN_TTY | XWIN_TB0;
+				::SetWindowPos(m_viewTTY, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+			}
+		}
 	}
 
 	// Attributes
@@ -170,7 +770,6 @@ public:
 	{
 		if (lpRect == NULL)
 		{
-			
 			GetClientRect(&m_rcSplitter);
 		}
 		else
@@ -187,6 +786,38 @@ public:
 			UpdateSplitterLayout();
 	}
 
+	void CalculateButtonPosition()
+	{
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			int gap = 4;
+			int bottom;
+			RECT* r = &m_rectHideChatGPT;
+
+			r->right = m_rcSplitter.right;
+			r->left = r->right - 24; // 24 is the size of the bitmap
+
+			bottom = m_rcSplitter.bottom - (m_nAskWindowHeight + gap);
+			r->bottom = bottom;
+			r->top = r->bottom - 24;
+
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_HIDEAI, r);
+
+			r = &m_rectAskQuestion;
+			r->bottom = bottom;
+			r->top = r->bottom - 24;
+			r->left = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge + gap;
+			r->right = r->left + 24;
+
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_ASKGPT, r);
+		}
+		else
+		{
+			m_rectHideChatGPT.left = m_rectHideChatGPT.top = m_rectHideChatGPT.right = m_rectHideChatGPT.bottom = 0;
+			m_rectAskQuestion.left = m_rectAskQuestion.top = m_rectAskQuestion.right = m_rectAskQuestion.bottom = 0;
+		}
+	}
+
 	void GetSplitterRect(LPRECT lpRect) const
 	{
 		ATLASSERT(lpRect != NULL);
@@ -200,7 +831,6 @@ public:
 			if (m_bProportionalDefPos)
 			{
 				ATLASSERT((m_xySplitterDefPos >= 0) && (m_xySplitterDefPos <= m_nPropMax));
-
 				xyPos = ::MulDiv(m_xySplitterDefPos, m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge, m_nPropMax);
 			}
 			else if (m_xySplitterDefPos != -1)
@@ -273,17 +903,49 @@ public:
 
 		if (nPane != SPLIT_PANE_NONE)
 		{
+			int nOtherPane = (nPane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
+#if 0
 			if (::IsWindowVisible(m_hWndPane[nPane]) == FALSE)
 				::ShowWindow(m_hWndPane[nPane], SW_SHOW);
-			int nOtherPane = (nPane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
 			::ShowWindow(m_hWndPane[nOtherPane], SW_HIDE);
 			if (m_nDefActivePane != nPane)
 				m_nDefActivePane = nPane;
+#endif 
+			if ((m_winStatus & XWIN_TTY) == 0)
+			{
+				ATLASSERT(0); // it is impossible
+				if (::IsWindowVisible(m_hWndPane[nPane]) == FALSE)
+				{
+					::ShowWindow(m_hWndPane[nPane], SW_SHOW);
+				}
+			}
+
+			if (m_winStatus & XWIN_GPT)
+				::ShowWindow(m_hWndPane[nOtherPane], SW_HIDE);
+			if (m_nDefActivePane != nPane)
+				m_nDefActivePane = nPane;
+
+			if (m_winStatus & XWIN_TB1)
+				m_viewTabGPT.ShowWindow(SW_HIDE);
+			if (m_winStatus & XWIN_ASK)
+				m_viewAsk.ShowWindow(SW_HIDE);
+			m_winStatus = XWIN_TTY | XWIN_TB0;
+
 		}
 		else if (m_nSinglePane != SPLIT_PANE_NONE)
 		{
 			int nOtherPane = (m_nSinglePane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
+#if 0
 			::ShowWindow(m_hWndPane[nOtherPane], SW_SHOW);
+#endif 
+			if ((m_winStatus & XWIN_GPT) == 0)
+				::ShowWindow(m_hWndPane[nOtherPane], SW_SHOW);
+
+			if ((m_winStatus & XWIN_TB1) == 0)
+				m_viewTabGPT.ShowWindow(SW_SHOW);
+			if ((m_winStatus & XWIN_ASK) == 0)
+				m_viewAsk.ShowWindow(SW_SHOW);
+			m_winStatus = XWIN_TTY | XWIN_TB0 | XWIN_GPT | XWIN_TB1 | XWIN_ASK;
 		}
 
 		m_nSinglePane = nPane;
@@ -452,10 +1114,18 @@ public:
 
 	void DrawSplitter(CDCHandle dc)
 	{
+		RECT rc = {};
+		HBRUSH hBrush;
+
 		ATLASSERT(dc.m_hDC != NULL);
 		if ((m_nSinglePane == SPLIT_PANE_NONE) && (m_xySplitterPos == -1))
 			return;
-		
+
+		GetClientRect(&rc);
+		hBrush = CreateSolidBrush(RGB(240, 240, 240));
+		FillRect(dc, &rc, hBrush);
+		DeleteObject(hBrush);
+
 		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
 			DrawSplitterBar(dc);
@@ -485,7 +1155,7 @@ public:
 		m_xySplitterPosNew = m_xySplitterPos;
 		SetCapture();
 		m_hWndFocusSave = SetFocus();
-		::SetCursor(m_hCursor);
+		::SetCursor(m_hCursorWE);
 		if (!m_bFullDrag)
 			DrawGhostBar();
 		m_cxyDragOffset = x - m_rcSplitter.left - m_xySplitterPos;
@@ -546,16 +1216,17 @@ public:
 	LRESULT OnSize(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
 	{
 		if (wParam != SIZE_MINIMIZED)
-			this->SetSplitterRect();
-
-		bHandled = FALSE;
+		{
+			SetSplitterRect();
+			CalculateButtonPosition();
+			Invalidate();
+		}
+		//bHandled = FALSE;
 		return 1;
 	}
 
 	LRESULT OnPaint(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
-		
-
 		// try setting position if not set
 		if ((m_nSinglePane == SPLIT_PANE_NONE) && (m_xySplitterPos == -1))
 			SetSplitterPos();
@@ -569,6 +1240,19 @@ public:
 		{
 			CPaintDC dc(m_hWnd);
 			DrawSplitter(dc.m_hDC);
+
+			if (m_nSinglePane == SPLIT_PANE_NONE)
+			{
+				CDC dct;
+				dct.CreateCompatibleDC(dc.m_hDC);
+				HBITMAP h_old = dct.SelectBitmap(m_bmpAskQuestion);
+				dc.BitBlt(m_rectAskQuestion.left, m_rectAskQuestion.top, 24, 24, dct, 0, 0, SRCCOPY);
+				dct.SelectBitmap(h_old);
+				h_old = dct.SelectBitmap(m_bmpHideChatGPT);
+				dc.BitBlt(m_rectHideChatGPT.left, m_rectHideChatGPT.top, 24, 24, dct, 0, 0, SRCCOPY);
+				dct.SelectBitmap(h_old);
+			}
+
 		}
 
 		return 0;
@@ -576,14 +1260,20 @@ public:
 
 	LRESULT OnSetCursor(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		
 		if (((HWND)wParam == m_hWnd) && (LOWORD(lParam) == HTCLIENT))
 		{
+#if 0
 			DWORD dwPos = ::GetMessagePos();
 			POINT ptPos = { GET_X_LPARAM(dwPos), GET_Y_LPARAM(dwPos) };
 			ScreenToClient(&ptPos);
 			if (IsOverSplitterBar(ptPos.x, ptPos.y))
 				return 1;
+#endif 
+			if (m_bSetCursor)
+			{
+				m_bSetCursor = FALSE;
+				return 1;
+			}
 		}
 
 		bHandled = FALSE;
@@ -592,7 +1282,6 @@ public:
 
 	LRESULT OnMouseMove(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
 	{
-		
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
 		if (::GetCapture() == m_hWnd)
@@ -620,7 +1309,26 @@ public:
 		else		// not dragging, just set cursor
 		{
 			if (IsOverSplitterBar(xPos, yPos))
-				::SetCursor(m_hCursor);
+			{
+				m_bSetCursor = TRUE;
+				::SetCursor(m_hCursorWE);
+			}
+			else
+			{
+				POINT pt;
+				pt.x = xPos;
+				pt.y = yPos;
+				if (::PtInRect(&m_rectAskQuestion, pt))
+				{
+					m_bSetCursor = TRUE;
+					::SetCursor(m_hCursorHand);
+				}
+				else if (::PtInRect(&m_rectHideChatGPT, pt))
+				{
+					m_bSetCursor = TRUE;
+					::SetCursor(m_hCursorHand);
+				}
+			}
 			bHandled = FALSE;
 		}
 
@@ -637,7 +1345,7 @@ public:
 			m_xySplitterPosNew = m_xySplitterPos;
 			SetCapture();
 			m_hWndFocusSave = SetFocus();
-			::SetCursor(m_hCursor);
+			::SetCursor(m_hCursorWE);
 			if (!m_bFullDrag)
 				DrawGhostBar();
 
@@ -652,13 +1360,96 @@ public:
 		return 1;
 	}
 
-	LRESULT OnLButtonUp(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
+	void DoAskQuestion()
 	{
-		
+		U8* screen_data;
+		U32 screen_len;
+		U8 ask[32] = { 0 };
+		U8* q = ask;
+		q[0] = '\n'; q[1] = 0xF0; q[2] = 0x9F; q[3] = 0xA4; q[4] = 0x9A; q[5] = '\n';
+		q[6] = 'H';
+		q[7] = 'o';
+		q[8] = 'w';
+		q[9] = ' ';
+		q[10] = 't';
+		q[11] = 'o';
+		q[12] = ' ';
+		q[13] = 'f';
+		q[14] = 'i';
+		q[15] = 'x';
+		q[16] = ' ';
+		q[17] = 'i';
+		q[18] = 't';
+		q[19] = '?';
+		q[20] = '\n';
+		q[21] = '\0';
+		m_viewGPT.AppendText((const char*)q, 21);
+
+		screen_len = 0;
+		screen_data = m_viewTTY.GetScreenData(screen_len);
+		if (screen_data && screen_len)
+		{
+			MessageTask* mt = nullptr;
+			U32 quesion_length = 15;
+			q = ask + 6;
+			screen_len += 8;
+			U32 mt_len = sizeof(MessageTask) + quesion_length + screen_len + 1;
+			mt = (MessageTask*)wt_palloc(g_sendMemPool, mt_len);
+			if (mt)
+			{
+				U8* s = (U8*)mt;
+				mt->next = NULL;
+				mt->msg_state = 0;
+				mt->msg_length = quesion_length + screen_len;
+				mt->msg_body = s + sizeof(MessageTask);
+				s = mt->msg_body;
+				memcpy_s(s, quesion_length, q, quesion_length);
+				s += quesion_length;
+				*s++ = '"'; *s++ = '"'; *s++ = '"'; *s++ = '\n';
+				memcpy_s(s, screen_len - 8, screen_data, screen_len - 8);
+				s += screen_len - 8;
+				*s++ = '\n'; *s++ = '"'; *s++ = '"'; *s++ = '"';
+				*s = '\0';
+				zx_PushIntoSendQueue(mt);
+
+				m_nWaitCount = 0;
+				SetTimer(TIMER_WAITAI, TIMER_WAITAI);
+			}
+		}
+	}
+
+	void DoHideChatGPT()
+	{
+		DoAIAssistant();
+	}
+
+	LRESULT OnLButtonUp(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
+	{
 		if (::GetCapture() == m_hWnd)
 		{
 			m_xySplitterPosNew = m_xySplitterPos;
 			::ReleaseCapture();
+		}
+
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			POINT pt;
+			pt.x = GET_X_LPARAM(lParam);
+			pt.y = GET_Y_LPARAM(lParam);
+
+			if (::PtInRect(&m_rectAskQuestion, pt))
+			{
+				m_bSetCursor = TRUE;
+				::SetCursor(m_hCursorHand);
+				DoAskQuestion();
+			}
+
+			if (::PtInRect(&m_rectHideChatGPT, pt))
+			{
+				m_bSetCursor = TRUE;
+				::SetCursor(m_hCursorHand);
+				DoHideChatGPT();
+			}
 		}
 
 		bHandled = FALSE;
@@ -813,21 +1604,24 @@ public:
 	// Implementation - internal helpers
 	void Init()
 	{
-		m_hCursor = ::LoadCursor(NULL, IDC_SIZEWE);
+		m_hCursorWE = ::LoadCursor(NULL, IDC_SIZEWE);
+		m_hCursorNS = ::LoadCursor(NULL, IDC_SIZENS);
+		m_hCursorHand = ::LoadCursor(NULL, IDC_HAND);
 
-		
 		GetSystemSettings(false);
 	}
 
 	void UpdateSplitterLayout()
 	{
+		RECT rect = {};
 		if ((m_nSinglePane == SPLIT_PANE_NONE) && (m_xySplitterPos == -1))
 			return;
-
 		
-		RECT rect = {};
 		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
+			HWND hWnd;
+			int top;
+
 			if (GetSplitterBarRect(&rect))
 				InvalidateRect(&rect);
 
@@ -835,8 +1629,40 @@ public:
 			{
 				if (GetSplitterPaneRect(nPane, &rect))
 				{
+					if (nPane != m_nAIPane)
+					{
+						m_winStatus |= (XWIN_TB0 | XWIN_TTY);
+						hWnd = m_viewTab;
+					}
+					else
+					{
+						hWnd = m_viewTabGPT;
+						top = rect.bottom - m_nAskWindowHeight;
+						::SetWindowPos(m_viewAsk, NULL,
+							rect.left,
+							top,
+							rect.right - rect.left,
+							m_nAskWindowHeight,
+							SWP_NOZORDER);
+						m_winStatus |= (XWIN_TB1 | XWIN_ASK | XWIN_GPT);
+					}
+
+					::SetWindowPos(hWnd, NULL,
+						rect.left,
+						rect.top,
+						rect.right - rect.left,
+						TTYTAB_WINDOW_HEIGHT,
+						SWP_NOZORDER);
+
 					if (m_hWndPane[nPane] != NULL)
+					{
+						rect.top += TTYTAB_WINDOW_HEIGHT;
+						if (nPane == m_nAIPane)
+						{
+							rect.bottom -= (m_nAskWindowHeight + GAP_BETWEEN_ASK_GPT);
+						}
 						::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+					}
 					else
 						InvalidateRect(&rect);
 				}
@@ -846,8 +1672,22 @@ public:
 		{
 			if (GetSplitterPaneRect(m_nSinglePane, &rect))
 			{
+				ATLASSERT(m_nSinglePane != m_nAIPane); // TTY window is always showing
+
+				::SetWindowPos(m_viewTab, HWND_TOP,
+					rect.left,
+					rect.top,
+					rect.right - rect.left,
+					TTYTAB_WINDOW_HEIGHT,
+					SWP_NOCOPYBITS);
+
+				m_winStatus |= XWIN_TB0;
+
 				if (m_hWndPane[m_nSinglePane] != NULL)
+				{
+					rect.top += TTYTAB_WINDOW_HEIGHT;
 					::SetWindowPos(m_hWndPane[m_nSinglePane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+				}
 				else
 					InvalidateRect(&rect);
 			}

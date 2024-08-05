@@ -13,6 +13,8 @@
 #define IDR_NETWORKGOOD                 162
 #define IDR_NETWORKBAD                  163
 
+#define	ID_VIEW_ASKGPT					180
+
 #define IDD_CONFIGURAION                201
 #define IDD_OPENURL                     203
 #define IDC_EDIT_MY_PUBKEY              1001

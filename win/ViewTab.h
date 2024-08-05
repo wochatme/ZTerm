@@ -479,145 +479,152 @@ public:
 
 	void DrawCloseButton(LPNMCTCCUSTOMDRAW lpNMCustomDraw)
 	{
-		WTL::CDCHandle dc(lpNMCustomDraw->nmcd.hdc);
-		WTL::CPen penButtons;
-		penButtons.CreatePen(PS_SOLID, 1, lpNMCustomDraw->clrTextInactive);
-		WTL::CBrush brushArrow;
-		brushArrow.CreateSolidBrush(lpNMCustomDraw->clrTextInactive);
-		WTL::CPenHandle penOld = dc.SelectPen(penButtons);
-		WTL::CBrushHandle brushOld = dc.SelectBrush(brushArrow);
-
-		RECT rcX = m_rcCloseButton;
-		if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
+		int count = GetItemCount();
+		if (count > 1)
 		{
-			if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+			WTL::CDCHandle dc(lpNMCustomDraw->nmcd.hdc);
+			WTL::CPen penButtons;
+			penButtons.CreatePen(PS_SOLID, 1, lpNMCustomDraw->clrTextInactive);
+			WTL::CBrush brushArrow;
+			brushArrow.CreateSolidBrush(lpNMCustomDraw->clrTextInactive);
+			WTL::CPenHandle penOld = dc.SelectPen(penButtons);
+			WTL::CBrushHandle brushOld = dc.SelectBrush(brushArrow);
+
+			RECT rcX = m_rcCloseButton;
+			if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
 			{
-				::OffsetRect(&rcX, 1, 1);
+				if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+				{
+					::OffsetRect(&rcX, 1, 1);
+				}
 			}
-		}
 
-		const int sp = 4;
-		dc.MoveTo(rcX.left + sp + -1, rcX.top + sp);
-		dc.LineTo(rcX.right - sp - 1, rcX.bottom - sp);
-		dc.MoveTo(rcX.left + sp, rcX.top + sp);
-		dc.LineTo(rcX.right - sp, rcX.bottom - sp);
+			const int sp = 4;
+			dc.MoveTo(rcX.left + sp + -1, rcX.top + sp);
+			dc.LineTo(rcX.right - sp - 1, rcX.bottom - sp);
+			dc.MoveTo(rcX.left + sp, rcX.top + sp);
+			dc.LineTo(rcX.right - sp, rcX.bottom - sp);
 
-		dc.MoveTo(rcX.left + sp - 1, rcX.bottom - sp - 1);
-		dc.LineTo(rcX.right - sp - 1, rcX.top + sp - 1);
-		dc.MoveTo(rcX.left + sp, rcX.bottom - sp - 1);
-		dc.LineTo(rcX.right - sp, rcX.top + sp - 1);
+			dc.MoveTo(rcX.left + sp - 1, rcX.bottom - sp - 1);
+			dc.LineTo(rcX.right - sp - 1, rcX.top + sp - 1);
+			dc.MoveTo(rcX.left + sp, rcX.bottom - sp - 1);
+			dc.LineTo(rcX.right - sp, rcX.top + sp - 1);
 
-		if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
-		{
-			if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+			if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
 			{
-				dc.DrawEdge(&m_rcCloseButton, BDR_SUNKENOUTER, BF_RECT);
+				if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+				{
+					dc.DrawEdge(&m_rcCloseButton, BDR_SUNKENOUTER, BF_RECT);
+				}
 			}
+			else if (ectcHotTrack_CloseButton == (m_dwState & ectcHotTrack))
+			{
+				dc.DrawEdge(&m_rcCloseButton, BDR_RAISEDINNER, BF_RECT);
+			}
+			dc.SelectBrush(brushOld);
+			dc.SelectPen(penOld);
 		}
-		else if (ectcHotTrack_CloseButton == (m_dwState & ectcHotTrack))
-		{
-			dc.DrawEdge(&m_rcCloseButton, BDR_RAISEDINNER, BF_RECT);
-		}
-		dc.SelectBrush(brushOld);
-		dc.SelectPen(penOld);
 	}
 
 	void DrawScrollButtons(LPNMCTCCUSTOMDRAW lpNMCustomDraw)
 	{
-		WTL::CDCHandle dc(lpNMCustomDraw->nmcd.hdc);
-		WTL::CPen penButtons;
-		penButtons.CreatePen(PS_SOLID, 1, lpNMCustomDraw->clrTextInactive);
-		WTL::CBrush brushArrow;
-		brushArrow.CreateSolidBrush(lpNMCustomDraw->clrTextInactive);
-		WTL::CPenHandle penOld = dc.SelectPen(penButtons);
-		WTL::CBrushHandle brushOld = dc.SelectBrush(brushArrow);
+		int count = GetItemCount();
+		if (count > 1)
+		{
+			WTL::CDCHandle dc(lpNMCustomDraw->nmcd.hdc);
+			WTL::CPen penButtons;
+			penButtons.CreatePen(PS_SOLID, 1, lpNMCustomDraw->clrTextInactive);
+			WTL::CBrush brushArrow;
+			brushArrow.CreateSolidBrush(lpNMCustomDraw->clrTextInactive);
+			WTL::CPenHandle penOld = dc.SelectPen(penButtons);
+			WTL::CBrushHandle brushOld = dc.SelectBrush(brushArrow);
 
-		RECT rcArrowRight = m_rcScrollRight;
-		RECT rcArrowLeft = m_rcScrollLeft;
-
-		if (ectcMouseDownL_ScrollRight == (m_dwState & ectcMouseDown))
-		{
-			if (ectcMouseOver_ScrollRight == (m_dwState & ectcMouseOver))
-			{
-				if (ectcOverflowRight == (m_dwState & ectcOverflowRight))
-				{
-					::OffsetRect(&rcArrowRight, 1, 1);
-				}
-			}
-		}
-		if (ectcMouseDownL_ScrollLeft == (m_dwState & ectcMouseDown))
-		{
-			if (ectcMouseOver_ScrollLeft == (m_dwState & ectcMouseOver))
-			{
-				if (ectcOverflowLeft == (m_dwState & ectcOverflowLeft))
-				{
-					::OffsetRect(&rcArrowLeft, 1, 1);
-				}
-			}
-		}
-		const int spRight = 5;
-		const int spLeft = 6;
-		POINT ptsArrowRight[] = {
-			{rcArrowRight.left + spRight, rcArrowRight.top + spRight - 2},
-			{rcArrowRight.left + spRight, rcArrowRight.bottom - spRight + 1},
-			{rcArrowRight.right - spRight - 1, (rcArrowRight.bottom + m_rcScrollRight.top) / 2},
-			{rcArrowRight.left + spRight, rcArrowRight.top + spRight - 2}
-		};
-		if (ectcOverflowRight != (m_dwState & ectcOverflowRight))
-		{
-			dc.Polyline(ptsArrowRight, 4);
-		}
-		else
-		{
-			dc.Polygon(ptsArrowRight, 4);
+			RECT rcArrowRight = m_rcScrollRight;
+			RECT rcArrowLeft = m_rcScrollLeft;
 
 			if (ectcMouseDownL_ScrollRight == (m_dwState & ectcMouseDown))
 			{
 				if (ectcMouseOver_ScrollRight == (m_dwState & ectcMouseOver))
 				{
-					dc.DrawEdge(&m_rcScrollRight, BDR_SUNKENOUTER, BF_RECT);
+					if (ectcOverflowRight == (m_dwState & ectcOverflowRight))
+					{
+						::OffsetRect(&rcArrowRight, 1, 1);
+					}
 				}
 			}
-			else if (ectcHotTrack_ScrollRight == (m_dwState & ectcHotTrack))
-			{
-				dc.DrawEdge(&m_rcScrollRight, BDR_RAISEDINNER, BF_RECT);
-			}
-		}
-
-		POINT ptsArrowLeft[] = {
-			{rcArrowLeft.right - spLeft, rcArrowLeft.top + spLeft - 3},
-			{rcArrowLeft.right - spLeft, rcArrowLeft.bottom - spLeft + 2},
-			{rcArrowLeft.left + spLeft - 1, (rcArrowLeft.bottom + m_rcScrollLeft.top) / 2},
-			{rcArrowLeft.right - spLeft, rcArrowLeft.top + spLeft - 3}
-		};
-		if (ectcOverflowLeft != (m_dwState & ectcOverflowLeft))
-		{
-			dc.Polyline(ptsArrowLeft, 4);
-		}
-		else
-		{
-			dc.Polygon(ptsArrowLeft, 4);
-
 			if (ectcMouseDownL_ScrollLeft == (m_dwState & ectcMouseDown))
 			{
 				if (ectcMouseOver_ScrollLeft == (m_dwState & ectcMouseOver))
 				{
-					dc.DrawEdge(&m_rcScrollLeft, BDR_SUNKENOUTER, BF_RECT);
+					if (ectcOverflowLeft == (m_dwState & ectcOverflowLeft))
+					{
+						::OffsetRect(&rcArrowLeft, 1, 1);
+					}
 				}
 			}
-			else if (ectcHotTrack_ScrollLeft == (m_dwState & ectcHotTrack))
+			const int spRight = 5;
+			const int spLeft = 6;
+			POINT ptsArrowRight[] = {
+				{rcArrowRight.left + spRight, rcArrowRight.top + spRight - 2},
+				{rcArrowRight.left + spRight, rcArrowRight.bottom - spRight + 1},
+				{rcArrowRight.right - spRight - 1, (rcArrowRight.bottom + m_rcScrollRight.top) / 2},
+				{rcArrowRight.left + spRight, rcArrowRight.top + spRight - 2}
+			};
+			if (ectcOverflowRight != (m_dwState & ectcOverflowRight))
 			{
-				dc.DrawEdge(&m_rcScrollLeft, BDR_RAISEDINNER, BF_RECT);
+				dc.Polyline(ptsArrowRight, 4);
 			}
-		}
+			else
+			{
+				dc.Polygon(ptsArrowRight, 4);
 
-		dc.SelectBrush(brushOld);
-		dc.SelectPen(penOld);
+				if (ectcMouseDownL_ScrollRight == (m_dwState & ectcMouseDown))
+				{
+					if (ectcMouseOver_ScrollRight == (m_dwState & ectcMouseOver))
+					{
+						dc.DrawEdge(&m_rcScrollRight, BDR_SUNKENOUTER, BF_RECT);
+					}
+				}
+				else if (ectcHotTrack_ScrollRight == (m_dwState & ectcHotTrack))
+				{
+					dc.DrawEdge(&m_rcScrollRight, BDR_RAISEDINNER, BF_RECT);
+				}
+			}
+
+			POINT ptsArrowLeft[] = {
+				{rcArrowLeft.right - spLeft, rcArrowLeft.top + spLeft - 3},
+				{rcArrowLeft.right - spLeft, rcArrowLeft.bottom - spLeft + 2},
+				{rcArrowLeft.left + spLeft - 1, (rcArrowLeft.bottom + m_rcScrollLeft.top) / 2},
+				{rcArrowLeft.right - spLeft, rcArrowLeft.top + spLeft - 3}
+			};
+			if (ectcOverflowLeft != (m_dwState & ectcOverflowLeft))
+			{
+				dc.Polyline(ptsArrowLeft, 4);
+			}
+			else
+			{
+				dc.Polygon(ptsArrowLeft, 4);
+
+				if (ectcMouseDownL_ScrollLeft == (m_dwState & ectcMouseDown))
+				{
+					if (ectcMouseOver_ScrollLeft == (m_dwState & ectcMouseOver))
+					{
+						dc.DrawEdge(&m_rcScrollLeft, BDR_SUNKENOUTER, BF_RECT);
+					}
+				}
+				else if (ectcHotTrack_ScrollLeft == (m_dwState & ectcHotTrack))
+				{
+					dc.DrawEdge(&m_rcScrollLeft, BDR_RAISEDINNER, BF_RECT);
+				}
+			}
+
+			dc.SelectBrush(brushOld);
+			dc.SelectPen(penOld);
+		}
 	}
 
 	// Overrides for painting from CCustomTabCtrl
 public:
-
 	void InitializeDrawStruct(LPNMCTCCUSTOMDRAW lpNMCustomDraw)
 	{
 		//DWORD dwStyle = this->GetStyle();

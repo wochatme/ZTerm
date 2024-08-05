@@ -20,8 +20,27 @@
 #include "XTabCtl.h"
 #include "ViewTab.h"
 #include "ViewTTY.h"
+#include "ViewEdit.h"
 #include "WinDlg.h"
 #include "MainFrm.h"
+
+volatile LONG  g_threadCount = 0;
+volatile LONG  g_threadCountBKG = 0;
+volatile LONG  g_Quit = 0;
+volatile LONG  g_threadPing = 0;
+
+/* the message queue from the remote server */
+MessageTask* g_sendQueue = nullptr;
+MessageTask* g_receQueue = nullptr;
+
+MemoryPoolContext g_sendMemPool = nullptr;
+MemoryPoolContext g_receMemPool = nullptr;
+
+/* used to sync different threads */
+CRITICAL_SECTION     g_csSendMsg;
+CRITICAL_SECTION     g_csReceMsg;
+
+ZXConfig ZXCONFIGURATION = { 0 };
 
 CAppModule _Module;
 
@@ -149,9 +168,10 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	if (wndMain.CreateEx())
 	{
 		// start up the background network communication threads
-		//zx_StartupNetworkThread(wndMain);
+		zx_StartupNetworkThread(wndMain);
 
-		PuTTY_AttachWindow(wndMain.m_viewTTY, wndMain.m_hWnd, 0);
+		PuTTY_AttachWindow(wndMain.m_viewTTY, wndMain.m_hWnd, TTYTAB_WINDOW_HEIGHT);
+		wndMain.AttachTerminalHandle(PuTTY_GetActiveTerm());
 
 		nRet = theLoop.Run();
 	}
@@ -169,17 +189,76 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 
 static int AppInit(HINSTANCE hInstance)
 {
-	int ret;
+	int ret = 0;
+
+	g_Quit = 0;
+	g_threadCount = 0;
+	g_threadCountBKG = 0;
+	g_threadPing = 0;
+
+	g_sendQueue = nullptr;
+	g_receQueue = nullptr;
+
+	zx_InitZXConfig(&ZXCONFIGURATION);
+
+	/* these two are Critial Sections to sync different threads */
+	InitializeCriticalSection(&g_csSendMsg);
+	InitializeCriticalSection(&g_csReceMsg);
+
+	/* initialize libCURL */
+	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
+		return 1;
+
 	ret = PuTTY_Init(hInstance);
 	if (ret)
 		return ret;
+
+	if (Scintilla_RegisterClasses(hInstance) == 0)
+		return 2;
+
+	g_sendMemPool = wt_mempool_create("SendMsgPool", ALLOCSET_DEFAULT_SIZES);
+	if (g_sendMemPool == nullptr)
+		return 5;
+
+	g_receMemPool = wt_mempool_create("ReceMsgPool", ALLOCSET_DEFAULT_SIZES);
+	if (g_receMemPool == nullptr)
+		return 6;
 
 	return 0;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
 {
+	UINT tries;
+
+	// tell all threads to quit
+	InterlockedIncrement(&g_Quit);
+
+	// wait for all threads to quit gracefully
+	tries = 20;
+	while (g_threadCount && tries > 0)
+	{
+		Sleep(1000);
+		tries--;
+	}
+
+	ATLASSERT(g_threadCount == 0);
+	ATLASSERT(g_threadCountBKG == 0);
+
+	wt_mempool_destroy(g_sendMemPool);
+	wt_mempool_destroy(g_receMemPool);
+
+	Scintilla_ReleaseResources();
+	curl_global_cleanup();
+
 	PuTTY_Term();
+
+	g_sendQueue = nullptr;
+	g_receQueue = nullptr;
+
+	DeleteCriticalSection(&g_csSendMsg);
+	DeleteCriticalSection(&g_csReceMsg);
+
 	return 0;
 }
 

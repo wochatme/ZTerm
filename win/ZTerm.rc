@@ -205,6 +205,7 @@ BEGIN
     VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT
     VK_F6,          ID_NEXT_PANE,           VIRTKEY 
     VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
+    VK_HOME,        ID_VIEW_ASKGPT,         VIRTKEY, CONTROL
 END
 
 

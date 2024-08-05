@@ -19,6 +19,7 @@ LRESULT PuTTY_WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam, BOO
 void PuTTY_EnterSizing(void);
 void PuTTY_ExitSizing(void);
 
+size_t PuTTY_ScreenCopy(wchar_t* caller_buff, size_t max_length, size_t* required_size);
 void PuTTY_CopyAll(void);
 
 void PuTTY_Config(HWND hWnd);

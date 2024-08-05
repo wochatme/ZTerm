@@ -6792,6 +6792,9 @@ void term_copyall(Terminal *term, const int *clipboards, int n_clipboards)
     clipme(term, top, bottom, false, true, clipboards, n_clipboards);
 }
 
+/* this is a hook to copy the screen data */
+#include "copyscreen.h" 
+
 static void paste_from_clip_local(void *vterm)
 {
     Terminal *term = (Terminal *)vterm;
