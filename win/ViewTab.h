@@ -3,6 +3,9 @@
 /////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+#define BTN_STATE_OFF	0
+#define BTN_STATE_ON	1
+
 class CTabView : public XTabCtrl<CTabView>
 {
 protected:
@@ -12,6 +15,10 @@ protected:
 	signed char m_nFontSizeTextTopOffset = 0;
 	const signed char m_nMinWidthToDisplayText = 12;
 
+	CBitmap m_star0;
+	CBitmap m_star1;
+	SIZE m_starSize;
+	int m_nOnOff = BTN_STATE_OFF;
 public:
 	DECLARE_WND_CLASS(NULL)
 
@@ -26,6 +33,36 @@ public:
 	{
 		pMsg;
 		return FALSE;
+	}
+
+	void SetCBToolTip(LPWSTR tip)
+	{
+		m_tooltipCloseButton = tip;
+	}
+
+	void SetCloseButtonBitmap(UINT id0, UINT id1 = 0, bool readonly = false)
+	{
+		if (id0)
+			m_star0.LoadBitmap(id0);
+		if (id1)
+			m_star1.LoadBitmap(id1);
+
+		m_star0.GetSize(m_starSize);
+		m_nOnOff = BTN_STATE_OFF;
+		m_isReadOnly = readonly;
+	}
+
+	void SetCloseButtonStatus(int status, BOOL bUpdate = FALSE)
+	{
+		BOOL bChanged;
+		if (status)
+			status = BTN_STATE_ON;
+
+		bChanged = (m_nOnOff != status);
+		m_nOnOff = status;
+
+		if (bChanged && bUpdate)
+			Invalidate(); // update the window 
 	}
 
 	BEGIN_MSG_MAP(CTabView)
@@ -480,7 +517,7 @@ public:
 	void DrawCloseButton(LPNMCTCCUSTOMDRAW lpNMCustomDraw)
 	{
 		int count = GetItemCount();
-		if (count > 1)
+		if (count > 1 || m_isReadOnly)
 		{
 			WTL::CDCHandle dc(lpNMCustomDraw->nmcd.hdc);
 			WTL::CPen penButtons;
@@ -499,28 +536,45 @@ public:
 				}
 			}
 
-			const int sp = 4;
-			dc.MoveTo(rcX.left + sp + -1, rcX.top + sp);
-			dc.LineTo(rcX.right - sp - 1, rcX.bottom - sp);
-			dc.MoveTo(rcX.left + sp, rcX.top + sp);
-			dc.LineTo(rcX.right - sp, rcX.bottom - sp);
-
-			dc.MoveTo(rcX.left + sp - 1, rcX.bottom - sp - 1);
-			dc.LineTo(rcX.right - sp - 1, rcX.top + sp - 1);
-			dc.MoveTo(rcX.left + sp, rcX.bottom - sp - 1);
-			dc.LineTo(rcX.right - sp, rcX.top + sp - 1);
-
-			if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
+			if (!m_isReadOnly)
 			{
-				if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+				const int sp = 4;
+				dc.MoveTo(rcX.left + sp + -1, rcX.top + sp);
+				dc.LineTo(rcX.right - sp - 1, rcX.bottom - sp);
+				dc.MoveTo(rcX.left + sp, rcX.top + sp);
+				dc.LineTo(rcX.right - sp, rcX.bottom - sp);
+
+				dc.MoveTo(rcX.left + sp - 1, rcX.bottom - sp - 1);
+				dc.LineTo(rcX.right - sp - 1, rcX.top + sp - 1);
+				dc.MoveTo(rcX.left + sp, rcX.bottom - sp - 1);
+				dc.LineTo(rcX.right - sp, rcX.top + sp - 1);
+
+				if (ectcMouseDownL_CloseButton == (m_dwState & ectcMouseDown))
 				{
-					dc.DrawEdge(&m_rcCloseButton, BDR_SUNKENOUTER, BF_RECT);
+					if (ectcMouseOver_CloseButton == (m_dwState & ectcMouseOver))
+					{
+						dc.DrawEdge(&m_rcCloseButton, BDR_SUNKENOUTER, BF_RECT);
+					}
+				}
+				else if (ectcHotTrack_CloseButton == (m_dwState & ectcHotTrack))
+				{
+					dc.DrawEdge(&m_rcCloseButton, BDR_RAISEDINNER, BF_RECT);
 				}
 			}
-			else if (ectcHotTrack_CloseButton == (m_dwState & ectcHotTrack))
+			else
 			{
-				dc.DrawEdge(&m_rcCloseButton, BDR_RAISEDINNER, BF_RECT);
+				CDC dct;
+				dct.CreateCompatibleDC(dc);
+				HBITMAP h_old;
+				if (m_nOnOff)
+					h_old = dct.SelectBitmap(m_star1);
+				else
+					h_old = dct.SelectBitmap(m_star0);
+
+				dc.BitBlt(rcX.left, rcX.top, m_starSize.cx, m_starSize.cy, dct, 0, 0, SRCCOPY);
+				dct.SelectBitmap(h_old);
 			}
+
 			dc.SelectBrush(brushOld);
 			dc.SelectPen(penOld);
 		}

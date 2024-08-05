@@ -97,7 +97,7 @@ static void cleanup_term_list(void)
 }
 
 /////////////////////////////////////////////////////////////
-const char* const appname = "iTerm";
+const char* const appname = "ZTerm";
 /*
  * Define the default protocol for the application. This is always a
  * network backend (serial ports come second behind network, in every

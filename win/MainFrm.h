@@ -152,6 +152,7 @@ public:
 		MESSAGE_HANDLER(WM_ENTERSIZEMOVE, OnEnterSizeMove)
 		MESSAGE_HANDLER(WM_EXITSIZEMOVE, OnExitSizeMove)
 		MESSAGE_HANDLER(WM_SYSCOMMAND, OnSysCommand)
+		MESSAGE_HANDLER(WM_NET_STATUS_MSG, OnNetworkStatus)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(ID_VIEW_ASKGPT, OnAskGPT)
@@ -163,7 +164,7 @@ public:
 	LRESULT OnPuTTYNotify(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		wchar_t title[128] = { 0 };
-		swprintf((wchar_t*)title, 128, L"ZTerm - R:%d | C:%d", (int)wParam, (int)lParam);
+		swprintf((wchar_t*)title, 128, L"ZTerm - [%d x %d]", (int)wParam, (int)lParam);
 		SetWindowTextW(title);
 
 		return 0;
@@ -205,6 +206,13 @@ public:
 			case VK_HOME:
 				DoAIAssistant();
 				break;
+			case VK_F1:
+				if (m_nSinglePane == SPLIT_PANE_NONE)
+				{
+					ATLASSERT(m_winStatus & XWIN_ASK);
+					DoAskQuestion();
+				}
+				break;
 			default:
 				break;
 			}
@@ -215,6 +223,16 @@ public:
 	LRESULT OnAskGPT(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		//MessageBox(L"Home", L"X", MB_OK);
+		return 0;
+	}
+
+	LRESULT OnNetworkStatus(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (m_winStatus & XWIN_TB1)
+		{
+			// this window is available now
+			m_viewTabGPT.SetCloseButtonStatus((int)lParam, m_nSinglePane == SPLIT_PANE_NONE);
+		}
 		return 0;
 	}
 
@@ -274,9 +292,12 @@ public:
 				m_tooltip.SetDelayTime(TTDT_RESHOW, ::GetDoubleClickTime() / 5);
 
 				m_tooltip.AddTool(m_hWnd, L"Quick Ask", &rcDefault, TOOLTIP_ASKGPT);
-				m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant\tCtrl+Home", &rcDefault, TOOLTIP_HIDEAI);
+				m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant", &rcDefault, TOOLTIP_HIDEAI);
 			}
 		}
+
+		m_viewTabGPT.SetCBToolTip((LPWSTR)L"Network Status");
+		m_viewTabGPT.SetCloseButtonBitmap(IDR_NETWORKBAD, IDR_NETWORKGOOD, true);
 
 		m_viewAsk.Create(m_hWnd, rcDefault, NULL, dwStyle);
 		m_viewTabGPT.Create(m_hWnd, rcDefault, NULL, dwStyle);
@@ -463,6 +484,9 @@ public:
 		case ZT_IDM_NEWSESS:
 			DoNewSession();
 			break;
+		case ZT_IDM_RECONF:
+			PuTTY_Config(m_hWnd);
+			break;
 		case ZT_IDM_ASKGPT:
 			DoAIAssistant();
 			break;
@@ -484,9 +508,6 @@ public:
 			break;
 
 #if 0
-		case IDM_RECONF:
-			PuTTY_DoConfiguration(m_hWnd);
-			break;
 		case IDM_AICONF:
 			//PuTTY_SwitchSession();
 #if 0
@@ -517,13 +538,13 @@ public:
 			}
 		}
 		break;
-		case IDM_ABOUT:
+#endif 
+		case ZT_IDM_ABOUT:
 		{
 			CAboutDlg dlg;
 			dlg.DoModal();
 		}
-		break;
-#endif 
+			break;
 		default:
 			bHandled = FALSE;
 			break;
@@ -745,7 +766,7 @@ public:
 			{
 				m_tooltip.Activate(TRUE);
 				InterlockedExchange(&g_threadPing, 1);
-				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Hide AI Assistant");
+				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Hide AI Assistant\tCtrl+Home");
 				SetSinglePaneMode(SPLIT_PANE_NONE);
 				m_winStatus = XWIN_TTY | XWIN_TB0 | XWIN_GPT | XWIN_TB1 | XWIN_ASK;
 				CalculateButtonPosition();
@@ -756,7 +777,7 @@ public:
 				m_tooltip.Activate(FALSE);
 				// when AI window is hidden, we disable PING test
 				InterlockedExchange(&g_threadPing, 0);
-				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Show AI Assistant");
+				AppendMenu(m, MF_ENABLED, ZT_IDM_ASKGPT, L"Show AI Assistant\tCtrl+Home");
 				SetActivePane(SPLIT_PANE_LEFT);
 				SetSinglePaneMode(SPLIT_PANE_LEFT);
 				m_winStatus = XWIN_TTY | XWIN_TB0;

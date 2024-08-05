@@ -371,6 +371,9 @@ public:
 	// Expose the item type (that's a template parameter to this base class)
 	typedef typename TItem TItem;
 
+	LPWSTR m_tooltipCloseButton = NULL;
+	bool m_isReadOnly = false;
+
 protected:
 	typedef ATL::CWindowImpl<T, TBase, TWinTraits> baseClass;
 
@@ -522,6 +525,8 @@ public:
 		m_dwState |= ectcScrollRepeat_Normal;
 
 		m_dwState |= ectcEnableRedraw;
+
+		m_tooltipCloseButton = (LPWSTR)L"Close";
 	}
 
 	// Implementation
@@ -1053,7 +1058,8 @@ public:
 	LRESULT OnMouseMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		bHandled = FALSE;
-		if (m_tooltip.IsWindow())
+		int count = (int)m_Items.GetCount();
+		if (m_tooltip.IsWindow() && (count > 1 || m_isReadOnly))
 		{
 			T* pT = static_cast<T*>(this);
 			MSG msg = { pT->m_hWnd, uMsg, wParam, lParam };
@@ -1720,7 +1726,8 @@ public:
 				{
 					if (m_tooltip.IsWindow())
 					{
-						m_tooltip.AddTool(pT->m_hWnd, _T("Close"), &pT->rcDefault, (UINT)ectcToolTip_Close);
+						//m_tooltip.AddTool(pT->m_hWnd, _T("Close"), &pT->rcDefault, (UINT)ectcToolTip_Close);
+						m_tooltip.AddTool(pT->m_hWnd, m_tooltipCloseButton, &pT->rcDefault, (UINT)ectcToolTip_Close);
 					}
 					//pT->UpdateLayout();
 					//this->Invalidate();
