@@ -12,6 +12,7 @@
 #include "XBitmap.h"
 #include "resource.h"
 #include "App.h"
+#include "Settings.h"
 
 #include "ViewTTY.h"
 #include "ViewGPT.h"
@@ -103,17 +104,15 @@ static bool LoadD2D() noexcept
 static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 {
 	int nRet = 0;
+	DWORD dwExStyle = (WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW) & 0;
 	CMessageLoop theLoop;
 	_Module.AddMessageLoop(&theLoop);
 
 	const auto wndMain = std::make_shared<CMainFrame>();	
 #if 0
 	//CMainFrame wndMain;
-	DWORD dwExStyle = WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW;
-	//if(wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 #endif 
-
-	if (wndMain->CreateEx() != NULL)
+	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
 		wndMain->ShowWindow(nCmdShow);
 		nRet = theLoop.Run();

@@ -1,4 +1,4 @@
-// ViewTTY.h : interface of the CViewTTY class
+// ViewTTY.h : interface of the CTTYView class
 //
 /////////////////////////////////////////////////////////////////////////////
 #pragma once
@@ -25,7 +25,7 @@ static ATL::CWndClassInfo& GetWndClassInfo() \
 
 #define TTY_MODE		(0x00000001)
 
-class CViewTTY : public CWindowImpl<CViewTTY>
+class CTTYView : public CWindowImpl<CTTYView>
 {
 	DWORD m_dwState = TTY_MODE;
 public:
@@ -37,7 +37,7 @@ public:
 		return FALSE;
 	}
 #endif 
-	BEGIN_MSG_MAP(CViewTTY)
+	BEGIN_MSG_MAP(CTTYView)
 		if (m_dwState & TTY_MODE)
 			MESSAGE_HANDLEALL(OnTTYMode)
 		else
@@ -60,6 +60,7 @@ public:
 				HDC hdc = BeginPaint(&ps);
 				if (hdc)
 				{
+					//HBRUSH hBrush = CreateSolidBrush(RGB(155, 155, 155));
 					HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
 					if (hBrush)
 					{

@@ -127,7 +127,7 @@ IDR_MAINFRAME           ICON                    "res\\app.ico"
 // Dialog
 //
 
-IDD_ABOUTDLG DIALOG 0, 0, 187, 102
+IDD_ABOUTZTERM DIALOG 0, 0, 187, 102
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About ZTerm"
 FONT 9, "Segoe UI"
@@ -203,6 +203,7 @@ BEGIN
     VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT
     VK_F6,          ID_NEXT_PANE,           VIRTKEY 
     VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
+    VK_HOME,        IDM_AIASSISTANT,        VIRTKEY, CONTROL
 END
 
 

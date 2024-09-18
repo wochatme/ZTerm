@@ -5,10 +5,13 @@
 #define IDC_BTN_BROWSER                 3
 #define IDC_BTN_FONT                    4
 #define IDCANCEL4                       5
-#define IDD_ABOUTBOX                    100
+#define IDD_ABOUTZTERM                  100
 #define IDR_MAINFRAME                   128
 #define IDD_CONFIGURAION                201
 #define IDD_OPENURL                     203
+
+#define IDM_AIASSISTANT					(0x0170)
+
 #define IDC_EDIT_MY_PUBKEY              1001
 #define IDC_EDIT_SERVER_URL             1002
 #define IDC_EDIT_DATA_DIRECTORY         1003
