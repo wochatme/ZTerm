@@ -161,17 +161,30 @@ public:
 		return 0L;
 	}
 
-	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
+	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		UINT dpiY = HIWORD(wParam);
+#if 0
 		m_nDPI = GetDpiForWindow(m_hWnd);
-
-		m_heightTitle = MulDiv(dpiY, CAPTION_MIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		if (!m_nDPI)
+			m_nDPI = USER_DEFAULT_SCREEN_DPI;
+#endif 
+		m_nDPI = dpiY;
+		m_heightTitle = MulDiv(m_nDPI, CAPTION_MIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 
 		MARGINS margins = { 0 };
 		margins.cyTopHeight = m_heightTitle + 1;
 		HRESULT hr = DwmExtendFrameIntoClientArea(m_hWnd, &margins);
 
+		RECT* lpRect = reinterpret_cast<RECT*>(lParam);
+		if (lpRect)
+		{
+			SetWindowPos(NULL,lpRect->left, lpRect->top,
+				lpRect->right - lpRect->left, lpRect->bottom - lpRect->top, SWP_NOZORDER);
+		}
+
+#if 10
+		ReleaseUnknown(m_pD2DRenderTarget);
 		GetClientRect(&m_rcSplitter);
 		int top = m_rcSplitter.top + m_heightTitle + 2;
 		::SetWindowPos(m_viewTTY.m_hWnd, NULL,
@@ -180,7 +193,7 @@ public:
 			m_rcSplitter.bottom - top, SWP_NOZORDER);
 
 		Invalidate();
-
+#endif 
 #if 0
 		DwmGetWindowAttribute(m_hWnd, DWMWA_CAPTION_BUTTON_BOUNDS, &rb, sizeof(RECT));
 		//swprintf_s(title, 63, L"[%d]D:%d, R:%d %d %d %d", m_dpi, m_nDPI, rb.left, rb.right, rb.top, rb.botttom);
@@ -304,9 +317,13 @@ public:
 			auto parameters = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
 			auto& requested_client_area = parameters->rgrc[0];
 
-			cx = GetSystemMetrics(SM_CXFRAME);
-			cy = GetSystemMetrics(SM_CYFRAME);
-			pad = GetSystemMetrics(SM_CXPADDEDBORDER);
+			m_nDPI = GetDpiForWindow(m_hWnd);
+			if (!m_nDPI)
+				m_nDPI = USER_DEFAULT_SCREEN_DPI;
+
+			cx = GetSystemMetricsForDpi(SM_CXFRAME, m_nDPI);
+			cy = GetSystemMetricsForDpi(SM_CYFRAME, m_nDPI);
+			pad = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, m_nDPI);
 			requested_client_area.right -= (cx + pad);
 			requested_client_area.left += (cx + pad);
 			requested_client_area.bottom -= (cy + pad);
@@ -367,6 +384,8 @@ public:
 				m_rcSplitter.left, top, 
 				m_rcSplitter.right - m_rcSplitter.left, 
 				m_rcSplitter.bottom - top, SWP_NOZORDER);
+
+			Invalidate();
 		}
 		else
 		{

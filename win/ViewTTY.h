@@ -50,6 +50,9 @@ public:
 
 		switch (uMsg)
 		{
+		case WM_ERASEBKGND:
+			bHandled = TRUE;
+			return 1L;
 		case WM_PAINT:
 			bHandled = TRUE;
 			{

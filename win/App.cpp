@@ -103,15 +103,17 @@ static bool LoadD2D() noexcept
 static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 {
 	int nRet = 0;
-	DWORD dwExStyle = WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW;
 	CMessageLoop theLoop;
 	_Module.AddMessageLoop(&theLoop);
 
-	//CMainFrame wndMain;
 	const auto wndMain = std::make_shared<CMainFrame>();	
+#if 0
+	//CMainFrame wndMain;
+	DWORD dwExStyle = WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW;
+	//if(wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
+#endif 
 
-	//dwExStyle = WS_EX_COMPOSITED;
-	if(wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
+	if (wndMain->CreateEx() != NULL)
 	{
 		wndMain->ShowWindow(nCmdShow);
 		nRet = theLoop.Run();
