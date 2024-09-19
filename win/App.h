@@ -6,8 +6,6 @@
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
 
-#define WM_NETWORK_STATUS	(WM_USER + 101)
-
 /* ZT_ALIGN() is only to be used to align on a power of 2 boundary */
 #define ZT_ALIGN(size, boundary)   (((size) + ((boundary) -1)) & ~((boundary) - 1))
 #define ZT_ALIGN_DEFAULT32(size)   ZT_ALIGN(size, 4)

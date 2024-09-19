@@ -1,6 +1,5 @@
 // App.cpp : main source file for ZTerm.exe
 //
-
 #include "pch.h"
 
 #include <atlframe.h>
@@ -13,6 +12,7 @@
 #include "resource.h"
 #include "App.h"
 #include "Settings.h"
+#include "Network.h"
 
 #include "ViewTTY.h"
 #include "ViewGPT.h"
@@ -27,7 +27,7 @@ volatile LONG  g_Quit = 0;
 volatile LONG  g_threadPing = 0;
 volatile LONG  g_threadPingNow = 1;
 
-ZTConfig ZTCONFIGURATION = { 0 };
+ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
 
 /* the message queue from the remote server */
 MessageTask* g_sendQueue = nullptr;
@@ -137,7 +137,7 @@ static int AppInit(HINSTANCE hInstance)
 	g_sendQueue = nullptr;
 	g_receQueue = nullptr;
 
-	InitZTConfig(&ZTCONFIGURATION);
+	ztInitConfig(&ZTCONFIGURATION);
 
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);

@@ -32,39 +32,35 @@
 #define WIN3DRAW	(0x08)
 #define WIN4DRAW	(0x10)
 
-#define NeedDrawWin0()			(m_winPaintStatus & WIN0DRAW)
-#define NeedDrawWin1()			(m_winPaintStatus & WIN1DRAW)
-#define NeedDrawWin2()			(m_winPaintStatus & WIN2DRAW)
-#define NeedDrawWin3()			(m_winPaintStatus & WIN3DRAW)
-#define NeedDrawWin4()			(m_winPaintStatus & WIN4DRAW)
-#define NeedDrawWin012()		(m_winPaintStatus & (WIN0DRAW|WIN1DRAW|WIN2DRAW))
-#define NeedDrawWin34()			(m_winPaintStatus & (WIN3DRAW|WIN4DRAW))
-#define NeedDrawAnyWindow() 	(m_winPaintStatus & (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW))
+#define NeedDrawWin0()			(m_paintStatus & WIN0DRAW)
+#define NeedDrawWin1()			(m_paintStatus & WIN1DRAW)
+#define NeedDrawWin2()			(m_paintStatus & WIN2DRAW)
+#define NeedDrawWin3()			(m_paintStatus & WIN3DRAW)
+#define NeedDrawWin4()			(m_paintStatus & WIN4DRAW)
+#define NeedDrawAnyWindow() 	(m_paintStatus & (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW))
 
-#define InvalidateWin0()	do { m_winPaintStatus |= WIN0DRAW; } while(0)
-#define InvalidateWin1()	do { m_winPaintStatus |= WIN1DRAW; } while(0)
-#define InvalidateWin2()	do { m_winPaintStatus |= WIN2DRAW; } while(0)
-#define InvalidateWin3()	do { m_winPaintStatus |= WIN3DRAW; } while(0)
-#define InvalidateWin4()	do { m_winPaintStatus |= WIN4DRAW; } while(0)
-#define InvalidateWin34()	do { m_winPaintStatus |= (WIN3DRAW|WIN4DRAW); } while(0)
-#define InvalidateWin12()	do { m_winPaintStatus |= (WIN1DRAW | WIN2DRAW); } while(0)
-#define InvalidateWin012()	do { m_winPaintStatus |= (WIN0DRAW | WIN1DRAW | WIN2DRAW); } while(0)
-#define InvalidateWin01234() do { m_winPaintStatus |= (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW); } while(0)
+#define InvalidateWin0()		do { m_paintStatus |= WIN0DRAW; } while(0)
+#define InvalidateWin1()		do { m_paintStatus |= WIN1DRAW; } while(0)
+#define InvalidateWin2()		do { m_paintStatus |= WIN2DRAW; } while(0)
+#define InvalidateWin3()		do { m_paintStatus |= WIN3DRAW; } while(0)
+#define InvalidateWin4()		do { m_paintStatus |= WIN4DRAW; } while(0)
+#define InvalidateWin34()		do { m_paintStatus |= (WIN3DRAW|WIN4DRAW); } while(0)
+#define InvalidateWin12()		do { m_paintStatus |= (WIN1DRAW | WIN2DRAW); } while(0)
+#define InvalidateWin012()		do { m_paintStatus |= (WIN0DRAW | WIN1DRAW | WIN2DRAW); } while(0)
+#define InvalidateWin01234()	do { m_paintStatus |= (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW); } while(0)
 
-#define ClearWin0Draw()		do { m_winPaintStatus &= ~WIN0DRAW; } while(0)
-#define ClearWin1Draw()		do { m_winPaintStatus &= ~WIN1DRAW; } while(0)
-#define ClearWin2Draw()		do { m_winPaintStatus &= ~WIN2DRAW; } while(0)
-#define ClearWin3Draw()		do { m_winPaintStatus &= ~WIN3DRAW; } while(0)
-#define ClearWin4Draw()		do { m_winPaintStatus &= ~WIN4DRAW; } while(0)
-#define ClearWin012Draw()	do { m_winPaintStatus &= ~(WIN0DRAW|WIN1DRAW|WIN2DRAW); } while(0)
-#define ClearWin34Draw()	do { m_winPaintStatus &= ~(WIN3DRAW|WIN4DRAW); } while(0)
-#define ClearAllWindows() 	do { m_winPaintStatus &= ~(WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW); } while(0)
+#define ClearWin0Draw()			do { m_paintStatus &= ~WIN0DRAW; } while(0)
+#define ClearWin1Draw()			do { m_paintStatus &= ~WIN1DRAW; } while(0)
+#define ClearWin2Draw()			do { m_paintStatus &= ~WIN2DRAW; } while(0)
+#define ClearWin3Draw()			do { m_paintStatus &= ~WIN3DRAW; } while(0)
+#define ClearWin4Draw()			do { m_paintStatus &= ~WIN4DRAW; } while(0)
 
 // Splitter panes constants
 #define SPLIT_PANE_LEFT			 0
 #define SPLIT_PANE_RIGHT		 1
 #define SPLIT_PANE_NONE			-1
 
+#if 0
 // Splitter extended styles
 #define SPLIT_PROPORTIONAL		0x00000001
 #define SPLIT_NONINTERACTIVE	0x00000002
@@ -73,6 +69,7 @@
 #define SPLIT_GRADIENTBAR		0x00000008
 #define SPLIT_FLATBAR			0x00000020
 #define SPLIT_FIXEDBARSIZE		0x00000010
+#endif 
 
 #define CAPTION_HEIGHT		40
 #define CAPTION_HEIGHT_MAX	40
@@ -81,6 +78,7 @@
 
 #define TIMER_MAINWIN		250
 #define TIMER_WAITAI		666
+#define TIMER_SHOWAI		251
 
 /* the index of the special buttons */
 #define RECT_IDX_ICON		0
@@ -144,28 +142,25 @@ class CMainFrame :
 	public CUpdateUI<CMainFrame>,
 	public CMessageFilter, public CIdleHandler
 {
-	U8 m_winPaintStatus = (WIN0DRAW); // | WIN1DRAW | WIN2DRAW);
+	U8 m_paintStatus = WIN0DRAW | WIN1DRAW | WIN2DRAW;
 
 	int m_nWaitCount = 0;
+	DWORD m_dwState = 0;
 
 	UINT m_nDPI = USER_DEFAULT_SCREEN_DPI;
 	int m_heightTitle = CAPTION_HEIGHT;
 	int m_heightGap = GAP_WIN_HEIGHT;
 	int m_heightLed = LED_WIN_HEIGHT;
     int m_heightWinAsk = ASK_WIN_HEIGHT;
-	DWORD m_dwState = 0;
 
 	U32* m_screenBuff = nullptr;
 	U32  m_screenSize = 0;
-
 	U32* m_screenWin0 = nullptr;
 	U32* m_screenWin1 = nullptr;
 	U32* m_screenWin2 = nullptr;
-	U32* m_screenWin3 = nullptr;
-	U32* m_screenWin4 = nullptr;
-
+#if 0
 	const int m_widthWindow0 = CAPTION_HEIGHT;
-
+#endif 
 	RECT  m_rectButton[RECT_IDX_LAST] = { 0 };
 	RECT* m_lpRectHover = nullptr;
 	RECT* m_lpRectPress = nullptr;
@@ -187,25 +182,36 @@ class CMainFrame :
 	ID2D1Bitmap* m_pBitmap2 = nullptr;
 
 public:
-	int m_xySplitterPosToRight = 0;
-	enum { m_nPanesCount = 2, m_nPropMax = INT_MAX, m_cxyStep = 10 };
+	// these code are from WTL split view
+	enum { m_nPanesCount = 2, m_nPropMax = INT_MAX, m_cxyStep = 1 };
 
 	HWND m_hWndPane[m_nPanesCount] = { 0 };
 	RECT m_rcSplitter = { 0 };
 	int m_xySplitterPos = -1;            // splitter bar position
 	int m_xySplitterPosNew = -1;         // internal - new position while moving
+
+	int m_xySplitterPosH = -1;            // splitter horizonal bar position
+	int m_xySplitterPosNewH = -1;         // internal - new position while moving
+	int m_xySplitterPosToRight = 0;
+	int m_xySplitterPosToRightCurrent = 0;
+
 	HWND m_hWndFocusSave = NULL;
 	int m_nDefActivePane = SPLIT_PANE_NONE;
 	int m_cxySplitBar = 4;              // splitter bar width/height
+
 	HCURSOR m_hCursorWE = NULL;
 	HCURSOR m_hCursorNS = NULL;
 	HCURSOR m_hCursorHand = NULL;
+	
 	int m_cxyMin = 0;                   // minimum pane size
 	int m_cxyBarEdge = 0;              	// splitter bar edge
 	int m_cxyDragOffset = 0;		// internal
+	int m_cxyDragOffsetH = 0;		// internal
 	int m_nProportionalPos = 0;
 	bool m_bUpdateProportionalPos = true;
+#if 0
 	DWORD m_dwExtendedStyle = SPLIT_RIGHTALIGNED;      // splitter specific extended styles
+#endif 
 	int m_nSinglePane = SPLIT_PANE_LEFT;  // single pane mode
 	int m_xySplitterDefPos = -1;         // default position
 	bool m_bProportionalDefPos = false;  // porportinal def pos
@@ -233,17 +239,19 @@ public:
 			UpdateProportionalPos();
 		else if (IsRightAligned())
 #endif 
-			UpdateRightAlignPos();
+		UpdateRightAlignPos();
 
 		if (bUpdate)
 			UpdateSplitterLayout();
 	}
 
+#if 0
 	void GetSplitterRect(LPRECT lpRect) const
 	{
 		ATLASSERT(lpRect != NULL);
 		*lpRect = m_rcSplitter;
 	}
+#endif 
 
 	bool SetSplitterPos(int xyPos = -1, bool bUpdate = true)
 	{
@@ -283,7 +291,7 @@ public:
 				StoreProportionalPos();
 			else if (IsRightAligned())
 #endif 
-				StoreRightAlignPos();
+			StoreRightAlignPos();
 		}
 		else
 		{
@@ -295,7 +303,7 @@ public:
 
 		return bRet;
 	}
-
+#if 0
 	int GetSplitterPos() const
 	{
 		return m_xySplitterPos;
@@ -317,6 +325,7 @@ public:
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
 		return ((cxyTotal > 0) && (m_xySplitterPos >= 0)) ? ::MulDiv(m_xySplitterPos, 100, cxyTotal) : -1;
 	}
+#endif 
 
 	bool SetSinglePaneMode(int nPane = SPLIT_PANE_NONE)
 	{
@@ -346,7 +355,7 @@ public:
 
 		return true;
 	}
-
+#if 0
 	int GetSinglePaneMode() const
 	{
 		return m_nSinglePane;
@@ -364,12 +373,12 @@ public:
 			m_dwExtendedStyle = dwExtendedStyle;
 		else
 			m_dwExtendedStyle = (m_dwExtendedStyle & ~dwMask) | (dwExtendedStyle & dwMask);
-#if 0
+
 #ifdef _DEBUG
 		if (IsProportional() && IsRightAligned())
 			ATLTRACE2(atlTraceUI, 0, _T("CSplitterImpl::SetSplitterExtendedStyle - SPLIT_PROPORTIONAL and SPLIT_RIGHTALIGNED are mutually exclusive, defaulting to SPLIT_PROPORTIONAL.\n"));
 #endif // _DEBUG
-#endif 
+
 		return dwPrevStyle;
 	}
 
@@ -523,7 +532,7 @@ public:
 				DrawSplitterPane(dc, m_nSinglePane);
 		}
 	}
-#if 0
+
 	// call to initiate moving splitter bar with keyboard
 	void MoveSplitterBar()
 	{
@@ -567,9 +576,9 @@ public:
 	}
 #endif 
 	// Overrideables
+#if 0
 	void DrawSplitterBar(CDCHandle dc)
 	{
-#if 0
 		RECT rect = {};
 		if (GetSplitterBarRect(&rect))
 		{
@@ -595,9 +604,7 @@ public:
 			if ((GetExStyle() & WS_EX_CLIENTEDGE) != 0)
 				dc.DrawEdge(&rect, EDGE_RAISED, (BF_LEFT | BF_RIGHT));
 		}
-#endif 
 	}
-
 	// called only if pane is empty
 	void DrawSplitterPane(CDCHandle dc, int nPane)
 	{
@@ -609,6 +616,7 @@ public:
 			dc.FillRect(&rect, COLOR_APPWORKSPACE);
 		}
 	}
+#endif 
 
 	virtual BOOL PreTranslateMessage(MSG* pMsg)
 	{
@@ -661,6 +669,10 @@ public:
 		COMMAND_ID_HANDLER(IDM_AIASSISTANT, OnAssistant)
 		COMMAND_ID_HANDLER(IDM_NEW_WINDOW, OnNewWindow)
 		COMMAND_ID_HANDLER(IDM_DARK_MODE, OnDarkMode)
+		COMMAND_ID_HANDLER(ID_EDIT_COPY, OnEditCopy)
+		COMMAND_ID_HANDLER(ID_EDIT_PASTE, OnEditPaste)
+		COMMAND_ID_HANDLER(ID_EDIT_CUT, OnEditCut)
+		COMMAND_ID_HANDLER(ID_EDIT_UNDO, OnEditUndo)
 		COMMAND_ID_HANDLER(IDM_ZTERM_ABOUT, OnAppAbout)
 		CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
@@ -911,13 +923,14 @@ public:
 
 	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		UINT dpiY = HIWORD(wParam);
 #if 0
+		UINT dpiY = HIWORD(wParam);
+
 		m_nDPI = GetDpiForWindow(m_hWnd);
 		if (!m_nDPI)
 			m_nDPI = USER_DEFAULT_SCREEN_DPI;
 #endif 
-		m_nDPI = dpiY;
+		m_nDPI = HIWORD(wParam);
 
 		m_heightTitle = ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 		m_heightGap = ::MulDiv(m_nDPI, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
@@ -1055,16 +1068,15 @@ public:
 		m_viewGPT.ShowWindow(SW_HIDE);
 		m_viewAsk.Create(m_hWnd, rcDefault, NULL, dwStyle);
 		m_viewAsk.ShowWindow(SW_HIDE);
+
 		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle | WS_VSCROLL);
-		//SetSplitterPanes(m_viewTTY, m_viewGPT, false);
 		m_hWndPane[SPLIT_PANE_LEFT] = m_viewTTY.m_hWnd;
 		m_hWndPane[SPLIT_PANE_RIGHT] = m_viewGPT.m_hWnd;
 
 		SetWindowPos(nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
-
 		SetTimer(TIMER_MAINWIN, 100);
 
-		return 0;
+		return 0L;
 	}
 
 	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
@@ -1118,7 +1130,25 @@ public:
 		{
 			m_viewTTY.SetFocus();
 			if (IsDarkMode())
-				SetWindowTheme(m_viewTTY, L"DarkMode_Explorer", nullptr);
+				SetWindowTheme(m_viewTTY.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewTTY.m_hWnd, L"Explorer", nullptr);
+		}
+
+		if (m_viewGPT.IsWindow())
+		{
+			if (IsDarkMode())
+				SetWindowTheme(m_viewGPT.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewGPT.m_hWnd, L"Explorer", nullptr);
+		}
+
+		if (m_viewAsk.IsWindow())
+		{
+			if (IsDarkMode())
+				SetWindowTheme(m_viewAsk.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewAsk.m_hWnd, L"Explorer", nullptr);
 		}
 
 		bHandled = FALSE;
@@ -1270,6 +1300,27 @@ public:
 				m_nWaitCount = 0;
 			}
 		}
+		else if (wParam == TIMER_SHOWAI)
+		{
+			int step = m_xySplitterPosToRight >> 4;
+			m_xySplitterPosToRightCurrent += step;
+			if (m_xySplitterPosToRightCurrent <= m_xySplitterPosToRight)
+			{
+				int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
+				SetSplitterPos(cxyTotal - m_xySplitterPosToRightCurrent, false);
+				SetSinglePaneMode(SPLIT_PANE_NONE);
+				// force to redraw
+				InvalidateWin01234();
+				ReleaseUnknown(m_pD2DRenderTarget);
+				Invalidate();
+			}
+			else
+			{
+				KillTimer(TIMER_SHOWAI);
+				m_xySplitterPosToRightCurrent = 0;
+			}
+		}
+
 		return 0L;
 	}
 
@@ -1382,11 +1433,11 @@ public:
 			if (hitType == HIT_VSPLIT)
 			{
 				RECT rc = { 0 };
-				const int limitLeft = 256;
-				const int limitRight = 128;
+				const int limitL = 256;
+				const int limitR = 128;
 				int xyNewSplitPos = xPos - m_rcSplitter.left - m_cxyDragOffset;
 
-				if (xyNewSplitPos < m_rcSplitter.left + limitLeft || xyNewSplitPos > m_rcSplitter.right - limitRight)
+				if (xyNewSplitPos < m_rcSplitter.left + limitL || xyNewSplitPos > m_rcSplitter.right - limitR)
 					return 0L;
 
 				::GetClientRect(m_viewTTY.m_hWnd, &rc);
@@ -1403,6 +1454,28 @@ public:
 						UpdateWindow();
 					}
 				}
+				return 0L;
+			}
+			else if (hitType == HIT_HSPLIT)
+			{
+				const int limitT = 300;
+				const int limitB = 64;
+				int xyNewSplitPosH = yPos - m_rcSplitter.top - m_cxyDragOffsetH;
+
+				if (xyNewSplitPosH < m_rcSplitter.top + limitT || xyNewSplitPosH > m_rcSplitter.bottom - limitB)
+					return 0L;
+
+				if (xyNewSplitPosH == -1)   // avoid -1, that means default position
+					xyNewSplitPosH = -2;
+
+				if (m_xySplitterPosH != xyNewSplitPosH)
+				{
+					m_heightWinAsk = m_rcSplitter.bottom - xyNewSplitPosH;
+					InvalidateWin34();
+					UpdateSplitterLayout();
+					UpdateWindow();
+				}
+				return 0L;
 			}
 		}
 		else	// not dragging, just set cursor
@@ -1449,13 +1522,13 @@ public:
 		{
 			POINT pt = { 1, m_heightTitle + 2 };
 			ClientToScreen(&pt);
-#if 0
-			DeleteMenu(m_hMenuMain, IDM_ASSISTANT, MF_BYCOMMAND);
+
+			DeleteMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND);
 			if (m_nSinglePane != SPLIT_PANE_NONE)
-				InsertMenu(m_hMenuMain, IDM_ASSISTANT, MF_BYCOMMAND, IDM_ASSISTANT, L"Show AI Assistant");
+				InsertMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND, IDM_AIASSISTANT, L"Show AI Assistant");
 			else
-				InsertMenu(m_hMenuMain, IDM_ASSISTANT, MF_BYCOMMAND, IDM_ASSISTANT, L"Hide AI Assistant");
-#endif 
+				InsertMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND, IDM_AIASSISTANT, L"Hide AI Assistant");
+
 			TrackPopupMenu(m_hMenuMain, TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, 0, m_hWnd, NULL);
 		}
 		m_lpRectHover = nullptr;
@@ -1550,8 +1623,20 @@ public:
 				m_cxyDragOffset = xPos - m_rcSplitter.left - m_xySplitterPos;
 				return 0L;
 			}
-			else if (IsOverSplitterBarH(xPos, yPos))
+			else if (IsOverSplitterBarH(xPos, yPos)) // handle H split bar
 			{
+				m_xySplitterPosH = m_rcSplitter.bottom - m_heightWinAsk;
+				m_xySplitterPosNewH = m_xySplitterPosH;
+				SetCapture();
+				m_dwState &= ~HIT_TYPEMASK;
+				m_dwState |= HIT_HSPLIT;
+#if 0
+				m_hWndFocusSave = SetFocus();
+#endif 
+				::SetCursor(m_hCursorNS);
+				m_dwState |= WINSETCURSOR;
+
+				m_cxyDragOffsetH = yPos - m_rcSplitter.top - m_xySplitterPosH;
 				return 0L;
 			}
 		}
@@ -1610,6 +1695,7 @@ public:
 		{
 			EnableSizeTip(false);
 			m_xySplitterPosNew = m_xySplitterPos;
+			m_xySplitterPosNewH = m_xySplitterPosH;
 			if (m_nSinglePane == SPLIT_PANE_NONE)
 			{
 				int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
@@ -1636,7 +1722,6 @@ public:
 
 		if (bHit) // we hit some button in NC area
 		{
-			//ATLASSERT(bHitTitle);
 			InvalidateVirtualWindow(m_lpRectPress);
 			InvalidateVirtualWindow(m_lpRectHover);
 			InvalidateVirtualWindow(lpRect);
@@ -1697,7 +1782,7 @@ public:
 			m_screenBuff = nullptr;
 			m_screenSize = 0;
 
-			if (w > m_widthWindow0 && h > (heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT))
+			if (w > CAPTION_HEIGHT && h > (heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT))
 			{
 				h = heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT;
 				m_screenSize = ZT_ALIGN_PAGE64K(w * h * sizeof(U32));
@@ -1705,7 +1790,7 @@ public:
 				if (m_screenBuff)
 				{
 					m_screenWin0 = m_screenBuff;
-					m_screenWin2 = m_screenWin0 + m_widthWindow0 * heightTitle;
+					m_screenWin2 = m_screenWin0 + CAPTION_HEIGHT * heightTitle;
 					UpdateButtonPosition();
 				}
 			}
@@ -2245,56 +2330,88 @@ public:
 
 	void DoAssistant()
 	{
-		RECT* lpRect = nullptr;
-		int idx;
-		int nPane = SPLIT_PANE_NONE;
+		static bool bFirst = true;
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
 
 		m_dwState &= ~GPT_NET_GOOD; // reset the network status
 
-		idx = RECT_IDX_QASK;
-		lpRect = &m_rectButton[idx];
-		lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
-
-		idx = RECT_IDX_HIDE;
-		lpRect = &m_rectButton[idx];
-		lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
-
-		if (m_xySplitterPosToRight == 0)
+		if (bFirst)
 		{
-			m_xySplitterPosToRight = ::MulDiv(30, cxyTotal, 100);
-		}
+			bFirst = false;
 
-		if (m_nSinglePane == SPLIT_PANE_NONE)
-		{
-			nPane = SPLIT_PANE_LEFT;
-			InterlockedExchange(&g_threadPing, 0); // disable ping test
-			//UpdateGapButtons(); // clean the position of the buttons
-			m_screenWin4 = nullptr;
-		}
-		else
-		{
+			ATLASSERT(m_xySplitterPosToRight == 0);
+			m_xySplitterPosToRight = ::MulDiv(25, cxyTotal, 100);
+			if (m_xySplitterPosToRight < 200)
+				m_xySplitterPosToRight = 200;
+			m_xySplitterPosToRightCurrent = 0;
+			SetTimer(TIMER_SHOWAI, 12);
 			// ask the network thread to ping now so 
 			// we can get the network status immediately.
 			InterlockedExchange(&g_threadPing, 1);
 			InterlockedExchange(&g_threadPingNow, 1);
-
-			SetSplitterPos(cxyTotal - m_xySplitterPosToRight, false);
-			//UpdateGapButtons(FALSE);
-			m_screenWin4 = m_screenWin3 + ((cxyTotal - m_xySplitterPos) * GAP_WIN_HEIGHT);
 		}
+		else
+		{
+			RECT* lpRect = nullptr;
+			int idx;
+			int nPane = SPLIT_PANE_NONE;
 
-		SetSinglePaneMode(nPane);
-		// force to redraw
-		InvalidateWin01234();
-		ReleaseUnknown(m_pD2DRenderTarget);
-		Invalidate();
+			idx = RECT_IDX_QASK;
+			lpRect = &m_rectButton[idx];
+			lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
+
+			idx = RECT_IDX_HIDE;
+			lpRect = &m_rectButton[idx];
+			lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
+
+			if (m_nSinglePane == SPLIT_PANE_NONE)
+			{
+				nPane = SPLIT_PANE_LEFT;
+				InterlockedExchange(&g_threadPing, 0); // disable ping test
+				//UpdateGapButtons(); // clean the position of the buttons
+			}
+			else
+			{
+				// ask the network thread to ping now so 
+				// we can get the network status immediately.
+				InterlockedExchange(&g_threadPing, 1);
+				InterlockedExchange(&g_threadPingNow, 1);
+
+				SetSplitterPos(cxyTotal - m_xySplitterPosToRight, false);
+				//UpdateGapButtons(FALSE);
+			}
+			SetSinglePaneMode(nPane);
+			// force to redraw
+			InvalidateWin01234();
+			ReleaseUnknown(m_pD2DRenderTarget);
+			Invalidate();
+		}
 	}
 
 	LRESULT OnAssistant(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		DoAssistant();
 		return 0;
+	}
+
+	LRESULT OnEditCopy(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return 0L;
+	}
+
+	LRESULT OnEditPaste(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return 0L;
+	}
+
+	LRESULT OnEditCut(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return 0L;
+	}
+
+	LRESULT OnEditUndo(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return 0L;
 	}
 
 	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
@@ -2480,6 +2597,7 @@ public:
 
 	void GetSystemSettings(bool bUpdate)
 	{
+#if 0
 		if ((m_dwExtendedStyle & SPLIT_FIXEDBARSIZE) == 0)
 		{
 			m_cxySplitBar = ::GetSystemMetrics(SM_CXSIZEFRAME);
@@ -2500,7 +2618,9 @@ public:
 #endif 
 		if (bUpdate)
 			UpdateSplitterLayout();
+#endif 
 	}
+
 #if 0
 	bool IsProportional() const
 	{
@@ -2527,12 +2647,12 @@ public:
 			SetSplitterPos(xyNewPos, false);
 		}
 	}
-
+#if 0
 	bool IsRightAligned() const
 	{
 		return ((m_dwExtendedStyle & SPLIT_RIGHTALIGNED) != 0);
 	}
-
+#endif 
 	void StoreRightAlignPos()
 	{
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);

@@ -2,6 +2,16 @@
 #include "App.h"
 
 #define DEFAULT_POST_BUF_SIZE   (1<<18)
+
+#define HTTP_DOWNLOAD_LIMIT		(1<<24)
+typedef struct
+{
+    HWND hWnd;
+    U32 total;
+    U32 curr;
+    U8* buffer;
+} HTTPDownload;
+
 static const char* version__ = "100";
 
 static void PushIntoReceQueue(U8* data, U32 length)
@@ -381,7 +391,7 @@ U32 ztStartupNetworkThread(HWND hWnd)
         if (hThread) /* we don't need the thread handle */
             CloseHandle(hThread);
     }
-    return WT_OK;
+    return ZT_OK;
 }
 
 static DWORD WINAPI bounce_threadfunc(void* param)
@@ -426,7 +436,7 @@ static DWORD WINAPI bounce_threadfunc(void* param)
     return 0;
 }
 
-void ztBounceNetworkThread()
+void ztBounceNetworkThread(void)
 {
     DWORD in_threadid = 0; /* required for Win9x */
     HANDLE hThread;

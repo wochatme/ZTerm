@@ -1,12 +1,10 @@
 #pragma once
 
-#define WT_OK       0
-#define WT_FAIL     1
+#define ZT_OK       0
+#define ZT_FAIL     1
 
 #define INPUT_BUF_INPUT_MAX     (1<<16)
 #define EDITW_DEFAULT_BLOCK     (1<<16)
-
-#define ZX_MESSAGE_HEAD_SIZE       150
 
 typedef struct MessageTask
 {
@@ -109,8 +107,7 @@ typedef struct ZTConfig
 bool ztIsHexString(U8* str, U8 len);
 int ztRaw2HexString(U8* input, U8 len, U8* output, U8* outlen);
 U32 ztGenerateRandomBytes(U8* rndata, U32 bytes);
-
-void InitZTConfig(ZTConfig* cf);
+void ztInitConfig(ZTConfig* cf);
 
 int ScreenClear(U32* dst, U32 size, U32 color);
 int ScreenDrawRect(U32* dst, int w, int h, U32* src, int sw, int sh, int dx, int dy);

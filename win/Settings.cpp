@@ -332,13 +332,13 @@ void EnableSizeTip(bool bEnable)
 
 U32 ztGenerateRandomBytes(U8* rndata, U32 bytes)
 {
-	U32 ret = WT_FAIL;
+	U32 ret = ZT_FAIL;
 	if (rndata)
 	{
 		NTSTATUS status;
 		status = BCryptGenRandom(NULL, rndata, bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG);
 		if (0 == status)
-			ret = WT_OK;
+			ret = ZT_OK;
 	}
 	return ret;
 }
@@ -425,7 +425,7 @@ static void GenerateRandom32Bytes(U8* random)
 #endif 
 }
 
-void InitZTConfig(ZTConfig* cf)
+void ztInitConfig(ZTConfig* cf)
 {
 	int i;
 	U8 random[32];

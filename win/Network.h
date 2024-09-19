@@ -2,17 +2,11 @@
 
 #include "Settings.h"
 
-#define HTTP_DOWNLOAD_LIMIT		(1<<24)
+#define ZX_MESSAGE_HEAD_SIZE       150
 
-typedef struct
-{
-	HWND hWnd;
-	U32 total;
-	U32 curr;
-	U8* buffer;
-} HTTPDownload;
+#define WM_NETWORK_STATUS	(WM_USER + 101)
 
 U32 ztStartupNetworkThread(HWND hWnd);
 void ztPushIntoSendQueue(MessageTask* task);
-void ztBounceNetworkThread();
+void ztBounceNetworkThread(void);
 
