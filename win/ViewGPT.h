@@ -67,9 +67,8 @@ public:
 			::SendMessage(m_hWnd, SCI_SETMARGINS, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINLEFT, 0, 0);
 
-			::SetWindowTheme(m_hWnd, L"DarkMode_Explorer", nullptr);
-
 #if 0
+			::SetWindowTheme(m_hWnd, L"DarkMode_Explorer", nullptr);
 			::SendMessage(m_hWnd, SCI_SETVSCROLLBAR, 0, 0);
 #endif 
 		}
@@ -205,7 +204,7 @@ public:
 			::SendMessage(m_hWnd, SCI_SETMARGINWIDTHN, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINS, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINLEFT, 0, 0);
-
+#if 0
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_LINENUMBER, RGB(0, 0, 0));
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_DEFAULT, RGB(13, 13, 13));
 			::SendMessage(m_hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));
@@ -213,6 +212,7 @@ public:
 			::SendMessage(m_hWnd, SCI_STYLECLEARALL, 0, 0);
 
 			::SetWindowTheme(m_hWnd, L"DarkMode_Explorer", nullptr);
+#endif 
 		}
 		return m_hWnd;
 	}
@@ -252,6 +252,26 @@ public:
 			bRet = ::SetWindowPos(m_hWnd, hWndInsertAfter, X, Y, cx, cy, uFlags);
 		}
 		return bRet;
+	}
+
+	void EnableDarkMode(bool darkmode = true)
+	{
+		if (darkmode)
+		{
+			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_LINENUMBER, RGB(0, 0, 0));
+			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_DEFAULT, RGB(13, 13, 13));
+			::SendMessage(m_hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));
+			::SendMessage(m_hWnd, SCI_SETCARETFORE, RGB(250, 250, 250), 0);
+			::SendMessage(m_hWnd, SCI_STYLECLEARALL, 0, 0);
+		}
+		else
+		{
+			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_LINENUMBER, RGB(255, 255, 255));
+			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_DEFAULT, RGB(255, 255, 255));
+			::SendMessage(m_hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));
+			//::SendMessage(m_hWnd, SCI_SETCARETFORE, RGB(250, 250, 250), 0);
+			::SendMessage(m_hWnd, SCI_STYLECLEARALL, 0, 0);
+		}
 	}
 
 	int SetText(const char* text)

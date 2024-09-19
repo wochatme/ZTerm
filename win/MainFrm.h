@@ -9,7 +9,12 @@
 
 #define BACKGROUND_BLACK	0xFF000000
 #define BACKGROUND_WHITE	0xFFFFFFFF
-#define BACKGROUND_DGRAY	0xFF171717
+#define BACKGROUND_DARK		0xFF171717
+#define BACKGROUND_LIGHT	0xFFF0F0F0
+
+#define ASK_WIN_HEIGHT		88
+#define GAP_WIN_HEIGHT		32
+#define LED_WIN_HEIGHT		24
 
 #define IDM_NEW_WINDOW		(0x0110)
 #define IDM_NEW_SESSION		(0x0120)
@@ -94,15 +99,21 @@
 #define HAS_SCROLL_TOWEST	(0x20000000)
 #define HAS_SCROLL_TOEAST	(0x10000000)
 
-#define WIN_CAPTURED		(0x00000001)
-#define WINSETCURSOR		(0x00000002)
-#define WIN_HITTITLE		(0x00000004)
-#define GPT_NET_GOOD	    (0x00000008)
-#define WIN_DARKMODE		(0x00000010)
-#define WIN_HIT_BUTN		(0x00000020)
-#define WINHITCLIENT		(0x00000040)
-#define WIN_HITSPLIT		(0x00000080)
-#define WINMAXIMIZED		(0x00000100)
+#define WIN_CAPTURED		(0x00000010)
+#define WINSETCURSOR		(0x00000020)
+#define WIN_HITTITLE		(0x00000040)
+#define GPT_NET_GOOD	    (0x00000080)
+#define WIN_DARKMODE		(0x00000100)
+#define WIN_HIT_BUTN		(0x00000200)
+#define WINHITCLIENT		(0x00000400)
+#define WIN_HITSPLIT		(0x00000800)
+#define WINMAXIMIZED		(0x00001000)
+
+#define HIT_TYPEMASK		(0x00000003)
+#define HIT_NONE			(0x00000000)
+#define HIT_BUTTON			(0x00000001)
+#define HIT_VSPLIT			(0x00000002)
+#define HIT_HSPLIT			(0x00000003)
 
 #define IsDarkMode()		(m_dwState & WIN_DARKMODE)
 #define SetDarkMode(dark)	do { m_dwState = (dark)? (m_dwState|WIN_DARKMODE) : (m_dwState & ~WIN_DARKMODE); } while(0)
@@ -136,6 +147,9 @@ class CMainFrame :
 
 	UINT m_nDPI = USER_DEFAULT_SCREEN_DPI;
 	int m_heightTitle = CAPTION_HEIGHT;
+	int m_heightGap = GAP_WIN_HEIGHT;
+	int m_heightLed = LED_WIN_HEIGHT;
+    int m_heightWinAsk = ASK_WIN_HEIGHT;
 	DWORD m_dwState = 0;
 
 	U32* m_screenBuff = nullptr;
@@ -312,6 +326,7 @@ public:
 				::ShowWindow(m_hWndPane[nPane], SW_SHOW);
 			int nOtherPane = (nPane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
 			::ShowWindow(m_hWndPane[nOtherPane], SW_HIDE);
+			::ShowWindow(m_viewAsk.m_hWnd, SW_HIDE);
 			if (m_nDefActivePane != nPane)
 				m_nDefActivePane = nPane;
 		}
@@ -319,6 +334,7 @@ public:
 		{
 			int nOtherPane = (m_nSinglePane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
 			::ShowWindow(m_hWndPane[nOtherPane], SW_SHOW);
+			::ShowWindow(m_viewAsk.m_hWnd, SW_SHOW);
 		}
 
 		m_nSinglePane = nPane;
@@ -503,7 +519,7 @@ public:
 				DrawSplitterPane(dc, m_nSinglePane);
 		}
 	}
-
+#if 0
 	// call to initiate moving splitter bar with keyboard
 	void MoveSplitterBar()
 	{
@@ -524,7 +540,7 @@ public:
 #endif 
 		m_cxyDragOffset = x - m_rcSplitter.left - m_xySplitterPos;
 	}
-#if 0
+
 	void SetOrientation(bool bVertical, bool bUpdate = true)
 	{
 		if (m_bVertical != bVertical)
@@ -537,9 +553,9 @@ public:
 			GetSystemSettings(false);
 
 			if (m_bVertical)
-				m_xySplitterPos = ::MulDiv(m_xySplitterPos, m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
+				m_xySplitterPos = ::::MulDiv(m_xySplitterPos, m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
 			else
-				m_xySplitterPos = ::MulDiv(m_xySplitterPos, m_rcSplitter.bottom - m_rcSplitter.top, m_rcSplitter.right - m_rcSplitter.left);
+				m_xySplitterPos = ::::MulDiv(m_xySplitterPos, m_rcSplitter.bottom - m_rcSplitter.top, m_rcSplitter.right - m_rcSplitter.left);
 		}
 
 		if (bUpdate)
@@ -616,6 +632,8 @@ public:
 		MESSAGE_HANDLER(WM_NCMOUSEMOVE, OnNCMouseMove)
 		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
 		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
+		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
+		MESSAGE_HANDLER(WM_GETMINMAXINFO, OnGetMinMaxInfo)
 		MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
 		MESSAGE_HANDLER(WM_MOUSEACTIVATE, OnMouseActivate)
@@ -655,6 +673,15 @@ public:
 
 		bHandled = FALSE;
 		return 0L;
+	}
+
+	LRESULT OnGetMinMaxInfo(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
+	{
+		// to keep the minimal size of the main window
+		LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+		lpMMI->ptMinTrackSize.x = 600;
+		lpMMI->ptMinTrackSize.y = 200;
+		return 0;
 	}
 
 	LRESULT OnSetCursor(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -771,6 +798,12 @@ public:
 		return 0;
 	}
 
+	LRESULT OnNotify(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
+	{
+		bHandled = FALSE;
+		return 0;
+	}
+
 	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		UINT dpiY = HIWORD(wParam);
@@ -780,7 +813,12 @@ public:
 			m_nDPI = USER_DEFAULT_SCREEN_DPI;
 #endif 
 		m_nDPI = dpiY;
-		m_heightTitle = MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+
+		m_heightTitle = ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightGap = ::MulDiv(m_nDPI, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(m_nDPI, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightWinAsk = ::MulDiv(m_nDPI, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_xySplitterPos = ::MulDiv(m_nDPI, m_xySplitterPos, USER_DEFAULT_SCREEN_DPI);
 
 		MARGINS margins = { 0 };
 		margins.cyTopHeight = m_heightTitle + 1;
@@ -793,8 +831,11 @@ public:
 				lpRect->right - lpRect->left, lpRect->bottom - lpRect->top, SWP_NOZORDER);
 		}
 
-#if 0
+		UpdateSplitterLayout();
+		// force to redraw
 		ReleaseUnknown(m_pD2DRenderTarget);
+		Invalidate();
+#if 0
 		GetClientRect(&m_rcSplitter);
 		int top = m_rcSplitter.top + m_heightTitle + 2;
 		::SetWindowPos(m_viewTTY.m_hWnd, NULL,
@@ -803,8 +844,7 @@ public:
 			m_rcSplitter.bottom - top, SWP_NOZORDER);
 
 		Invalidate();
-#endif 
-#if 0
+
 		DwmGetWindowAttribute(m_hWnd, DWMWA_CAPTION_BUTTON_BOUNDS, &rb, sizeof(RECT));
 		//swprintf_s(title, 63, L"[%d]D:%d, R:%d %d %d %d", m_dpi, m_nDPI, rb.left, rb.right, rb.top, rb.botttom);
 		swprintf_s(title, 63, L"[%d]D:%d, R:%d %d, %d %d", m_dpi, m_nDPI, rb.left, rb.right - rb.left, rb.top, rb.bottom - rb.top);
@@ -859,7 +899,10 @@ public:
 		if (!m_nDPI)
 			m_nDPI = USER_DEFAULT_SCREEN_DPI;
 
-		m_heightTitle = MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightTitle = ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightGap = ::MulDiv(m_nDPI, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(m_nDPI, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightWinAsk = ::MulDiv(m_nDPI, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 
 		m_hMenuMain = CreatePopupMenu();
 		if (m_hMenuMain)
@@ -905,6 +948,8 @@ public:
 #endif 
 		m_viewGPT.Create(m_hWnd, rcDefault, NULL, dwStyle);
 		m_viewGPT.ShowWindow(SW_HIDE);
+		m_viewAsk.Create(m_hWnd, rcDefault, NULL, dwStyle);
+		m_viewAsk.ShowWindow(SW_HIDE);
 		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle | WS_VSCROLL);
 		//SetSplitterPanes(m_viewTTY, m_viewGPT, false);
 		m_hWndPane[SPLIT_PANE_LEFT] = m_viewTTY.m_hWnd;
@@ -912,7 +957,7 @@ public:
 
 		SetWindowPos(nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
 
-		SetTimer(TIMER_MAINWIN, 100);
+		SetTimer(TIMER_MAINWIN, TIMER_MAINWIN);
 
 		return 0;
 	}
@@ -1038,13 +1083,19 @@ public:
 		if (wParam == TIMER_MAINWIN)
 		{
 			nCount++;
-			if (nCount > 10)
+			if (nCount >= 4)
 			{
 				nCount = 0;
-			}
-
-			if (NeedDrawAnyWindow())
+#if 0
+				InvalidateWin01234();
 				Invalidate();
+#endif 
+			}
+			else
+			{
+				if (NeedDrawAnyWindow())
+					Invalidate();
+			}
 		}
 		return 0L;
 	}
@@ -1052,7 +1103,7 @@ public:
 	LRESULT OnSizing(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		RECT rc = { 0 };
-		GetClientRect(&rc);
+		::GetClientRect(m_viewTTY.m_hWnd, &rc);
 		UpdateSizeTip(m_hWnd, rc.right - rc.left, rc.bottom - rc.top);
 		//bHandled = FALSE;
 		return 0L;
@@ -1151,21 +1202,32 @@ public:
 	{
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
-
+		
 		if (::GetCapture() == m_hWnd)
 		{
-			int xyNewSplitPos = xPos - m_rcSplitter.left - m_cxyDragOffset;
-
-			if (xyNewSplitPos == -1)   // avoid -1, that means default position
-				xyNewSplitPos = -2;
-
-			if (m_xySplitterPos != xyNewSplitPos)
+			DWORD hitType = m_dwState & HIT_TYPEMASK;
+			if (hitType == HIT_VSPLIT)
 			{
-				if (SetSplitterPos(xyNewSplitPos, true))
-					UpdateWindow();
+				int xyNewSplitPos = xPos - m_rcSplitter.left - m_cxyDragOffset;
+
+				RECT rc = { 0 };
+				::GetClientRect(m_viewTTY.m_hWnd, &rc);
+				UpdateSizeTip(m_hWnd, rc.right - rc.left, rc.bottom - rc.top);
+
+				if (xyNewSplitPos == -1)   // avoid -1, that means default position
+					xyNewSplitPos = -2;
+
+				if (m_xySplitterPos != xyNewSplitPos)
+				{
+					if (SetSplitterPos(xyNewSplitPos, true))
+					{
+						InvalidateWin34();
+						UpdateWindow();
+					}
+				}
 			}
 		}
-		else		// not dragging, just set cursor
+		else	// not dragging, just set cursor
 		{
 			if (IsOverSplitterBar(xPos, yPos))
 				::SetCursor(m_hCursor);
@@ -1237,8 +1299,12 @@ public:
 				if (::GetCapture() != m_hWnd)
 				{
 					::SetCapture(m_hWnd);
+					m_dwState &= ~HIT_TYPEMASK;
+					m_dwState |= HIT_BUTTON;
 					ATLASSERT((WIN_CAPTURED & m_dwState) == 0);
 					m_dwState |= (WIN_CAPTURED | WIN_HITTITLE | WIN_HIT_BUTN);
+					m_dwState &= ~(HIT_TYPEMASK);
+					m_dwState |= HIT_BUTTON;
 				}
 				bHandled = TRUE;
 				return 0L;
@@ -1249,12 +1315,18 @@ public:
 
 	LRESULT OnLButtonDown(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+		BOOL bHit = FALSE;
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
 		if ((::GetCapture() != m_hWnd) && IsOverSplitterBar(xPos, yPos))
 		{
 			m_xySplitterPosNew = m_xySplitterPos;
 			SetCapture();
+			m_dwState &= ~HIT_TYPEMASK;
+			m_dwState |= HIT_VSPLIT;
+
+			EnableSizeTip(true);
+
 			m_hWndFocusSave = SetFocus();
 			::SetCursor(m_hCursor);
 			m_cxyDragOffset = xPos - m_rcSplitter.left - m_xySplitterPos;
@@ -1263,12 +1335,19 @@ public:
 		{
 			::ReleaseCapture();
 		}
+
+		if (!bHit)
+		{
+			PostMessage(WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+		}
+
 		return 0L;
 	}
 
 	LRESULT OnLButtonUp(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		int idx;
+		DWORD hitType;
 		RECT* lpRect = nullptr;
 		BOOL bHit = FALSE;
 		BOOL bHitTitle, bHitButton, bHitSplit;
@@ -1280,12 +1359,14 @@ public:
 		bHitTitle = (m_dwState & WIN_HITTITLE);
 		bHitSplit = (m_dwState & WIN_HITSPLIT);
 		bHitButton = (m_dwState & WIN_HIT_BUTN);
-		m_dwState &= ~(WIN_HITTITLE | WIN_HIT_BUTN | WINHITCLIENT | WIN_HITSPLIT | WIN_CAPTURED);
+		hitType = m_dwState & HIT_TYPEMASK;
+		m_dwState &= ~(WIN_HITTITLE | WIN_HIT_BUTN | WINHITCLIENT | WIN_HITSPLIT | WIN_CAPTURED | HIT_TYPEMASK);
 
 		bHandled = FALSE;
 
 		if (::GetCapture() == m_hWnd)
 		{
+			EnableSizeTip(false);
 			m_xySplitterPosNew = m_xySplitterPos;
 			if (m_nSinglePane == SPLIT_PANE_NONE)
 			{
@@ -1326,6 +1407,25 @@ public:
 		return 0L;
 	}
 
+	void UpdateButtonPosition()
+	{
+		int offset, heightTitle;
+		const int xyButton = 24;
+		RECT* lpRect;
+
+		heightTitle = CAPTION_HEIGHT;
+		// now we can decide the position of Icon and ChatGPT button
+		// because they are all fixed before the next WM_SIZE
+		offset = (heightTitle - xyButton) >> 1;
+		offset = ::MulDiv(m_nDPI, offset, USER_DEFAULT_SCREEN_DPI);
+
+		lpRect = &m_rectButton[RECT_IDX_ICON];
+		lpRect->top = m_rcSplitter.top + offset;
+		lpRect->bottom = lpRect->top + xyButton;
+		lpRect->left = m_rcSplitter.left + offset;
+		lpRect->right = lpRect->left + xyButton;
+	}
+
 	LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		m_dwState &= ~WINMAXIMIZED;
@@ -1343,7 +1443,6 @@ public:
 			}
 
 			ReleaseUnknown(m_pD2DRenderTarget);
-			InvalidateWin01234();
 			
 			w = m_rcSplitter.right - m_rcSplitter.left;
 			h = m_rcSplitter.bottom - m_rcSplitter.top;
@@ -1358,9 +1457,6 @@ public:
 
 			if (w > m_widthWindow0 && h > (heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT))
 			{
-				const int xyButton = 24;
-				RECT* lpRect;
-
 				h = heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT;
 				m_screenSize = ZT_ALIGN_PAGE64K(w * h * sizeof(U32));
 				m_screenBuff = (U32*)VirtualAlloc(NULL, m_screenSize, MEM_COMMIT, PAGE_READWRITE);
@@ -1368,24 +1464,10 @@ public:
 				{
 					m_screenWin0 = m_screenBuff;
 					m_screenWin2 = m_screenWin0 + m_widthWindow0 * heightTitle;
+					UpdateButtonPosition();
 				}
-
-				// now we can decide the position of Icon and ChatGPT button
-				// because they are all fixed before the next WM_SIZE
-				lpRect = &m_rectButton[RECT_IDX_ICON];
-				lpRect->top = m_rcSplitter.top + ((heightTitle - xyButton) >> 1);
-				lpRect->bottom = lpRect->top + xyButton;
-				lpRect->left = m_rcSplitter.left + ((heightTitle - xyButton) >> 1);
-				lpRect->right = lpRect->left + xyButton;
-#if 0
-				lpRect = &m_rectButton[RECT_IDX_CHAT];
-				lpRect->top = m_rcSplitter.top + ((m_heightTitle - xyButton) >> 1);
-				lpRect->top = m_rcSplitter.top + 1 + 4;
-				lpRect->bottom = lpRect->top + xyButton;
-				lpRect->right = m_rcSplitter.right - m_widthMinMaxCloseButtons;
-				lpRect->left = lpRect->right - xyButton;
-#endif 
 			}
+			InvalidateWin01234();
 			Invalidate();
 		}
 		else
@@ -1455,11 +1537,8 @@ public:
 
 				if (result == 0)
 				{
-					U32 pixel[1] = { 0xFF808080 };
-#if 0
-					pixel[0] = IsDarkMode() ? 0xFF3B3B3B : 0xFF000000;
-					pixel[0] = 0xFFFFFFFF;
-#endif 
+					U32 pixel[1];
+					pixel[0] = IsDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
 					w = h = 1;
 					hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), pixel, (w << 2),
 						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -1470,8 +1549,8 @@ public:
 
 				if (result == 0)
 				{
-					U32 pixel[1] = { 0 };
-					pixel[0] = IsDarkMode() ? BACKGROUND_DGRAY : BACKGROUND_WHITE;
+					U32 pixel[1];
+					pixel[0] = IsDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
 					w = h = 1;
 					hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), pixel, (w << 2),
 						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -1552,8 +1631,8 @@ public:
 		{
 			U32* src;
 			int sw, sh, dx, dy, width, height;
-			
-			width = (m_dwState & WINMAXIMIZED)? CAPTION_HEIGHT_MAX : CAPTION_HEIGHT;
+			//width = (m_dwState & WINMAXIMIZED)? CAPTION_HEIGHT_MAX : CAPTION_HEIGHT;
+			width = CAPTION_HEIGHT;
 			height = width;
 
 			ScreenClear(dst, (U32)(width * height), IsDarkMode() ? BACKGROUND_BLACK : BACKGROUND_WHITE);
@@ -1596,6 +1675,7 @@ public:
 		{
 			int w, h;
 			w = (m_dwState & WINMAXIMIZED) ? CAPTION_HEIGHT_MAX : CAPTION_HEIGHT;
+			//w = m_heightTitle;
 			h = w;
 			HRESULT hr = m_pBitmap0->CopyFromMemory(nullptr, m_screenWin0, (w << 2));
 			if (hr == S_OK)
@@ -1605,12 +1685,105 @@ public:
 				D2D1_RECT_F area = D2D1::RectF(
 					static_cast<FLOAT>(left),
 					static_cast<FLOAT>(top),
-					static_cast<FLOAT>(left + w),
-					static_cast<FLOAT>(top + h)
+					static_cast<FLOAT>(left + m_heightTitle),
+					static_cast<FLOAT>(top + m_heightTitle)
 				);
 				m_pD2DRenderTarget->DrawBitmap(m_pBitmap0, &area);
 			}
 		}
+	}
+#if 0
+	void UpdateWindow3(const int width, const int height)
+	{
+		if (m_screenWin3)
+		{
+			U32* dst = m_screenWin3;
+			//ScreenClear(dst, (U32)(width * height), BACKGROUND_DGRAY);
+			ScreenClear(dst, (U32)(width * height), IsDarkMode()? BACKGROUND_DARK : BACKGROUND_LIGHT);
+		}
+	}
+#endif
+	void DrawWindow3()
+	{
+		ID2D1Bitmap* pBitmap = nullptr;
+		int h = GAP_WIN_HEIGHT;
+		int w = m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge - m_xySplitterPos;
+
+		//UpdateWindow3(w, h);
+
+		if (m_pBitmapPixel)
+		{
+			int top = m_rcSplitter.top + m_heightTitle + 1;
+
+			D2D1_RECT_F area = D2D1::RectF(
+				static_cast<FLOAT>(m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge),
+				static_cast<FLOAT>(m_rcSplitter.bottom - m_heightGap - m_heightWinAsk),
+				static_cast<FLOAT>(m_rcSplitter.right),
+				static_cast<FLOAT>(m_rcSplitter.bottom - m_heightWinAsk)
+			);
+			m_pD2DRenderTarget->DrawBitmap(m_pBitmapPixel, &area);
+		}
+#if 0
+		HRESULT hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_screenWin3, (w << 2),
+			D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+			&pBitmap);
+		if (S_OK == hr && pBitmap)
+		{
+			D2D1_RECT_F area = D2D1::RectF(
+				static_cast<FLOAT>(m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge),
+				static_cast<FLOAT>(m_rcSplitter.bottom - m_heightGap - m_heightWinAsk),
+				static_cast<FLOAT>(m_rcSplitter.right),
+				static_cast<FLOAT>(m_rcSplitter.bottom - m_heightWinAsk)
+			);
+			m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+		}
+		ReleaseUnknown(pBitmap);
+#endif 
+	}
+
+	void DrawWindow4()
+	{
+		const int wh = 16;
+		U32* src = nullptr;
+		ID2D1Bitmap* pBitmap = nullptr;
+
+		src = (GPT_NET_GOOD & m_dwState) ? (U32*)xbmpLGreenLED : (U32*)xbmpLRedLED;
+		if (IsDarkMode())
+		{
+			src = (GPT_NET_GOOD & m_dwState) ? (U32*)xbmpLGreenLED : (U32*)xbmpLRedLED;
+		}
+		src = (U32*)xbmpLGreenLED;
+
+		if (m_pBitmapPixel)
+		{
+			int top = m_rcSplitter.top + m_heightTitle + 1;
+
+			D2D1_RECT_F area = D2D1::RectF(
+				static_cast<FLOAT>(m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge),
+				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2),
+				static_cast<FLOAT>(m_rcSplitter.right),
+				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2 + m_heightLed)
+			);
+			m_pD2DRenderTarget->DrawBitmap(m_pBitmapPixel, &area);
+		}
+
+		HRESULT hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(wh, wh), src, (wh << 2),
+			D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+			&pBitmap);
+		if (S_OK == hr && pBitmap)
+		{
+			int dpiWH = ::MulDiv(m_nDPI, wh, USER_DEFAULT_SCREEN_DPI);
+			int offset = (m_heightLed - dpiWH) >> 1;
+
+			D2D1_RECT_F area = D2D1::RectF(
+				static_cast<FLOAT>(m_rcSplitter.right - offset - dpiWH),
+				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2 + offset),
+				static_cast<FLOAT>(m_rcSplitter.right - offset),
+				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2 + offset + dpiWH)
+			);
+			m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+		}
+		ReleaseUnknown(pBitmap);
 	}
 
 	LRESULT OnPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -1629,25 +1802,24 @@ public:
 			if (S_OK == hr && m_pD2DRenderTarget)
 			{
 				m_pD2DRenderTarget->BeginDraw();
-				//m_pD2DRenderTarget->Clear(D2D1::ColorF(D2D1::ColorF::Black));
-
+				//m_pD2DRenderTarget->Clear(D2D1::ColorF(IsDarkMode()? 0x171717 : 0xF0F0F0));
 				if (NeedDrawWin0())
 				{
 					DrawWindow0();
 					ClearWin0Draw(); //prevent unnecessary drawing
 				}
-
-				if (m_pBitmapPixel)
+				if (m_nSinglePane == SPLIT_PANE_NONE)
 				{
-					int top = m_rcSplitter.top + m_heightTitle + 1;
-
-					D2D1_RECT_F area = D2D1::RectF(
-						static_cast<FLOAT>(m_rcSplitter.left),
-						static_cast<FLOAT>(top),
-						static_cast<FLOAT>(m_rcSplitter.right),
-						static_cast<FLOAT>(top + 1)
-					);
-					m_pD2DRenderTarget->DrawBitmap(m_pBitmapPixel, &area);
+					if (NeedDrawWin3())
+					{
+						DrawWindow3();
+						ClearWin3Draw(); //prevent unnecessary drawing
+					}
+					if (NeedDrawWin4())
+					{
+						DrawWindow4();
+						ClearWin4Draw(); //prevent unnecessary drawing
+					}
 				}
 
 				if (m_pBitmapSplit)
@@ -1779,6 +1951,15 @@ public:
 			{
 				if (GetSplitterPaneRect(nPane, &rect))
 				{
+					if (nPane == SPLIT_PANE_RIGHT)
+					{
+						int top = rect.bottom - m_heightWinAsk;
+						rect.bottom -= (m_heightWinAsk + m_heightGap);
+						rect.top += m_heightLed;
+						::SetWindowPos(m_viewAsk.m_hWnd, NULL,
+							rect.left, top, rect.right - rect.left, m_heightWinAsk, SWP_NOZORDER);
+					}
+
 					if (m_hWndPane[nPane] != NULL)
 						::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
 					else
@@ -1927,7 +2108,7 @@ public:
 	{
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
 		if (cxyTotal > 0)
-			m_nProportionalPos = ::MulDiv(m_xySplitterPos, m_nPropMax, cxyTotal);
+			m_nProportionalPos = ::::MulDiv(m_xySplitterPos, m_nPropMax, cxyTotal);
 		else
 			m_nProportionalPos = 0;
 		ATLTRACE2(atlTraceUI, 0, _T("CSplitterImpl::StoreProportionalPos - %i\n"), m_nProportionalPos);

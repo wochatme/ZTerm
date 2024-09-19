@@ -12,6 +12,7 @@
 #define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
 // Windows Header Files
 #include <windows.h>
+
 // C RunTime Header Files
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,7 +75,7 @@ extern CAppModule _Module;
 #include <dwmapi.h>
 #include <uxtheme.h>
 #include <vssym32.h>
-
+#include <bcrypt.h>
 #include "scintilla/include/Sci_Position.h"
 #include "scintilla/include/scintilla.h"
 
@@ -83,6 +84,7 @@ extern CAppModule _Module;
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Bcrypt.lib")
 
 #if defined _M_IX86
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
