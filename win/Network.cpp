@@ -334,6 +334,22 @@ static DWORD WINAPI network_threadfunc(void* param)
         VirtualFree(postBuf, 0, MEM_RELEASE);
     }
 
+    EnterCriticalSection(&g_csReceMsg);
+    {
+        MessageTask* mp;
+        MessageTask* mq;
+
+        mp = g_receQueue;
+        while (mp) // scan the link to find the message that has been processed
+        {
+            mq = mp->next;
+            HeapFree(GetProcessHeap(), HEAP_NO_SERIALIZE, mp);
+            mp = mq;
+        }
+        g_receQueue = nullptr;
+    }
+    LeaveCriticalSection(&g_csReceMsg);
+
     InterlockedDecrement(&g_threadCount);
     InterlockedDecrement(&g_threadCountBKG);
 

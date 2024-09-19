@@ -160,10 +160,8 @@ static int AppInit(HINSTANCE hInstance)
 
 static void ReleaseQueueMemory()
 {
-#if 0
 	MessageTask* mp;
 	MessageTask* mq;
-
 	mp = g_sendQueue;
 	while (mp) // scan the link to find the message that has been processed
 	{
@@ -171,17 +169,7 @@ static void ReleaseQueueMemory()
 		free(mp);
 		mp = mq;
 	}
-
-	mp = g_receQueue;
-	while (mp) // scan the link to find the message that has been processed
-	{
-		mq = mp->next;
-		free(mp);
-		mp = mq;
-	}
-#endif 
 	g_sendQueue = nullptr;
-	g_receQueue = nullptr;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
