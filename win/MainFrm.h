@@ -16,6 +16,12 @@
 #define GAP_WIN_HEIGHT		32
 #define LED_WIN_HEIGHT		24
 
+#define TOOLTIP_QUICKQ		1
+#define TOOLTIP_HIDEAI		2
+#define TOOLTIP_NETWORK		3
+#define TOOLTIP_MAINMENU	4
+#define TOOLTIP_CHATGPT		5
+
 #define IDM_NEW_WINDOW		(0x0110)
 #define IDM_NEW_SESSION		(0x0120)
 #define IDM_COPYALL_TXT		(0x0130)
@@ -222,6 +228,7 @@ public:
 	CTTYView m_viewTTY;
 	CGPTView m_viewGPT;
 	CAskView m_viewAsk;
+	WTL::CToolTipCtrl m_tooltip;
 
 	// Attributes
 	void SetSplitterRect(LPRECT lpRect = NULL, bool bUpdate = true)
@@ -641,6 +648,7 @@ public:
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
 		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
 		MESSAGE_HANDLER(WM_TIMER, OnTimer)
+		MESSAGE_RANGE_HANDLER(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
 		MESSAGE_HANDLER(WM_NCMOUSEMOVE, OnNCMouseMove)
 		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
 		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
@@ -691,6 +699,17 @@ public:
 
 		bHandled = FALSE;
 		return 0L;
+	}
+
+	LRESULT OnMouseMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (m_tooltip.IsWindow())
+		{
+			MSG msg = { m_hWnd, uMsg, wParam, lParam };
+			m_tooltip.RelayEvent(&msg);
+		}
+		bHandled = FALSE;
+		return 1;
 	}
 
 	LRESULT OnNetworkStatus(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -1029,7 +1048,9 @@ public:
 			::AppendMenu(m_hMenuMain, MF_STRING, IDM_NEW_SESSION, L"New Tab\tCtrl+Insert");
 			::AppendMenu(m_hMenuMain, MF_STRING, IDM_COPYALL_TXT, L"Copy All to Clipboard");
 			::AppendMenu(m_hMenuMain, MF_STRING, IDM_TTY_CONFIG, L"Profile Settings");
+#if 0
 			::AppendMenu(m_hMenuMain, MF_STRING, IDM_DARK_MODE, L"Dark/Light Mode");
+#endif 
 			::AppendMenu(m_hMenuMain, MF_SEPARATOR, 0, 0);
 			::AppendMenu(m_hMenuMain, MF_STRING, IDM_ZTERM_ABOUT, L"About ZTerm@AI");
 			::AppendMenu(m_hMenuMain, MF_SEPARATOR, 0, 0);
@@ -1052,6 +1073,25 @@ public:
 		DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
 
 		Init();
+
+		// Be sure InitCommonControlsEx is called before this,
+		//  with one of the flags that includes the tooltip control
+		m_tooltip.Create(m_hWnd, NULL, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP /* | TTS_BALLOON */, WS_EX_TOOLWINDOW);
+		if (m_tooltip.IsWindow())
+		{
+			m_tooltip.SetWindowPos(HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			m_tooltip.SetDelayTime(TTDT_INITIAL, ::GetDoubleClickTime()<<1);
+			m_tooltip.SetDelayTime(TTDT_AUTOPOP, ::GetDoubleClickTime() * 40);
+			m_tooltip.SetDelayTime(TTDT_RESHOW, ::GetDoubleClickTime() >> 1);
+
+			m_tooltip.AddTool(m_hWnd, L"Quick Ask", &rcDefault, TOOLTIP_QUICKQ);
+			m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant", &rcDefault, TOOLTIP_HIDEAI);
+			m_tooltip.AddTool(m_hWnd, L"Network status: green is good, red is bad", &rcDefault, TOOLTIP_NETWORK);
+			m_tooltip.AddTool(m_hWnd, L"Main Menu", &rcDefault, TOOLTIP_MAINMENU);
+			m_tooltip.AddTool(m_hWnd, L"Show/Hide AI Assistant", &rcDefault, TOOLTIP_CHATGPT);
+			m_tooltip.Activate(TRUE);
+		}
+
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
 		ATLASSERT(pLoop != NULL);
@@ -1070,6 +1110,20 @@ public:
 		m_viewAsk.ShowWindow(SW_HIDE);
 
 		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle | WS_VSCROLL);
+		/*
+		 * Initialise the scroll bar.
+		 */
+		{
+			SCROLLINFO si;
+			si.cbSize = sizeof(si);
+			si.fMask = SIF_ALL | SIF_DISABLENOSCROLL;
+			si.nMin = 0;
+			si.nMax = 23;
+			si.nPage = 24;
+			si.nPos = 0;
+			m_viewTTY.SetScrollInfo(SB_VERT, &si, FALSE);
+		}
+
 		m_hWndPane[SPLIT_PANE_LEFT] = m_viewTTY.m_hWnd;
 		m_hWndPane[SPLIT_PANE_RIGHT] = m_viewGPT.m_hWnd;
 
@@ -1102,6 +1156,17 @@ public:
 		{
 			DestroyMenu(m_hMenuList);
 			m_hMenuList = NULL;
+		}
+
+		if (m_tooltip.IsWindow())
+		{
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_QUICKQ);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_HIDEAI);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_NETWORK);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_MAINMENU);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_CHATGPT);
+			// Also sets the contained m_hWnd to NULL
+			m_tooltip.DestroyWindow();
 		}
 
 		ReleaseUnknown(m_pEllipsis);
@@ -1272,8 +1337,8 @@ public:
 				*p++ = '\n';
 				*p++ = 0xF0;
 				*p++ = 0x9F;
-				*p++ = 0xA4;
-				*p++ = 0x94;
+				*p++ = 0x98;
+				*p++ = 0x8E;
 				*p++ = '\n';
 				*p++ = 'T';
 				*p++ = 'h';
@@ -1375,10 +1440,16 @@ public:
 	}
 
 
-	LRESULT OnNCMouseMove(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	LRESULT OnNCMouseMove(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		bHandled = FALSE;
 		
+		if (m_tooltip.IsWindow())
+		{
+			MSG msg = { m_hWnd, uMsg, wParam, lParam };
+			m_tooltip.RelayEvent(&msg);
+		}
+
 		if ((WIN_CAPTURED & m_dwState) == 0)
 		{
 			RECT* lpRect = nullptr;
@@ -1541,7 +1612,7 @@ public:
 		{
 			if (lParam == RECT_IDX_ICON)
 				DoIcon();
-			else if (lParam == RECT_IDX_HIDE)
+			else if (lParam == RECT_IDX_HIDE || lParam == RECT_IDX_CHAT)
 				DoAssistant();
 			else if (lParam == RECT_IDX_QASK)
 				DoQuickAsk();
@@ -1736,6 +1807,7 @@ public:
 
 	void UpdateButtonPosition()
 	{
+#if 0
 		int offset, heightTitle;
 		const int xyButton = 24;
 		RECT* lpRect;
@@ -1751,26 +1823,28 @@ public:
 		lpRect->bottom = lpRect->top + xyButton;
 		lpRect->left = m_rcSplitter.left + offset;
 		lpRect->right = lpRect->left + xyButton;
+#endif 
 	}
 
 	LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		m_dwState &= ~WINMAXIMIZED;
+		ReleaseUnknown(m_pD2DRenderTarget);
+
 		if (wParam != SIZE_MINIMIZED)
 		{
 			int w, h, top, heightTitle;
 
 			SetSplitterRect();
 
-			heightTitle = CAPTION_HEIGHT;
+			heightTitle = m_heightTitle; // ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+#if 0
 			if (wParam == SIZE_MAXIMIZED)
 			{
 				m_dwState |= WINMAXIMIZED;
 				heightTitle = CAPTION_HEIGHT_MAX;
 			}
-
-			ReleaseUnknown(m_pD2DRenderTarget);
-			
+#endif 
 			w = m_rcSplitter.right - m_rcSplitter.left;
 			h = m_rcSplitter.bottom - m_rcSplitter.top;
 
@@ -1782,17 +1856,18 @@ public:
 			m_screenBuff = nullptr;
 			m_screenSize = 0;
 
-			if (w > CAPTION_HEIGHT && h > (heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT))
+			if (w > heightTitle && h > heightTitle)
 			{
-				h = heightTitle + GAP_WIN_HEIGHT + LED_WIN_HEIGHT;
-				m_screenSize = ZT_ALIGN_PAGE64K(w * h * sizeof(U32));
+				m_screenSize = ZT_ALIGN_PAGE64K(w * heightTitle * sizeof(U32));
 				m_screenBuff = (U32*)VirtualAlloc(NULL, m_screenSize, MEM_COMMIT, PAGE_READWRITE);
+#if 0
 				if (m_screenBuff)
 				{
 					m_screenWin0 = m_screenBuff;
 					m_screenWin2 = m_screenWin0 + CAPTION_HEIGHT * heightTitle;
 					UpdateButtonPosition();
 				}
+#endif 
 			}
 			InvalidateWin01234();
 			Invalidate();
@@ -1801,6 +1876,7 @@ public:
 		{
 			m_rcSplitter.left = m_rcSplitter.right = m_rcSplitter.top = m_rcSplitter.bottom = 0;
 		}
+
 		return 0L;
 	}
 
@@ -2038,6 +2114,7 @@ public:
 			lpRect->right = lpRect->left + dpiWH;
 			lpRect->top = m_rcSplitter.top + 1 + offset;
 			lpRect->bottom = lpRect->top + dpiWH;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_MAINMENU, lpRect);
 
 			D2D1_RECT_F area = D2D1::RectF(
 				static_cast<FLOAT>(lpRect->left),
@@ -2115,6 +2192,7 @@ public:
 			lpRect->left = lpRect->right - dpiWH;
 			lpRect->top = m_rcSplitter.bottom - m_heightGap - m_heightWinAsk + offset;
 			lpRect->bottom = lpRect->top + dpiWH;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_HIDEAI, lpRect);
 
 			D2D1_RECT_F area = D2D1::RectF(
 				static_cast<FLOAT>(lpRect->left),
@@ -2144,6 +2222,8 @@ public:
 			lpRect->top = m_rcSplitter.bottom - m_heightGap - m_heightWinAsk + offset;
 			lpRect->bottom = lpRect->top + dpiWH;
 
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_QUICKQ, lpRect);
+
 			D2D1_RECT_F area = D2D1::RectF(
 				static_cast<FLOAT>(lpRect->left),
 				static_cast<FLOAT>(lpRect->top),
@@ -2170,7 +2250,6 @@ public:
 		if (m_pBitmapPixel)
 		{
 			int top = m_rcSplitter.top + m_heightTitle + 1;
-
 			D2D1_RECT_F area = D2D1::RectF(
 				static_cast<FLOAT>(m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge),
 				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2),
@@ -2188,15 +2267,126 @@ public:
 			int dpiWH = ::MulDiv(m_nDPI, wh, USER_DEFAULT_SCREEN_DPI);
 			int offset = (m_heightLed - dpiWH) >> 1;
 
+			int idx = RECT_IDX_STAT;
+			RECT* lpRect = &m_rectButton[idx];
+			lpRect->right = m_rcSplitter.right - offset;
+			lpRect->left = lpRect->right - dpiWH;
+			lpRect->top = m_rcSplitter.top + m_heightTitle + 2 + offset;
+			lpRect->bottom = lpRect->top + dpiWH;
+
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_NETWORK, lpRect);
+
 			D2D1_RECT_F area = D2D1::RectF(
-				static_cast<FLOAT>(m_rcSplitter.right - offset - dpiWH),
-				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2 + offset),
-				static_cast<FLOAT>(m_rcSplitter.right - offset),
-				static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2 + offset + dpiWH)
+				static_cast<FLOAT>(lpRect->left),
+				static_cast<FLOAT>(lpRect->top),
+				static_cast<FLOAT>(lpRect->right),
+				static_cast<FLOAT>(lpRect->bottom)
 			);
 			m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
 		}
 		ReleaseUnknown(pBitmap);
+	}
+
+	void DrawWindow1()
+	{
+	}
+
+#define BUTTON_NONE		0
+#define BUTTON_HOVER	1
+#define BUTTON_PRESS	2
+
+	U32* GenerateGPTIcon(U32* dst, int width, int height, int state)
+	{
+		if (dst)
+		{
+			U32 crBkg = (state == BUTTON_NONE) ? 0xFFFFFFFF : 0xFFE5E5E5;
+			int h = ::MulDiv(m_nDPI, 10, USER_DEFAULT_SCREEN_DPI);
+
+			if (IsDarkMode())
+			{
+				crBkg = (state == BUTTON_NONE) ? 0xFF000000 : 0xFF1A1A1A;
+			}
+			else
+			{
+				crBkg = (state == BUTTON_NONE) ? 0xFFFFFFFF : 0xFFE5E5E5;
+			}
+
+			ScreenClear(dst, (U32)(width * height), crBkg);
+
+			if (h < height)
+			{
+				U32 i;
+				U32 cr = IsDarkMode()? 0xFFFFFFFF: 0xFF000000;
+				U32* p;
+				const int gap = (state == BUTTON_PRESS) ? 1 : 0;
+				int offsetY = (height - h) >> 1;
+				int offsetX = (width - h) >> 1;
+
+				p = dst + offsetY * width + offsetX + gap;
+				for (i = 0; i < offsetY; i++) { *p++ = cr;}
+
+				p = dst + (offsetY + (h>>1) + gap)* width + offsetX + gap;
+				for (i = 0; i < offsetY; i++) { *p++ = cr; }
+
+				p = dst + (offsetY + h -1 + gap) * width + offsetX + gap;
+				for (i = 0; i < offsetY + 1; i++) { *p++ = cr; }
+
+				p = dst + offsetY * width + offsetX + gap;
+				for (i = 0; i < offsetY; i++) {	*p = cr; p += width; }
+
+				p = dst + offsetY * width + offsetX + (h>>1) + gap;
+				for (i = 0; i < offsetY; i++) { *p = cr; p += width; }
+
+				p = dst + offsetY * width + offsetX + h - 1 + gap;
+				for (i = 0; i < offsetY; i++) { *p = cr; p += width; }
+			}
+		}
+		return dst;
+	}
+
+	void DrawWindow2()
+	{
+		RECT r = { 0 };
+		
+		HRESULT hr = DwmGetWindowAttribute(m_hWnd, DWMWA_CAPTION_BUTTON_BOUNDS, &r, sizeof(RECT));
+		if (S_OK == hr)
+		{
+			ID2D1Bitmap* pBitmap = nullptr;
+			U32* src = nullptr;
+			int h = r.bottom - r.top - 1;
+			int w = (r.right - r.left) / 3;
+
+			RECT* lpRect = &m_rectButton[RECT_IDX_CHAT];
+			lpRect->top = r.top + 1;
+			lpRect->bottom = lpRect->top + h;
+			lpRect->right = r.left - 4;
+			lpRect->left = lpRect->right - w;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_CHATGPT, lpRect);
+
+			int btnState = BUTTON_NONE;
+			if(m_lpRectHover == lpRect)
+				btnState = BUTTON_HOVER;
+			if (m_lpRectPress == lpRect)
+				btnState = BUTTON_PRESS;
+
+			src = GenerateGPTIcon(m_screenBuff, w, h, btnState);
+
+			hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), src, (w << 2),
+				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+				&pBitmap);
+			if (S_OK == hr && pBitmap)
+			{
+				D2D1_RECT_F area = D2D1::RectF(
+					static_cast<FLOAT>(lpRect->left),
+					static_cast<FLOAT>(lpRect->top),
+					static_cast<FLOAT>(lpRect->right),
+					static_cast<FLOAT>(lpRect->bottom)
+				);
+				m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+			}
+			ReleaseUnknown(pBitmap);
+		}
+
 	}
 
 	LRESULT OnPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -2232,6 +2422,19 @@ public:
 					DrawWindow0();
 					ClearWin0Draw(); //prevent unnecessary drawing
 				}
+
+				if (NeedDrawWin1())
+				{
+					DrawWindow1();
+					ClearWin1Draw(); //prevent unnecessary drawing
+				}
+
+				if (NeedDrawWin2())
+				{
+					DrawWindow2();
+					ClearWin2Draw(); //prevent unnecessary drawing
+				}
+
 				if (m_nSinglePane == SPLIT_PANE_NONE)
 				{
 					if (NeedDrawWin3())
@@ -2239,25 +2442,26 @@ public:
 						DrawWindow3();
 						ClearWin3Draw(); //prevent unnecessary drawing
 					}
+
 					if (NeedDrawWin4())
 					{
 						DrawWindow4();
 						ClearWin4Draw(); //prevent unnecessary drawing
 					}
-				}
 
-				if (m_pBitmapSplit)
-				{
-					RECT rect = {};
-					if (GetSplitterBarRect(&rect))
+					if (m_pBitmapSplit)
 					{
-						D2D1_RECT_F area = D2D1::RectF(
-							static_cast<FLOAT>(rect.left),
-							static_cast<FLOAT>(rect.top),
-							static_cast<FLOAT>(rect.right),
-							static_cast<FLOAT>(rect.bottom)
-						);
-						m_pD2DRenderTarget->DrawBitmap(m_pBitmapSplit, &area);
+						RECT rect = {};
+						if (GetSplitterBarRect(&rect))
+						{
+							D2D1_RECT_F area = D2D1::RectF(
+								static_cast<FLOAT>(rect.left),
+								static_cast<FLOAT>(rect.top),
+								static_cast<FLOAT>(rect.right),
+								static_cast<FLOAT>(rect.bottom)
+							);
+							m_pD2DRenderTarget->DrawBitmap(m_pBitmapSplit, &area);
+						}
 					}
 				}
 
@@ -2274,6 +2478,7 @@ public:
 
 	LRESULT OnDarkMode(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
+#if 0
 		const BOOL attribute = IsDarkMode()? FALSE : TRUE;
 		std::ignore = DwmSetWindowAttribute(m_hWnd,
 			DWMWA_USE_IMMERSIVE_DARK_MODE, &attribute, sizeof(attribute));
@@ -2299,6 +2504,7 @@ public:
 
 		ShowWindow(SW_MINIMIZE);
 		ShowWindow(SW_RESTORE);
+#endif 
 		return 0;
 	}
 
@@ -2344,7 +2550,7 @@ public:
 			if (m_xySplitterPosToRight < 200)
 				m_xySplitterPosToRight = 200;
 			m_xySplitterPosToRightCurrent = 0;
-			SetTimer(TIMER_SHOWAI, 12);
+			SetTimer(TIMER_SHOWAI, 10);
 			// ask the network thread to ping now so 
 			// we can get the network status immediately.
 			InterlockedExchange(&g_threadPing, 1);
@@ -2359,10 +2565,17 @@ public:
 			idx = RECT_IDX_QASK;
 			lpRect = &m_rectButton[idx];
 			lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_QUICKQ, lpRect);
 
 			idx = RECT_IDX_HIDE;
 			lpRect = &m_rectButton[idx];
 			lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_HIDEAI, lpRect);
+
+			idx = RECT_IDX_STAT;
+			lpRect = &m_rectButton[idx];
+			lpRect->left = lpRect->right = lpRect->top = lpRect->bottom = 0;
+			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_NETWORK, lpRect);
 
 			if (m_nSinglePane == SPLIT_PANE_NONE)
 			{

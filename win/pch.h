@@ -9,7 +9,14 @@
 // If you wish to build your application for a previous Windows platform, include WinSDKVer.h and
 // set the _WIN32_WINNT macro to the platform you wish to support before including SDKDDKVer.h.
 #include <SDKDDKVer.h>
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+// Block minwindef.h min/max macros to prevent <algorithm> conflict
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+// Exclude rarely-used stuff from Windows headers
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 // Windows Header Files
 #include <windows.h>
 
@@ -60,14 +67,63 @@ extern CAppModule _Module;
 
 #include <atlwin.h>
 
-#include <mutex>
-#include <memory>
-#include <array>
-#include <stdexcept>
-#include <unordered_map>
-#include <string>
+#include <algorithm>
+#include <atomic>
 #include <cmath>
-#include <stack>
+#include <deque>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <iterator>
+#include <list>
+#include <map>
+#include <memory_resource>
+#include <memory>
+#include <mutex>
+#include <new>
+#include <numeric>
+#include <optional>
+#include <queue>
+#include <regex>
+#include <set>
+#include <shared_mutex>
+#include <span>
+#include <stdexcept>
+#include <string_view>
+#include <string>
+#include <thread>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
+#include <utility>
+#include <vector>
+
+// WIL
+#include <wil/com.h>
+#include <wil/stl.h>
+#include <wil/filesystem.h>
+// Due to the use of RESOURCE_SUPPRESS_STL in result.h, we need to include resource.h first, which happens
+// implicitly through the includes above. If RESOURCE_SUPPRESS_STL is gone, the order doesn't matter anymore.
+#include <wil/result.h>
+#include <wil/nt_result_macros.h>
+
+// GSL
+// Block GSL Multi Span include because it both has C++17 deprecated iterators
+// and uses the C-namespaced "max" which conflicts with Windows definitions.
+#include <gsl/gsl>
+#include <gsl/gsl_util>
+#include <gsl/pointers>
+
+// Chromium Numerics (safe math)
+#pragma warning(push)
+#pragma warning(disable:4100) // unreferenced parameter
+#include "base/numerics/safe_math.h"
+#pragma warning(pop)
+
+// TIL - Terminal Implementation Library
+#ifndef BLOCK_TIL // Certain projects may want to include TIL manually to gain superpowers
+#include "til.h"
+#endif
 
 #include <d2d1.h>
 #include <d2d1_1.h>

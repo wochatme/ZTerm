@@ -159,7 +159,6 @@ static COLORREF tip_text;
 static LRESULT CALLBACK SizeTipWndProc(HWND hWnd, UINT nMsg,
 	WPARAM wParam, LPARAM lParam)
 {
-
 	switch (nMsg) 
 	{
 	case WM_ERASEBKGND:
@@ -171,7 +170,7 @@ static LRESULT CALLBACK SizeTipWndProc(HWND hWnd, UINT nMsg,
 		HGDIOBJ holdbr;
 		RECT cr;
 		int wtlen;
-		TCHAR wt[64] = { 0 };
+		TCHAR wt[32] = { 0 };
 		HDC hdc;
 
 		PAINTSTRUCT ps;
@@ -187,7 +186,7 @@ static LRESULT CALLBACK SizeTipWndProc(HWND hWnd, UINT nMsg,
 		Rectangle(hdc, cr.left, cr.top, cr.right, cr.bottom);
 
 		wtlen = GetWindowTextLength(hWnd);
-		if (wtlen < 64 - 4)
+		if (wtlen < 30)
 		{
 			GetWindowText(hWnd, wt, wtlen + 1);
 			SetTextColor(hdc, tip_text);
@@ -234,7 +233,7 @@ static bool tip_enabled = false;
 
 void UpdateSizeTip(HWND src, int cx, int cy)
 {
-	TCHAR str[32 + 1] = { 0 };
+	TCHAR str[32] = { 0 };
 
 	if (!tip_enabled)
 		return;
@@ -280,16 +279,16 @@ void UpdateSizeTip(HWND src, int cx, int cy)
 
 	/* Generate the tip text */
 
-	swprintf_s(str,32,L"%dx%d", cx, cy);
+	swprintf_s(str,30,L"%dx%d", cx, cy);
 
-	if (!tip_wnd) {
+	if (!tip_wnd) 
+	{
 		HDC hdc;
 		SIZE sz;
 		RECT wr;
 		int ix, iy;
 
 		/* calculate the tip's size */
-
 		hdc = CreateCompatibleDC(NULL);
 		GetTextExtentPoint32(hdc, str, _tcslen(str), &sz);
 		DeleteDC(hdc);
@@ -305,7 +304,6 @@ void UpdateSizeTip(HWND src, int cx, int cy)
 			iy = 16;
 
 		/* Create the tip window */
-
 		tip_wnd =
 			CreateWindowEx(WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
 				MAKEINTRESOURCE(tip_class), str, WS_POPUP, ix,
@@ -314,7 +312,8 @@ void UpdateSizeTip(HWND src, int cx, int cy)
 		ShowWindow(tip_wnd, SW_SHOWNOACTIVATE);
 
 	}
-	else {
+	else 
+	{
 		/* Tip already exists, just set the text */
 		SetWindowText(tip_wnd, str);
 	}
