@@ -78,6 +78,8 @@ extern CAppModule _Module;
 #include <bcrypt.h>
 #include "scintilla/include/Sci_Position.h"
 #include "scintilla/include/scintilla.h"
+#include "curl/curl.h"
+#include "zlib.h"
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")

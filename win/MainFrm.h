@@ -652,6 +652,7 @@ public:
 		MESSAGE_HANDLER(WM_NCCREATE, OnNCCreate)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+		MESSAGE_HANDLER(WM_NETWORK_STATUS, OnNetworkStatus)
 		MESSAGE_HANDLER(WM_DPICHANGED, OnDPIChanged)
 		COMMAND_ID_HANDLER(IDM_AIASSISTANT, OnAssistant)
 		COMMAND_ID_HANDLER(IDM_DARK_MODE, OnDarkMode)
@@ -672,6 +673,23 @@ public:
 			return result;
 
 		bHandled = FALSE;
+		return 0L;
+	}
+
+	LRESULT OnNetworkStatus(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		BOOL bGood = (BOOL)lParam;
+		BOOL bGoodPrev = (BOOL)m_dwState & GPT_NET_GOOD;
+
+		m_dwState &= ~GPT_NET_GOOD;
+		if (bGood)
+			m_dwState |= GPT_NET_GOOD;
+
+		if (bGood != bGoodPrev)
+		{
+			InvalidateWin4();
+			Invalidate();
+		}
 		return 0L;
 	}
 
@@ -798,10 +816,87 @@ public:
 		return 0;
 	}
 
+	void DoAskNotification(U32 code)
+	{
+		/* does the user hold Ctrl key? */
+		bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0;
+
+		char ch = m_viewAsk.GetLastChar();
+		if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
+		{
+			bool share_screen = false;
+			U8 offset = 0;
+			U32 length = 0;
+			U8* p = m_viewAsk.GetInputData(length, offset, share_screen);
+			m_viewAsk.SetText("");
+			if (p)
+			{
+				U8* screen_data;
+				U32 mt_len, screen_len;
+				MessageTask* mt = nullptr;
+				m_viewGPT.AppendText((const char*)p, length);
+
+				ATLASSERT(length > offset);
+				U8* q = p + offset;
+				length -= offset;
+
+				screen_len = 0;
+				screen_data = nullptr;
+#if 0
+				if (share_screen)
+				{
+					screen_data = m_viewTTY.GetScreenData(screen_len);
+				}
+				if (screen_len)
+					screen_len += 8;
+#endif 
+				mt_len = sizeof(MessageTask) + length + screen_len + 1;
+
+				mt = (MessageTask*)malloc(mt_len);
+				if (mt)
+				{
+					U8* s = (U8*)mt;
+					mt->next = NULL;
+					mt->msg_state = 0;
+					mt->msg_length = length + screen_len;
+					mt->msg_body = s + sizeof(MessageTask);
+					s = mt->msg_body;
+					memcpy_s(s, length, q, length);
+					s += length;
+					if (screen_len)
+					{
+						ATLASSERT(screen_len > 8);
+						*s++ = '"'; *s++ = '"'; *s++ = '"'; *s++ = '\n';
+						memcpy_s(s, screen_len - 8, screen_data, screen_len - 8);
+						s += screen_len - 8;
+						*s++ = '\n'; *s++ = '"'; *s++ = '"'; *s++ = '"';
+					}
+					*s = '\0';
+					ztPushIntoSendQueue(mt);
+#if 0
+					m_nWaitCount = 0;
+					SetTimer(TIMER_WAITAI, TIMER_WAITAI);
+#endif 
+				}
+			}
+		}
+	}
+
 	LRESULT OnNotify(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
 	{
 		bHandled = FALSE;
-		return 0;
+		NMHDR* pNMHDR = (NMHDR*)lParam;
+		if (pNMHDR)
+		{
+			if (pNMHDR->hwndFrom == m_viewAsk.m_hWnd
+				&& m_nSinglePane == SPLIT_PANE_NONE
+				&& pNMHDR->code == SCN_CHARADDED)
+			{
+				DoAskNotification(pNMHDR->code);
+				bHandled = TRUE;
+			}
+		}
+		return 0L;
 	}
 
 	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
@@ -1093,6 +1188,37 @@ public:
 			}
 			else
 			{
+				BOOL found = FALSE;
+				MessageTask* p;
+
+				EnterCriticalSection(&g_csReceMsg);
+				//////////////////////////////////////////
+				p = g_receQueue;
+				while (p)
+				{
+					if (p->msg_state == 0) /* this message is new message */
+					{
+						if (p->msg_body && p->msg_length)
+						{
+							m_viewGPT.AppendText((const char*)p->msg_body, p->msg_length);
+							found = TRUE;
+						}
+						p->msg_state = 1;
+						break;
+					}
+					p = p->next;
+				}
+				//////////////////////////////////////////
+				LeaveCriticalSection(&g_csReceMsg);
+#if 0
+				if (found)
+				{
+					KillTimer(TIMER_WAITAI);
+					m_nWaitCount = 0;
+				}
+#endif 
+				ztPushIntoSendQueue(NULL); // clean up the last processed message task
+
 				if (NeedDrawAnyWindow())
 					Invalidate();
 			}
@@ -1752,7 +1878,6 @@ public:
 		{
 			src = (GPT_NET_GOOD & m_dwState) ? (U32*)xbmpLGreenLED : (U32*)xbmpLRedLED;
 		}
-		src = (U32*)xbmpLGreenLED;
 
 		if (m_pBitmapPixel)
 		{
@@ -1882,6 +2007,8 @@ public:
 	{
 		int nPane = SPLIT_PANE_NONE;
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
+
+		m_dwState &= ~GPT_NET_GOOD; // reset the network status
 
 		if (m_xySplitterPosToRight == 0)
 		{

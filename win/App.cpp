@@ -1,4 +1,4 @@
-// XEdit.cpp : main source file for XEdit.exe
+// App.cpp : main source file for ZTerm.exe
 //
 
 #include "pch.h"
@@ -26,6 +26,12 @@ volatile LONG  g_threadCountBKG = 0;
 volatile LONG  g_Quit = 0;
 volatile LONG  g_threadPing = 0;
 volatile LONG  g_threadPingNow = 1;
+
+ZTConfig ZTCONFIGURATION = { 0 };
+
+/* the message queue from the remote server */
+MessageTask* g_sendQueue = nullptr;
+MessageTask* g_receQueue = nullptr;
 
 /* used to sync different threads */
 CRITICAL_SECTION     g_csSendMsg;
@@ -109,11 +115,10 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	_Module.AddMessageLoop(&theLoop);
 
 	const auto wndMain = std::make_shared<CMainFrame>();	
-#if 0
-	//CMainFrame wndMain;
-#endif 
+
 	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
+		ztStartupNetworkThread(wndMain->m_hWnd);
 		wndMain->ShowWindow(nCmdShow);
 		nRet = theLoop.Run();
 	}
@@ -129,6 +134,11 @@ static int AppInit(HINSTANCE hInstance)
 	g_threadCountBKG = 0;
 	g_threadPing = 0;
 
+	g_sendQueue = nullptr;
+	g_receQueue = nullptr;
+
+	InitZTConfig(&ZTCONFIGURATION);
+
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);
 	InitializeCriticalSection(&g_csReceMsg);
@@ -141,7 +151,37 @@ static int AppInit(HINSTANCE hInstance)
 	if (Scintilla_RegisterClasses(hInstance) == 0)
 		return 2;
 
+	/* initialize libCURL */
+	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
+		return 3;
+
 	return 0;
+}
+
+static void ReleaseQueueMemory()
+{
+#if 0
+	MessageTask* mp;
+	MessageTask* mq;
+
+	mp = g_sendQueue;
+	while (mp) // scan the link to find the message that has been processed
+	{
+		mq = mp->next;
+		free(mp);
+		mp = mq;
+	}
+
+	mp = g_receQueue;
+	while (mp) // scan the link to find the message that has been processed
+	{
+		mq = mp->next;
+		free(mp);
+		mp = mq;
+	}
+#endif 
+	g_sendQueue = nullptr;
+	g_receQueue = nullptr;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
@@ -175,6 +215,9 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 	ATLASSERT(g_threadCount == 0);
 	ATLASSERT(g_threadCountBKG == 0);
 
+	ReleaseQueueMemory();
+
+	curl_global_cleanup();
 	Scintilla_ReleaseResources();
 
 	DeleteCriticalSection(&g_csSendMsg);

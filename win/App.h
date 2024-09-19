@@ -1,7 +1,12 @@
 #pragma once
 
+#include "Settings.h"
+#include "Network.h"
+
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
+
+#define WM_NETWORK_STATUS	(WM_USER + 101)
 
 /* ZT_ALIGN() is only to be used to align on a power of 2 boundary */
 #define ZT_ALIGN(size, boundary)   (((size) + ((boundary) -1)) & ~((boundary) - 1))
@@ -54,6 +59,13 @@ extern volatile LONG g_Quit;
 extern volatile LONG g_threadPing;
 extern volatile LONG g_threadPingNow;
 
+/* the message queue from the remote server */
+extern MessageTask* g_sendQueue;
+extern MessageTask* g_receQueue;
+
 /* used to sync different threads */
 extern CRITICAL_SECTION  g_csSendMsg;
 extern CRITICAL_SECTION  g_csReceMsg;
+
+extern ZTConfig ZTCONFIGURATION;
+

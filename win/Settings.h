@@ -106,6 +106,10 @@ typedef struct ZTConfig
     int winBottom;
 } ZTConfig;
 
+bool ztIsHexString(U8* str, U8 len);
+int ztRaw2HexString(U8* input, U8 len, U8* output, U8* outlen);
+U32 ztGenerateRandomBytes(U8* rndata, U32 bytes);
+
 void InitZTConfig(ZTConfig* cf);
 
 int ScreenClear(U32* dst, U32 size, U32 color);
