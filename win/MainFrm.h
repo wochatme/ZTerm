@@ -129,7 +129,7 @@ static WTL::CFrameWndClassInfo& GetWndClassInfo() \
 { \
 	static WTL::CFrameWndClassInfo wc = \
 	{ \
-		{ sizeof(WNDCLASSEX), CS_VREDRAW | CS_HREDRAW, StartWindowProc, \
+		{ sizeof(WNDCLASSEX), CS_VREDRAW | CS_HREDRAW /*| CS_CLASSDC */, StartWindowProc, \
 		  0, 0, NULL, NULL, NULL, (HBRUSH)GetStockObject(BLACK_BRUSH), NULL, WndClassName, NULL }, \
 		NULL, NULL, IDC_ARROW, TRUE, 0, _T(""), uCommonResourceID \
 	}; \
@@ -645,6 +645,7 @@ public:
 
 	BEGIN_MSG_MAP(CMainFrame)
 		MESSAGE_HANDLEDWM(OnDWMCheck)
+		//MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
 		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
 		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
@@ -1010,6 +1011,24 @@ public:
 		return 0;
 	}
 
+#if 0
+	// https://stackoverflow.com/questions/69715610/how-to-initialize-the-background-color-of-win32-app-to-something-other-than-whit
+
+	LRESULT OnShowWindow(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (!GetLayeredWindowAttributes(m_hWnd, NULL, NULL, NULL))
+		{
+			SetLayeredWindowAttributes(m_hWnd, 0, 0, LWA_ALPHA);
+			::DefWindowProc(m_hWnd, WM_ERASEBKGND, (WPARAM)GetDC(), lParam);
+			SetLayeredWindowAttributes(m_hWnd, 0, 255, LWA_ALPHA);
+			AnimateWindow(m_hWnd, 200, AW_ACTIVATE | AW_BLEND);
+			return 0;
+		}
+		bHandled = FALSE;
+		return 0L;
+	}
+#endif 
+	
 	LRESULT OnEraseBackground(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
 	{
 #if 0

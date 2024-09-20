@@ -110,16 +110,30 @@ static bool LoadD2D() noexcept
 static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 {
 	int nRet = 0;
-	DWORD dwExStyle = (WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW) & 0;
+	DWORD dwExStyle = (WS_EX_COMPOSITED | WS_EX_TRANSPARENT | WS_EX_APPWINDOW) & 1;
 	CMessageLoop theLoop;
 	_Module.AddMessageLoop(&theLoop);
 
 	const auto wndMain = std::make_shared<CMainFrame>();	
 
+	//dwExStyle = WS_EX_COMPOSITED | WS_EX_TRANSPARENT;
+
 	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
-		ztStartupNetworkThread(wndMain->m_hWnd);
+		// 
+		// Please check this question:
+		// https://stackoverflow.com/questions/69715610/how-to-initialize-the-background-color-of-win32-app-to-something-other-than-whit
+		// 
+		BOOL cloak = TRUE;
+		DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
+		wndMain->UpdateWindow();
+		wndMain->ShowWindow(SW_SHOWMINIMIZED);
+		cloak = FALSE;
+		DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
+
 		wndMain->ShowWindow(nCmdShow);
+
+		ztStartupNetworkThread(wndMain->m_hWnd);
 		nRet = theLoop.Run();
 	}
 
