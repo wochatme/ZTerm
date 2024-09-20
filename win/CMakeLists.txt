@@ -22,7 +22,6 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded
 target_include_directories(${PROJECT_NAME} PRIVATE 
 	${PROJECT_SOURCE_DIR} 
 	${PROJECT_SOURCE_DIR}/wtl 
-	${PROJECT_SOURCE_DIR}/wil 
 	${CMAKE_SOURCE_DIR}
 	)
 

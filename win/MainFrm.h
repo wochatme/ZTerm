@@ -113,6 +113,7 @@
 #define WINHITCLIENT		(0x00000400)
 #define WIN_HITSPLIT		(0x00000800)
 #define WINMAXIMIZED		(0x00001000)
+#define MOUSETRACKED		(0x00002000)
 
 #define HIT_TYPEMASK		(0x00000003)
 #define HIT_NONE			(0x00000000)
@@ -651,6 +652,8 @@ public:
 		MESSAGE_RANGE_HANDLER(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
 		MESSAGE_HANDLER(WM_NCMOUSEMOVE, OnNCMouseMove)
 		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
+		MESSAGE_HANDLER(WM_NCMOUSELEAVE, OnNCMouseLeave)
+		MESSAGE_HANDLER(WM_MOUSELEAVE, OnMouseLeave)
 		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
 		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_GETMINMAXINFO, OnGetMinMaxInfo)
@@ -1439,6 +1442,26 @@ public:
 		return FALSE;
 	}
 
+	LRESULT OnNCMouseLeave(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		m_dwState &= ~MOUSETRACKED;
+		InvalidateVirtualWindow(m_lpRectHover);
+		m_lpRectHover = nullptr;
+
+		bHandled = FALSE;
+		return 0L;
+	}
+
+	LRESULT OnMouseLeave(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		m_dwState &= ~MOUSETRACKED;
+		InvalidateVirtualWindow(m_lpRectHover);
+		m_lpRectHover = nullptr;
+
+		bHandled = FALSE;
+		return 0L;
+	}
+
 
 	LRESULT OnNCMouseMove(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
@@ -1448,6 +1471,15 @@ public:
 		{
 			MSG msg = { m_hWnd, uMsg, wParam, lParam };
 			m_tooltip.RelayEvent(&msg);
+		}
+
+		if ((MOUSETRACKED & m_dwState) == 0)
+		{
+			m_dwState |= MOUSETRACKED;
+			TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
+			tme.dwFlags = TME_LEAVE | TME_NONCLIENT;
+			tme.hwndTrack = m_hWnd;
+			TrackMouseEvent(&tme);
 		}
 
 		if ((WIN_CAPTURED & m_dwState) == 0)
@@ -1498,6 +1530,15 @@ public:
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
 		
+		if ((MOUSETRACKED & m_dwState) == 0)
+		{
+			m_dwState |= MOUSETRACKED;
+			TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
+			tme.dwFlags = TME_LEAVE | TME_NONCLIENT;
+			tme.hwndTrack = m_hWnd;
+			TrackMouseEvent(&tme);
+		}
+
 		if (::GetCapture() == m_hWnd)
 		{
 			DWORD hitType = m_dwState & HIT_TYPEMASK;
@@ -1793,11 +1834,17 @@ public:
 
 		if (bHit) // we hit some button in NC area
 		{
+#if 0
 			InvalidateVirtualWindow(m_lpRectPress);
-			InvalidateVirtualWindow(m_lpRectHover);
-			InvalidateVirtualWindow(lpRect);
 			m_lpRectPress = nullptr;
-			m_lpRectHover = lpRect;
+#endif 
+			if (m_lpRectHover != lpRect)
+			{
+				InvalidateVirtualWindow(m_lpRectHover);
+				InvalidateVirtualWindow(lpRect);
+				m_lpRectHover = lpRect;
+			}
+
 			PostMessage(WM_GUI_EVENT, GUI_BUTTONCLICK, (LPARAM)idx);
 			bHandled = TRUE;
 		}
@@ -2359,7 +2406,7 @@ public:
 			RECT* lpRect = &m_rectButton[RECT_IDX_CHAT];
 			lpRect->top = r.top + 1;
 			lpRect->bottom = lpRect->top + h;
-			lpRect->right = r.left - 4;
+			lpRect->right = r.left - 8;
 			lpRect->left = lpRect->right - w;
 			m_tooltip.SetToolRect(m_hWnd, TOOLTIP_CHATGPT, lpRect);
 

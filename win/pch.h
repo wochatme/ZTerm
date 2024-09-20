@@ -99,6 +99,7 @@ extern CAppModule _Module;
 #include <vector>
 
 // WIL
+#if 0
 #include <wil/com.h>
 #include <wil/stl.h>
 #include <wil/filesystem.h>
@@ -124,6 +125,7 @@ extern CAppModule _Module;
 #ifndef BLOCK_TIL // Certain projects may want to include TIL manually to gain superpowers
 #include "til.h"
 #endif
+#endif 
 
 #include <d2d1.h>
 #include <d2d1_1.h>

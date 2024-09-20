@@ -1,5 +1,8 @@
 #pragma once
 
+#if 0
+#include "unicode.hpp"
+
 #define FG_ATTRS (FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY)
 #define BG_ATTRS (BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY)
 #define META_ATTRS (COMMON_LVB_LEADING_BYTE | COMMON_LVB_TRAILING_BYTE | COMMON_LVB_GRID_HORIZONTAL | COMMON_LVB_GRID_LVERTICAL | COMMON_LVB_GRID_RVERTICAL | COMMON_LVB_REVERSE_VIDEO | COMMON_LVB_UNDERSCORE)
@@ -227,6 +230,199 @@ Copyright (c) Microsoft Corporation
 Licensed under the MIT license.
 
 Module Name:
+- TextColor.h
+
+Abstract:
+- contains data for a single color of the text. Text Attributes are composed of
+  two of these - one for the foreground and one for the background.
+  The color can be in one of three states:
+    * Default Colors - The terminal should use the terminal's notion of whatever
+      the default color should be for this component.
+      It's up to the terminal that's consuming this buffer to control the
+      behavior of default attributes.
+      Terminals typically have a pair of Default colors that are separate from
+      their color table. This component should use that value.
+      Consoles also can have a legacy table index as their default colors.
+    * Indexed Color - The terminal should use our value as an index into the
+      color table to retrieve the real value of the color.
+      This is the type of color that "legacy" 16-color attributes have.
+    * RGB color - We'll store a real color value in this attribute
+
+Author(s):
+- Mike Griese (migrie) Nov 2018
+
+Revision History:
+- From components of output.h/.c
+  by Therese Stowell (ThereseS) 1990-1991
+- Pulled into its own file from textBuffer.hpp/cpp (AustDi, 2017)
+- Moved the colors into their own separate abstraction. (migrie Nov 2018)
+--*/
+// The enum values being in this particular order allows the compiler to do some useful optimizations,
+// like simplifying `IsIndex16() || IsIndex256()` into a simple range check without branching.
+enum class ColorType : BYTE
+{
+    IsDefault,
+    IsIndex16,
+    IsIndex256,
+    IsRgb
+};
+
+enum class ColorAlias : size_t
+{
+    DefaultForeground,
+    DefaultBackground,
+    FrameForeground,
+    FrameBackground,
+    ENUM_COUNT // must be the last element in the enum class
+};
+
+struct TextColor
+{
+public:
+    static constexpr BYTE DARK_BLACK = 0;
+    static constexpr BYTE DARK_RED = 1;
+    static constexpr BYTE DARK_GREEN = 2;
+    static constexpr BYTE DARK_YELLOW = 3;
+    static constexpr BYTE DARK_BLUE = 4;
+    static constexpr BYTE DARK_MAGENTA = 5;
+    static constexpr BYTE DARK_CYAN = 6;
+    static constexpr BYTE DARK_WHITE = 7;
+    static constexpr BYTE BRIGHT_BLACK = 8;
+    static constexpr BYTE BRIGHT_RED = 9;
+    static constexpr BYTE BRIGHT_GREEN = 10;
+    static constexpr BYTE BRIGHT_YELLOW = 11;
+    static constexpr BYTE BRIGHT_BLUE = 12;
+    static constexpr BYTE BRIGHT_MAGENTA = 13;
+    static constexpr BYTE BRIGHT_CYAN = 14;
+    static constexpr BYTE BRIGHT_WHITE = 15;
+
+    // Entries 256 to 260 are reserved for XTerm compatibility.
+    static constexpr size_t DEFAULT_FOREGROUND = 261;
+    static constexpr size_t DEFAULT_BACKGROUND = 262;
+    static constexpr size_t FRAME_FOREGROUND = 263;
+    static constexpr size_t FRAME_BACKGROUND = 264;
+    static constexpr size_t CURSOR_COLOR = 265;
+    static constexpr size_t TABLE_SIZE = 266;
+
+    constexpr TextColor() noexcept :
+        _meta{ ColorType::IsDefault },
+        _red{ 0 },
+        _green{ 0 },
+        _blue{ 0 }
+    {
+    }
+
+    constexpr TextColor(const BYTE index, const bool isIndex256) noexcept :
+        _meta{ isIndex256 ? ColorType::IsIndex256 : ColorType::IsIndex16 },
+        _index{ index },
+        _green{ 0 },
+        _blue{ 0 }
+    {
+    }
+
+    constexpr TextColor(const COLORREF rgb) noexcept :
+        _meta{ ColorType::IsRgb },
+        _red{ GetRValue(rgb) },
+        _green{ GetGValue(rgb) },
+        _blue{ GetBValue(rgb) }
+    {
+    }
+
+    bool operator==(const TextColor& other) const noexcept
+    {
+        return memcmp(this, &other, sizeof(TextColor)) == 0;
+    }
+
+    bool operator!=(const TextColor& other) const noexcept
+    {
+        return memcmp(this, &other, sizeof(TextColor)) != 0;
+    }
+
+    bool CanBeBrightened() const noexcept;
+    ColorType GetType() const noexcept;
+    bool IsLegacy() const noexcept;
+    bool IsIndex16() const noexcept;
+    bool IsIndex256() const noexcept;
+    bool IsDefault() const noexcept;
+    bool IsDefaultOrLegacy() const noexcept;
+    bool IsRgb() const noexcept;
+
+    void SetColor(const COLORREF rgbColor) noexcept;
+    void SetIndex(const BYTE index, const bool isIndex256) noexcept;
+    void SetDefault() noexcept;
+
+    COLORREF GetColor(const std::array<COLORREF, TABLE_SIZE>& colorTable, const size_t defaultIndex, bool brighten = false) const noexcept;
+    BYTE GetLegacyIndex(const BYTE defaultIndex) const noexcept;
+
+    constexpr BYTE GetIndex() const noexcept { return _index; }
+    constexpr BYTE GetR() const noexcept { return _red; }
+    constexpr BYTE GetG() const noexcept { return _green; }
+    constexpr BYTE GetB() const noexcept { return _blue; }
+    constexpr COLORREF GetRGB() const noexcept { return RGB(_red, _green, _blue); }
+
+    static constexpr BYTE TransposeLegacyIndex(const size_t index)
+    {
+        // When converting a 16-color index in the legacy Windows order to or
+        // from an ANSI-compatible order, we need to swap the bits in positions
+        // 0 and 2. We do this by XORing the index with 00000101, but only if
+        // one (but not both) of those bit positions is set.
+        const auto oneBitSet = (index ^ (index >> 2)) & 1;
+        return gsl::narrow_cast<BYTE>(index ^ oneBitSet ^ (oneBitSet << 2));
+    }
+
+private:
+    union
+    {
+        BYTE _red, _index;
+    };
+    BYTE _green;
+    BYTE _blue;
+    ColorType _meta;
+
+#ifdef UNIT_TESTING
+    friend class TextBufferTests;
+    template<typename TextColor>
+    friend class WEX::TestExecution::VerifyOutputTraits;
+#endif
+};
+
+#ifdef UNIT_TESTING
+
+namespace WEX
+{
+    namespace TestExecution
+    {
+        template<>
+        class VerifyOutputTraits<TextColor>
+        {
+        public:
+            static WEX::Common::NoThrowString ToString(const TextColor& color)
+            {
+                if (color.IsDefault())
+                {
+                    return L"{default}";
+                }
+                else if (color.IsRgb())
+                {
+                    return WEX::Common::NoThrowString().Format(L"{RGB:0x%06x}", color.GetRGB());
+                }
+                else
+                {
+                    return WEX::Common::NoThrowString().Format(L"{index:0x%04x}", color._red);
+                }
+            }
+        };
+    }
+}
+#endif
+
+
+
+/*++
+Copyright (c) Microsoft Corporation
+Licensed under the MIT license.
+
+Module Name:
 - TextAttribute.hpp
 
 Abstract:
@@ -263,7 +459,6 @@ enum class MarkKind : uint16_t
     Output = 3,
 };
 
-#if 0
 class TextAttribute final
 {
 public:
@@ -449,7 +644,7 @@ private:
     friend class WEX::TestExecution::VerifyOutputTraits;
 #endif
 };
-#endif 
+
 
 enum class TextAttributeBehavior
 {
@@ -485,6 +680,64 @@ namespace WEX
 }
 #endif
 
+/*++
+Copyright (c) Microsoft Corporation
+Licensed under the MIT license.
+
+Module Name:
+- OutputCellView.hpp
+
+Abstract:
+- Read view into a single cell of data that someone is attempting to write into the output buffer.
+- This is done for performance reasons (avoid heap allocs and copies).
+
+Author:
+- Michael Niksa (MiNiksa) 06-Oct-2018
+
+Revision History:
+- Based on work from OutputCell.hpp/cpp by Austin Diviness (AustDi)
+
+--*/
+
+class OutputCellView
+{
+public:
+    OutputCellView() = default;
+    OutputCellView(const std::wstring_view view,
+        const DbcsAttribute dbcsAttr,
+        const TextAttribute textAttr,
+        const TextAttributeBehavior behavior) noexcept;
+
+    const std::wstring_view& Chars() const noexcept;
+    til::CoordType Columns() const noexcept;
+    DbcsAttribute DbcsAttr() const noexcept;
+    TextAttribute TextAttr() const noexcept;
+    TextAttributeBehavior TextAttrBehavior() const noexcept;
+
+    void UpdateText(const std::wstring_view& view) noexcept
+    {
+        _view = view;
+    };
+
+    void UpdateDbcsAttribute(const DbcsAttribute& dbcsAttr) noexcept
+    {
+        _dbcsAttr = dbcsAttr;
+    }
+
+    void UpdateTextAttribute(const TextAttribute& textAttr) noexcept
+    {
+        _textAttr = textAttr;
+    }
+
+    bool operator==(const OutputCellView& view) const noexcept;
+    bool operator!=(const OutputCellView& view) const noexcept;
+
+private:
+    std::wstring_view _view;
+    DbcsAttribute _dbcsAttr = DbcsAttribute::Single;
+    TextAttribute _textAttr;
+    TextAttributeBehavior _behavior;
+};
 
 /*++
 Copyright (c) Microsoft Corporation
@@ -501,7 +754,7 @@ Author:
 - Austin Diviness (AustDi) 20-Mar-2018
 
 --*/
-#if 0
+
 #include <exception>
 #include <variant>
 
@@ -570,7 +823,168 @@ private:
     void _setFromStringView(const std::wstring_view view);
     void _setFromOutputCellView(const OutputCellView& cell);
 };
+
+
+/*++
+Copyright (c) Microsoft Corporation
+Licensed under the MIT license.
+
+Module Name:
+- OutputCellIterator.hpp
+
+Abstract:
+- Read-only view into an entire batch of data to be written into the output buffer.
+- This is done for performance reasons (avoid heap allocs and copies).
+
+Author:
+- Michael Niksa (MiNiksa) 06-Oct-2018
+
+Revision History:
+- Based on work from OutputCell.hpp/cpp by Austin Diviness (AustDi)
+
+--*/
+#if 10
+class OutputCellIterator final
+{
+public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = OutputCellView;
+    using difference_type = til::CoordType;
+    using pointer = OutputCellView*;
+    using reference = OutputCellView&;
+
+    OutputCellIterator() = default;
+    OutputCellIterator(const wchar_t& wch, const size_t fillLimit = 0) noexcept;
+    OutputCellIterator(const TextAttribute& attr, const size_t fillLimit = 0) noexcept;
+    OutputCellIterator(const wchar_t& wch, const TextAttribute& attr, const size_t fillLimit = 0) noexcept;
+    OutputCellIterator(const CHAR_INFO& charInfo, const size_t fillLimit = 0) noexcept;
+    OutputCellIterator(const std::wstring_view utf16Text) noexcept;
+    OutputCellIterator(const std::wstring_view utf16Text, const TextAttribute& attribute, const size_t fillLimit = 0) noexcept;
+    OutputCellIterator(const std::span<const WORD> legacyAttributes) noexcept;
+    OutputCellIterator(const std::span<const CHAR_INFO> charInfos) noexcept;
+    OutputCellIterator(const std::span<const OutputCell> cells);
+    ~OutputCellIterator() = default;
+
+    OutputCellIterator& operator=(const OutputCellIterator& it) = default;
+
+    operator bool() const noexcept;
+
+    size_t Position() const noexcept;
+    til::CoordType GetCellDistance(OutputCellIterator other) const noexcept;
+    til::CoordType GetInputDistance(OutputCellIterator other) const noexcept;
+    friend til::CoordType operator-(OutputCellIterator one, OutputCellIterator two) = delete;
+
+    OutputCellIterator& operator++();
+    OutputCellIterator operator++(int);
+
+    const OutputCellView& operator*() const noexcept;
+    const OutputCellView* operator->() const noexcept;
+
+private:
+    enum class Mode
+    {
+        // Loose mode is where we're given text and attributes in a raw sort of form
+        // like while data is being inserted from an API call.
+        Loose,
+
+        // Loose mode with only text is where we're given just text and we want
+        // to use the attribute already in the buffer when writing
+        LooseTextOnly,
+
+        // Fill mode is where we were given one thing and we just need to keep giving
+        // that back over and over for eternity.
+        Fill,
+
+        // Given a run of legacy attributes, convert each of them and insert only attribute data.
+        LegacyAttr,
+
+        // CharInfo mode is where we've been given a pair of text and attribute for each
+        // cell in the legacy format from an API call.
+        CharInfo,
+
+        // Cell mode is where we have an already fully structured cell data usually
+        // from accessing/copying data already put into the OutputBuffer.
+        Cell,
+    };
+    Mode _mode;
+
+    std::span<const WORD> _legacyAttrs;
+
+    std::variant<
+        std::wstring_view,
+        std::span<const WORD>,
+        std::span<const CHAR_INFO>,
+        std::span<const OutputCell>,
+        std::monostate>
+        _run;
+
+    TextAttribute _attr;
+
+    bool _TryMoveTrailing() noexcept;
+
+    static OutputCellView s_GenerateView(const std::wstring_view view) noexcept;
+    static OutputCellView s_GenerateView(const std::wstring_view view, const TextAttribute attr) noexcept;
+    static OutputCellView s_GenerateView(const std::wstring_view view, const TextAttribute attr, const TextAttributeBehavior behavior) noexcept;
+    static OutputCellView s_GenerateView(const wchar_t& wch) noexcept;
+    static OutputCellView s_GenerateViewLegacyAttr(const WORD& legacyAttr) noexcept;
+    static OutputCellView s_GenerateView(const TextAttribute& attr) noexcept;
+    static OutputCellView s_GenerateView(const wchar_t& wch, const TextAttribute& attr) noexcept;
+    static OutputCellView s_GenerateView(const CHAR_INFO& charInfo) noexcept;
+
+    static OutputCellView s_GenerateView(const OutputCell& cell);
+
+    OutputCellView _currentView;
+
+    size_t _pos;
+    size_t _distance;
+    size_t _fillLimit;
+};
 #endif 
+
+/*++
+Copyright (c) Microsoft Corporation
+Licensed under the MIT license.
+
+Module Name:
+- OutputCellRect.hpp
+
+Abstract:
+- Designed to hold a rectangular area of OutputCells where the column/row count is known ahead of time.
+- This is done for performance reasons (one big heap allocation block with appropriate views instead of tiny allocations.)
+- NOTE: For cases where the internal buffer will not change during your call, use Iterators and Views to completely
+        avoid any copy or allocate at all. Only use this when a copy of your content or the buffer is needed.
+
+Author:
+- Michael Niksa (MiNiksa) 12-Oct-2018
+
+Revision History:
+- Based on work from OutputCell.hpp/cpp by Austin Diviness (AustDi)
+
+--*/
+#if 0
+class OutputCellRect final
+{
+public:
+    OutputCellRect() noexcept;
+    OutputCellRect(const til::CoordType rows, const til::CoordType cols);
+
+    std::span<OutputCell> GetRow(const til::CoordType row);
+    OutputCellIterator GetRowIter(const til::CoordType row) const;
+
+    til::CoordType Height() const noexcept;
+    til::CoordType Width() const noexcept;
+
+private:
+    std::vector<OutputCell> _storage;
+
+    OutputCell* _FindRowOffset(const til::CoordType row);
+    const OutputCell* _FindRowOffset(const til::CoordType row) const;
+
+    til::CoordType _cols;
+    til::CoordType _rows;
+};
+#endif 
+
 
 
 class ROW;
@@ -1230,5 +1644,6 @@ private:
     friend class UiaTextRangeTests;
 #endif
 };
+#endif 
 #endif 
 #endif 
