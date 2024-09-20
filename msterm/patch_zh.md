@@ -34,14 +34,14 @@ You should then be able to build & debug the Terminal project by hitting F5. Mak
 
 因为源码比较大，所以编译需要一段时间，请耐心等待。
 
-编译好的可执行文件在C:\wterm\term0919\bin\x64\Debug目录下。如果你选择编译Release版本，则可执行文件在C:\wterm\term0919\bin\x64\Release目录下。
+编译好的可执行文件WindowsTerminal.exe在C:\wterm\term0919\bin\x64\Debug目录下。如果你选择编译Release版本，则可执行文件在C:\wterm\term0919\bin\x64\Release目录下。
 
-执行
+你可以在VSTS中使用Ctrl + F5来运行编译好的微软终端软件。
 
 
 ## 如何插入AI聊天窗口？
 
-你可以使用WinSpy++(https://github.com/strobejb/winspy)来观察任何Windows程序的窗口层次关系。 使用这款工具，我们发现：
+你可以使用WinSpy++(https://github.com/strobejb/winspy) 来观察任何Windows程序的窗口层次关系。 使用这款工具，我们发现：
 
 微软终端的主窗口的类是CASCADIA_HOSTING_WINDOW_CLASS。 它的代码在C:\wterm\term0919\src\cascadia\WindowsTerminal\NonClientIslandWindow.cpp中定义的。
 
@@ -183,6 +183,176 @@ viewport, 识口，就代表窗口上显示的文本的范围，从top开始，�
 
 ## 改造微软终端的具体步骤
 
-TBD
+对一款成熟软件的改造遵循的原则应该是最小化改动的原则，这样才能保证不引入重大的bug.
 
+### 设置依赖的库
+为了支持AI功能，我们需要依赖三个库：
+
+- scintilla，用于文本的输入和显示。 为了支持文本显示更加美观，未来我们也考虑引入它的子妹库Lexilla。具体信息请参考https://www.scintilla.org/
+- libcurl, 大名鼎鼎的网络通讯库。我们使用它的HTTPS协议和AI后台服务器进行通讯。
+- zlib, 压缩库，供libcurl使用。
+
+你可以使用vcpkg这个包管理工具下载和使用这个库。 ZTerm的代码仓库中已经包含了这三个库的源代码。你可以通过编译ZTerm的源代码，来获得这三个库。请在c:\wterm目录下执行如下步骤：
+```
+git clone https://github.com/wochatme/ZTerm zterm
+cd zterm
+cmake -B debug -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Debug
+cd debug
+nmake
+dir *.lib /s
+```
+等编译完毕，你就看到了三个库: libcurl-d.lib, scintilla.lib, zlibstaticd.lib，相关的头文件在c:\wterm\zterm下的scintilla, curl和zlib目录下可以找到。
+如果你想编译Release版本，只要把上面的第三步改成：cmake -B debug -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=MinSizeRel即可。
+
+微软终端的可执行文件exe对应的源代码在c:\wterm\term0919\src\cascadia\WindowsTerminal目录下。 在这个目录下有一个预编译头文件pch.h，我们把scintilla/libcurl/zlib三个库的头文件放在这个文件中。为了方便管理，我们在WindowsTerminal下创建一个单独的目录zterm，把我们所有的修改都放在这个目录中。
+在pch.h的最底部加入如下代码：
+```
+//-ZTERM
+#include <bcrypt.h>
+#include "zterm/curl/curl.h"
+#include "zterm/zlib/zlib.h"
+#include "zterm/scintilla/Sci_Position.h"
+#include "zterm/scintilla/Scintilla.h"
+#pragma comment(lib, "Imm32.lib")
+#pragma comment(lib, "Bcrypt.lib")
+```
+紧接着，我们创建对应的目录，把相关的头文件拷贝过来。
+```
+```
+在VSTS中打开OpenConsole.sln项目文件，在右边的Solution Explorer窗口中选择Terminal -> Window -> Windows Terminal(Desktop)，鼠标右键选择Properties。 
+在随后弹出的属性设置对话框中选择Configuration Properties -> Linker -> Input，然后在Additional Dependencies中加入如下三行，分别代表三个依赖的库：
+```
+C:\wterm\zterm\debug\scintilla\scintilla.lib
+C:\wterm\zterm\debug\zlib\zlibstaticd.lib
+C:\wterm\zterm\debug\curl\lib\libcurl-d.lib
+```
+
+在c:\wterm\term0919\src\cascadia\WindowsTerminal目录下创建一个单独的目录zterm，把我们后续的所有修改都放置在这个目录下：
+```
+mkdir zterm
+cd zterm
+mkdir scintilla
+mkdir curl
+mkdir zlib
+```
+上面三个子目录中分别放置三个库所必需的头文件，对应于我们在c:\wterm\term0919\src\cascadia\WindowsTerminal\pch.h中的修改。 然后把必要的头文件拷贝到这三个目录中。请在zterm目录中执行如下命令：
+```
+cd scintilla
+copy c:\wterm\zterm\scintilla\include\* .
+
+cd ..\zlib
+copy c:\wterm\zterm\zlib\*.h .
+
+cd ..\curl
+copy c:\wterm\zterm\curl\include\curl\* .
+```
+在zlib的头文件zlib.h中包含了zconf.h这个头文件，它不存在源码中，是在编译zlib库的时候自动生成的。根据我们上面的目录结构，它在c:\wterm\zterm\debug\zlib中可以找到。把它复制到zlib目录下即可：
+```
+C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm\zlib>copy c:\wterm\zterm\debug\zlib\zconf.h .
+```
+
+经过以上修改后，我们重新编译微软终端软件，确保我们的修改不会带来编译的错误。
+
+
+### 插入AI聊天窗口
+
+改造的第一个任务是把我们的聊天窗口插入到主窗口的右侧，协调一下和终端窗口_interopWindowHandle的关系，确保能够拖拉两个窗口之间的垂直分割线来自由地调整两个子窗口的大小。 这个改造只涉及到UI方便的简单修改，对终端软件的功能几乎没有任何影响，所以理论上不会引入重大的bug。 
+
+当我们的AI窗口插入成功以后，怎么和AI通讯完全可以我们自由发挥，和终端软件没有任何关系，所以这是我们的一亩三分地，可以在这个窗口中干你任何想干的事情。 为了保证修改的集中，方便后面的管理，我们创建了两个文件，zterm.h和zterm.cpp，放置在C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm目录中。
+```
+C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>dir
+
+ Directory of C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm
+
+09/20/2024  06:24 AM    <DIR>          .
+09/20/2024  06:24 AM    <DIR>          ..
+09/20/2024  06:09 AM    <DIR>          curl
+09/20/2024  06:06 AM    <DIR>          scintilla
+09/20/2024  06:12 AM    <DIR>          zlib
+09/20/2024  06:24 AM                37 zterm.cpp
+09/20/2024  06:24 AM                14 zterm.h
+               2 File(s)             51 bytes
+
+C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.h
+#pragma once
+
+C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.cpp
+// This is most part of ZTerm logic
+```
+然后把zterm.h插入到NonClientIslandWindow.h的底部，注意要包含在类NonClientIslandWindow的定义中，也就是最后一行是大括号和分号，表示zterm.h中所定义的变量和函数等均属于类NonClientIslandWindow的成员变量和成员函数，这一点要注意。
+```
+    struct Revokers
+    {
+        winrt::Windows::UI::Xaml::Controls::Border::SizeChanged_revoker dragBarSizeChanged;
+        winrt::Windows::UI::Xaml::Controls::Grid::SizeChanged_revoker rootGridSizeChanged;
+        winrt::TerminalApp::TitlebarControl::Loaded_revoker titlebarLoaded;
+    } _callbacks{};
+
+#include "zterm/zterm.h"  // 这是我们插入的内容
+};  // <=========注意这里，这是类NonClientIslandWindow定义的结束部分
+```
+把zterm.cpp插入到NonClientIslandWindow.cpp的头部，如下所示：
+```
+/********************************************************
+*                                                       *
+*   Copyright (C) Microsoft. All rights reserved.       *
+*                                                       *
+********************************************************/
+#include "pch.h"
+#include "NonClientIslandWindow.h"
+#include "../types/inc/utils.hpp"
+#include "TerminalThemeHelpers.h"
+
+#include "zterm/zterm.cpp" // 这是我们插入的内容
+```
+然后我们重新编译微软终端软件，确保可以编译成功。 因为目前zterm.h和zterm.cpp都是空的，所以肯定是可以编译成功。 改造完的代码会有几千行，比较复杂。你可以直接把C:\wterm\zterm\msterm\zterm.h/cpp两个文件复制过来即可。
+
+下面展示如何插入我们的聊天窗口代码。
+
+#### ZTERM.H中的内容
+
+微软终端代码的一个命名习惯是所有的类里面的变量和函数的名字都以下划线开头。我们使用m_开头表示我们新加入的成员变量，用小写的zt作为我们新增加的函数的前缀。这样大家很容易区分我们的修改内容。
+类NonClientIslandWindow中定义了一个右上角管理最小化最大化和关闭三个按钮的子窗口_dragBarWindow。 在源代码的注释中也说明了为什么要加入这个窗口的原因：
+```
+    // The drag bar window is a child window of the top level window that is put
+    // right on top of the drag bar. The XAML island window "steals" our mouse
+    // messages which makes it hard to implement a custom drag area. By putting
+    // a window on top of it, we prevent it from "stealing" the mouse messages.
+
+// in NonClientIslandWindow.h
+wil::unique_hwnd _dragBarWindow;
+```
+我们可以学习源代码中如何创建管理这个子窗口的代码，来创建我们的子窗口。下面是修改后的zterm.h的内容：
+```
+#ifndef _ZTERM_H_
+#define _ZTERM_H_
+
+wil::unique_hwnd m_gptPaneWindow;
+
+HWND m_hWndGPT = nullptr;
+HWND m_hWndASK = nullptr;
+
+[[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
+
+[[nodiscard]] LRESULT ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
+
+LRESULT ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled) noexcept;
+
+void ztMakePaneWindow() noexcept;
+
+#endif // _ZTERM_H_
+```
+由上可见，我们仿照_dragBarWindow的定义，创建了一个类似的成员变量m_gptPaneWindow来表示我们的聊天子窗口。在这个子窗口上我们再创建两个孙窗口：m_hWndGPT表示聊天记录的窗口，m_hWndASK表示用户输入问题的窗口。 这两个窗口的类型都是scintilla窗口。 他们的父窗口是m_gptPaneWindow。 m_gptPaneWindow的地位和_dragBarWindow是相同的。它们两个的父窗口是NonClientIslandWindow，可以使用GetHandle()来获得NonClientIslandWindow所代表的窗口的句柄。
+
+ztStaticPaneWndProc和ztPaneWindowMessageHandler是效仿对_dragBarWindow的处理手法，它对应的函数是：
+```
+    [[nodiscard]] static LRESULT __stdcall _StaticInputSinkWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
+    [[nodiscard]] LRESULT _InputSinkMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
+```
+函数ztMesssageHandler主要是处理NonClientIslandWindow窗口未处理，但是我们需要处理的消息。
+函数ztMakePaneWindow主要是创建我们的AI窗口。在它的代码中我们也会加入ZTerm的初始化函数ztInit()来初始化一些必要的资源，包括scintilla和libcurl的初始化工作。 ztInit()和ztRelease()分别代表ZTerm所有的修改的初始化和资源释放。它们并不是类的成员函数，而是独立的函数，我们把它们放在zterm.cpp中进行定义。
+
+#### ZTERM.CPP中的内容
+
+TBD
 
