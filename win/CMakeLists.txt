@@ -2,6 +2,8 @@
 project(zterm-win64 CXX)
 
 add_definitions(-D_UNICODE -DUNICODE -DNOMINMAX)
+# Disable manifest generation for all executable targets
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
 
 add_executable(${PROJECT_NAME} WIN32 
 	App.cpp
@@ -23,6 +25,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 	${PROJECT_SOURCE_DIR} 
 	${PROJECT_SOURCE_DIR}/wtl 
 	${CMAKE_SOURCE_DIR}
+	${CMAKE_SOURCE_DIR}/inc
 	)
 
 target_link_libraries(${PROJECT_NAME} scintilla)

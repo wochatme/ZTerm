@@ -109,7 +109,7 @@ int ztRaw2HexString(U8* input, U8 len, U8* output, U8* outlen);
 U32 ztGenerateRandomBytes(U8* rndata, U32 bytes);
 void ztInitConfig(ZTConfig* cf);
 
-int ScreenClear(U32* dst, U32 size, U32 color);
+int ScreenFillColor(U32* dst, U32 size, U32 color, bool round = false);
 int ScreenDrawRect(U32* dst, int w, int h, U32* src, int sw, int sh, int dx, int dy);
 int ScreenStretchBlt(U32* dst, int w, int h, U32* src, int sh, int len, int dx, int dy);
 

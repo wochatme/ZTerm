@@ -192,7 +192,7 @@ viewport, 识口，就代表窗口上显示的文本的范围，从top开始，�
 - libcurl, 大名鼎鼎的网络通讯库。我们使用它的HTTPS协议和AI后台服务器进行通讯。
 - zlib, 压缩库，供libcurl使用。
 
-你可以使用vcpkg这个包管理工具下载和使用这个库。 ZTerm的代码仓库中已经包含了这三个库的源代码。你可以通过编译ZTerm的源代码，来获得这三个库。请在c:\wterm目录下执行如下步骤：
+你可以使用vcpkg这个包管理工具下载和使用这三个库，具体内容请参考vcpkg的文档。 ZTerm的代码仓库中已经包含了这三个库的源代码。你可以通过编译ZTerm的源代码，来获得这三个库。请在c:\wterm目录下执行如下步骤：
 ```
 git clone https://github.com/wochatme/ZTerm zterm
 cd zterm
@@ -216,9 +216,8 @@ dir *.lib /s
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Bcrypt.lib")
 ```
-紧接着，我们创建对应的目录，把相关的头文件拷贝过来。
-```
-```
+稍后我们会创建对应的目录，把相关的头文件拷贝过来。
+
 在VSTS中打开OpenConsole.sln项目文件，在右边的Solution Explorer窗口中选择Terminal -> Window -> Windows Terminal(Desktop)，鼠标右键选择Properties。 
 在随后弹出的属性设置对话框中选择Configuration Properties -> Linker -> Input，然后在Additional Dependencies中加入如下三行，分别代表三个依赖的库：
 ```
@@ -270,11 +269,13 @@ C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>dir
 09/20/2024  06:06 AM    <DIR>          scintilla
 09/20/2024  06:12 AM    <DIR>          zlib
 09/20/2024  06:24 AM                37 zterm.cpp
-09/20/2024  06:24 AM                14 zterm.h
+09/20/2024  06:24 AM                54 zterm.h
                2 File(s)             51 bytes
 
 C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.h
-#pragma once
+#ifndef _ZTERM_H_
+#define _ZTERM_H_
+#endif // _ZTERM_H_
 
 C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.cpp
 // This is most part of ZTerm logic

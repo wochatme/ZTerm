@@ -97,9 +97,10 @@ extern CAppModule _Module;
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <stack>
 
 // WIL
-#if 0
+#if 10
 #include <wil/com.h>
 #include <wil/stl.h>
 #include <wil/filesystem.h>
@@ -130,6 +131,10 @@ extern CAppModule _Module;
 #include <d2d1.h>
 #include <d2d1_1.h>
 #include <dwrite.h>
+#include <d3d11.h>
+#include <dxgi.h>
+#include <dcomp.h>
+
 #include <dwmapi.h>
 #include <uxtheme.h>
 #include <vssym32.h>
@@ -141,11 +146,15 @@ extern CAppModule _Module;
 
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "dwrite.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "Dcomp.lib")
+
 #pragma comment(lib, "uxtheme.lib")
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Bcrypt.lib")
 
+#if 0
 #if defined _M_IX86
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #elif defined _M_IA64
@@ -155,3 +164,4 @@ extern CAppModule _Module;
 #else
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
+#endif 

@@ -1,5 +1,5 @@
 #pragma once
-
+#if 0
 static const unsigned int xbmpLIconN[24 * 24] =
 {
 0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,
@@ -532,4 +532,96 @@ static const unsigned int xbmpLGPTN[29 * 29] =
 0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,
 0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF
 };
+#endif 
 
+#define BITMAP_MIN_ID       0
+#define BITMAP_QUICKASK     0
+#define BITMAP_HIDE_GPT     1
+#define BITMAP_MAX_ID       (BITMAP_HIDE_GPT + 1)
+
+class BitmapBank final
+{
+    static constexpr const SIZE btnOrgSize[BITMAP_MAX_ID] =
+    {
+        {24, 24},  // Quick Ask Button
+        {24, 24}   // Hide GPT Button
+    };
+
+    SIZE btnSize[BITMAP_MAX_ID] = { 0 };
+    U32* btnData[BITMAP_MAX_ID] = { nullptr };
+
+    void MakeHideGPTButton(bool isDarkMode = false);
+    void MakeQuickAskButton(bool isDarkMode = false);
+
+public:
+    BitmapBank(UINT dpi = USER_DEFAULT_SCREEN_DPI, bool isDarkMode = false) noexcept
+    {
+        int size = 0;
+
+        if (m_bitmapData)
+        {
+            std::free(m_bitmapData);
+        }
+        m_bitmapData = nullptr;
+
+        for (int i = BITMAP_MIN_ID; i < BITMAP_MAX_ID; i++)
+        {
+            btnSize[i].cx = ::MulDiv(btnOrgSize[i].cx, dpi, USER_DEFAULT_SCREEN_DPI);
+            btnSize[i].cy = ::MulDiv(btnOrgSize[i].cx, dpi, USER_DEFAULT_SCREEN_DPI);
+
+            size += btnSize[i].cx * btnSize[i].cy;
+        }
+
+        m_bitmapData = static_cast<U32*>(std::malloc(size * sizeof(U32)));
+
+        if (m_bitmapData)
+        {
+            U32* p = m_bitmapData;
+
+            ScreenFillColor(m_bitmapData, size, isDarkMode ? 0xFFF0F0F0 : 0xFFF0F0F0);
+            
+            for (int i = BITMAP_MIN_ID; i < BITMAP_MAX_ID; i++)
+            {
+                btnData[i] = p;
+                p += (btnSize[i].cx * btnSize[i].cy);
+            }
+        }
+
+        MakeHideGPTButton(isDarkMode);
+        MakeQuickAskButton(isDarkMode);
+    }
+
+    ~BitmapBank()
+    {
+        if (m_bitmapData)
+        {
+            std::free(m_bitmapData);
+        }
+        m_bitmapData = nullptr;
+    }
+
+    // No Copy. 
+    BitmapBank(const BitmapBank&) = delete;
+    BitmapBank& operator=(const BitmapBank&) & = delete;
+
+    BitmapBank(BitmapBank&&) = default;
+    BitmapBank& operator=(BitmapBank&&) & = delete;
+
+    U32* GetBitmapData(int idx, int& width, int& height)
+    {
+        U32* p = nullptr;
+        
+        width = height = 0;
+
+        if (idx >= BITMAP_MIN_ID && idx < BITMAP_MAX_ID)
+        {
+            p = btnData[idx];
+            width = btnSize[idx].cx;
+            height = btnSize[idx].cy;
+        }
+        return p;
+    }
+
+private:
+    U32* m_bitmapData = nullptr;
+};

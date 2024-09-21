@@ -2,8 +2,9 @@
 
 #include "Settings.h"
 #include "Network.h"
+#include "XBitmap.h"
 
-EXTERN_C IMAGE_DOS_HEADER __ImageBase;
+extern "C" IMAGE_DOS_HEADER __ImageBase;
 #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
 
 /* ZT_ALIGN() is only to be used to align on a power of 2 boundary */
@@ -48,6 +49,14 @@ inline T DLLFunction(HMODULE hModule, LPCSTR lpProcName) noexcept {
 	return fp;
 }
 
+#define WM_GUI_EVENT		(WM_USER + 123)
+#define WM_GUI_DRAGSPLIT	(WM_USER + 124)
+
+#define BACKGROUND_BLACK	0xFF000000
+#define BACKGROUND_WHITE	0xFFFFFFFF
+#define BACKGROUND_DARK		0xFF171717
+#define BACKGROUND_LIGHT	0x00F0F0F0
+
 extern IDWriteFactory* g_pIDWriteFactory;
 extern ID2D1Factory* g_pD2DFactory;
 
@@ -66,4 +75,25 @@ extern CRITICAL_SECTION  g_csSendMsg;
 extern CRITICAL_SECTION  g_csReceMsg;
 
 extern ZTConfig ZTCONFIGURATION;
+extern std::unique_ptr<BitmapBank> g_pBitmapBank;
+
+extern DWORD guiState;
+
+#define GUISTATE_DARKMODE	(0x00000001)
+#define GUISTATE_TOPMOST	(0x00000002)
+
+inline bool AppInDarkMode()
+{
+	return static_cast<bool>(guiState & GUISTATE_DARKMODE);
+}
+
+inline void AppSetDarkMode(bool dark=true)
+{
+	guiState = dark? (guiState | GUISTATE_DARKMODE) : (guiState & ~GUISTATE_DARKMODE);
+}
+
+inline bool AppIsTopMost()
+{
+	return static_cast<bool>(guiState & GUISTATE_TOPMOST);
+}
 

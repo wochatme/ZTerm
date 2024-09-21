@@ -2,8 +2,18 @@
 #include "App.h"
 #include "Settings.h"
 
+void BitmapBank::MakeHideGPTButton(bool isDarkMode)
+{
+
+}
+
+void BitmapBank::MakeQuickAskButton(bool isDarkMode)
+{
+
+}
+
 /* fill the whole screen with one color */
-int ScreenClear(U32* dst, U32 size, U32 color)
+int ScreenFillColor(U32* dst, U32 size, U32 color, bool round)
 {
 	if (dst)
 	{

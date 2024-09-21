@@ -8,14 +8,13 @@
 #include <atlctrlw.h>
 #include <atlscrl.h>
 
-#include "XBitmap.h"
 #include "resource.h"
 #include "App.h"
 #include "Settings.h"
 #include "Network.h"
 
-#include "ViewTTY.h"
 #include "ViewGPT.h"
+#include "ViewTTY.h"
 #include "WinDlg.h"
 #include "MainFrm.h"
 
@@ -26,6 +25,10 @@ volatile LONG  g_threadCountBKG = 0;
 volatile LONG  g_Quit = 0;
 volatile LONG  g_threadPing = 0;
 volatile LONG  g_threadPingNow = 1;
+
+DWORD guiState = 0;
+
+std::unique_ptr<BitmapBank> g_pBitmapBank = nullptr;
 
 ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
 
@@ -116,7 +119,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 
 	const auto wndMain = std::make_shared<CMainFrame>();	
 
-	//dwExStyle = WS_EX_COMPOSITED | WS_EX_TRANSPARENT;
+	dwExStyle = (WS_EX_NOREDIRECTIONBITMAP | (AppIsTopMost()? WS_EX_TOPMOST : 0));
 
 	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
@@ -124,15 +127,18 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		// Please check this question:
 		// https://stackoverflow.com/questions/69715610/how-to-initialize-the-background-color-of-win32-app-to-something-other-than-whit
 		// 
+#if 0
 		BOOL cloak = TRUE;
 		DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
 		wndMain->UpdateWindow();
-		wndMain->ShowWindow(SW_SHOWMINIMIZED);
 		cloak = FALSE;
 		DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
 
-		wndMain->ShowWindow(nCmdShow);
+#endif 
+		g_pBitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
 
+		wndMain->ShowWindow(SW_SHOWMINIMIZED);
+		wndMain->ShowWindow(nCmdShow);
 		ztStartupNetworkThread(wndMain->m_hWnd);
 		nRet = theLoop.Run();
 	}
@@ -152,6 +158,8 @@ static int AppInit(HINSTANCE hInstance)
 	g_receQueue = nullptr;
 
 	ztInitConfig(&ZTCONFIGURATION);
+
+	//AppSetDarkMode();
 
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);
@@ -218,6 +226,8 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 	ATLASSERT(g_threadCountBKG == 0);
 
 	ReleaseQueueMemory();
+
+	g_pBitmapBank.reset();
 
 	curl_global_cleanup();
 	Scintilla_ReleaseResources();

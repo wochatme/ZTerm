@@ -3,18 +3,374 @@
 /////////////////////////////////////////////////////////////////////////////
 #pragma once
 
-#define WM_GUI_EVENT		(WM_USER + 123)
+#if 0
+// the code is from https://github.com/oberth/custom-chrome
+namespace measure 
+{
+	template<typename T>
+	struct point 
+	{
+		T x, y;
+
+		point() = default;
+		point(T const x, T const y) : x(x), y(y) {}
+
+		auto& operator*=(T rhs) 
+		{
+			this->x *= rhs; this->y *= rhs;
+			return *this;
+		}
+
+		friend auto operator*(point<T> lhs, T rhs) 
+		{
+			return lhs *= rhs;
+		}
+	};
+
+	template<typename T>
+	struct size 
+	{
+		T width, height;
+
+		size() = default;
+		size(T const width, T const height)
+			: width(width), height(height) {}
+
+		auto& operator*=(T rhs) 
+		{
+			this->width *= rhs; this->height *= rhs;
+			return *this;
+		}
+
+		friend auto operator*(size<T> lhs, T rhs) 
+		{
+			return lhs *= rhs;
+		}
+	};
+
+	template<typename T>
+	struct rectangle 
+	{
+		point<T> origin;
+		size<T> dimension;
+
+		rectangle() = default;
+
+		rectangle(T const x, T const y, T const w, T const h)
+			: origin{ x, y }, dimension{ w, h } {}
+
+		rectangle(point<T> const& origin, size<T> const& dimension)
+			: origin{ origin }, dimension{ dimension } {}
+
+		auto& operator*=(T rhs) 
+		{
+			this->origin *= rhs; this->dimension *= rhs;
+			return *this;
+		}
+
+		friend auto operator*(rectangle<T> lhs, T rhs) 
+		{
+			return lhs *= rhs;
+		}
+	};
+
+	struct color 
+	{
+		float r, g, b, a;
+
+		color() = default;
+
+		color(std::uint8_t const r, std::uint8_t const g, std::uint8_t const b, std::uint8_t const a = 255)
+			: r(static_cast<float>(r) / 255.0f), g(static_cast<float>(g) / 255.0f),
+			b(static_cast<float>(b) / 255.0f), a(static_cast<float>(a) / 255.0f) {}
+
+		color(float const r, float const g, float const b, float const a = 1.0f)
+			: r(r), g(g), b(b), a(a) {}
+
+	};
+}
+
+namespace com 
+{
+	inline auto validate_result(HRESULT result, std::string const& error_message) 
+	{
+		if (FAILED(result)) throw std::runtime_error{ error_message };
+	}
+
+	// Just a basic idea how to change semantics and move away from COM reference counting.
+	// For production, you'd have to extend this to be more robust for all use cases.
+	// I also suggest completely wrapping COM interfaces on top of that.
+
+	template <typename ComType>
+	struct com_deleter 
+	{
+		void operator()(ComType* ptr) 
+		{
+			ptr->Release();
+		}
+	};
+
+	template <typename ComType>
+	using unique_ptr = std::unique_ptr<ComType, com_deleter<ComType>>;
+
+	template <typename ComType>
+	inline auto make_unique(ComType* com_object) 
+	{
+		return unique_ptr<ComType> { com_object };
+	}
+
+	template <typename DestinationComType, typename SourceComType>
+	inline auto make_unique_and_change_interface(SourceComType* com_object) 
+	{
+		DestinationComType* com_object_with_destination_interface;
+		auto result = com_object->QueryInterface(IID_PPV_ARGS(&com_object_with_destination_interface));
+		validate_result(result, "Failed to change interface.");
+		com_object->Release();
+
+		return make_unique(com_object_with_destination_interface);
+	}
+}
+
+namespace graphics 
+{
+	// Just a simple renderer.
+	struct renderer 
+	{
+		renderer()
+		{
+			std::uint32_t flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+#if defined(_DEBUG)
+			flags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif
+			std::array requested_levels
+			{
+				D3D_FEATURE_LEVEL_12_1, D3D_FEATURE_LEVEL_12_0,
+				D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0,
+			};
+
+			D3D_FEATURE_LEVEL received_feature_level; // Any will do in this scenario.
+			ID3D11Device* temporary_device; ID3D11DeviceContext* temporary_context;
+
+			auto hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+				flags, requested_levels.data(), static_cast<std::uint32_t>(requested_levels.size()),
+				D3D11_SDK_VERSION, &temporary_device, &received_feature_level, &temporary_context
+			);
+
+			com::validate_result(hr, "Failed during creation of the D3D11 device.");
+			_device_context_d3d11 = com::make_unique(temporary_context);
+			_device_d3d11 = com::make_unique(temporary_device);
+
+			ID2D1Factory* temporary_factory;
+			hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &temporary_factory);
+			com::validate_result(hr, "Failed during creation of the D2D1 factory.");
+			_factory_d2d1 = com::make_unique(temporary_factory);
+
+			auto pixel_format = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
+
+			IDWriteFactory* temporary_factory_dwrite;
+			hr = DWriteCreateFactory(
+				DWRITE_FACTORY_TYPE_ISOLATED, __uuidof(IDWriteFactory),
+				reinterpret_cast<IUnknown**>(&temporary_factory_dwrite)
+			);
+
+			com::validate_result(hr, "Failed during the creation of the DWrite factory.");
+			_factory_dwrite = com::make_unique(temporary_factory_dwrite);
+
+			com::validate_result(CoInitialize(nullptr), "Failed to CoInitialize.");
+#if 0
+			IWICImagingFactory* temporary_factory_wic;
+			hr = CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&temporary_factory_wic));
+			com::validate_result(hr, "Failed during the creation of the WIC factory.");
+			_factory_wic = com::make_unique(temporary_factory_wic);
+#endif 
+			IDXGIDevice* temporary_device_dxgi;
+			_device_d3d11->QueryInterface<IDXGIDevice>(&temporary_device_dxgi);
+			auto device_dxgi = com::make_unique<IDXGIDevice>(temporary_device_dxgi);
+
+			auto creation_properties = D2D1::CreationProperties(
+				D2D1_THREADING_MODE_SINGLE_THREADED, D2D1_DEBUG_LEVEL_INFORMATION, D2D1_DEVICE_CONTEXT_OPTIONS_NONE
+			);
+
+			ID2D1Device* temporary_device_d2d1;
+			hr = D2D1CreateDevice(device_dxgi.get(), creation_properties, &temporary_device_d2d1);
+			_device_d2d1 = com::make_unique(temporary_device_d2d1);
+			com::validate_result(hr, "Failed during the creation of the D2D1 device.");
+
+			ID2D1DeviceContext* temporary_device_context_d2d1;
+			hr = _device_d2d1->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &temporary_device_context_d2d1);
+			com::validate_result(hr, "Failed during the creation of the resource creating D2D1 device context.");
+			_resource_device_context_d2d1 = com::make_unique(temporary_device_context_d2d1);
+			_resource_device_context_d2d1->SetDpi(_dpi_x, _dpi_x);
+
+			IDCompositionDesktopDevice* temporary_device_dcomp;
+			hr = DCompositionCreateDevice2(_device_d2d1.get(), IID_PPV_ARGS(&temporary_device_dcomp));
+			com::validate_result(hr, "Failed during the creation of the DComp device.");
+			_device_dcomp = com::make_unique(temporary_device_dcomp);
+
+			IDCompositionVisual2* temporary_visual;
+			_device_dcomp->CreateVisual(&temporary_visual);
+			_primary_visual_dcomp = com::make_unique(temporary_visual);
+
+			_transforms.emplace(D2D1::Matrix3x2F::Identity());
+
+			ID2D1SolidColorBrush* temporary_brush;
+			_resource_device_context_d2d1->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f), &temporary_brush);
+			_brush = com::make_unique(temporary_brush);
+		}
+
+		auto attach_to_window(HWND window_handle) -> void
+		{
+			_associated_window = window_handle;
+			_dpi_x = _dpi_y = static_cast<float>(GetDpiForWindow(window_handle));
+
+			IDCompositionTarget* temporary_target;
+			auto hr = _device_dcomp->CreateTargetForHwnd(window_handle, true, &temporary_target);
+			com::validate_result(hr, "Failed during creation of the DComp window target.");
+			_window_target_dcomp = com::make_unique(temporary_target);
+			_window_target_dcomp->SetRoot(_primary_visual_dcomp.get());
+
+			RECT window_rectangle;
+			GetClientRect(_associated_window, &window_rectangle);
+
+			IDCompositionVirtualSurface* temporary_surface;
+			_device_dcomp->CreateVirtualSurface(
+				window_rectangle.right, window_rectangle.bottom,
+				DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_ALPHA_MODE_PREMULTIPLIED,
+				&temporary_surface
+			);
+
+			_window_surface_dcomp = com::make_unique(temporary_surface);
+			_primary_visual_dcomp->SetContent(_window_surface_dcomp.get());
+		}
+
+		void begin_draw()
+		{
+			ID2D1DeviceContext* temporary_device_context_d2d1; 
+			POINT offset = {};
+			
+			_window_surface_dcomp->BeginDraw(nullptr, IID_PPV_ARGS(&temporary_device_context_d2d1), &offset);
+			_device_context_d2d1 = com::make_unique(temporary_device_context_d2d1);
+			_device_context_d2d1->SetDpi(_dpi_x, _dpi_y);
+			auto offsetX = static_cast<float>(offset.x);
+			auto offsetY = static_cast<float>(offset.y);
+
+			push_transform(D2D1::Matrix3x2F::Translation(
+				offsetX * 96.0f / _dpi_x, offsetY * 96.0f / _dpi_y
+			));
+
+			_device_context_d2d1->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0, 0.0f));
+		}
+
+		void end_draw()
+		{
+			clear_transforms();
+
+			_window_surface_dcomp->EndDraw();
+			// _device_dcomp->WaitForCommitCompletion(); // Uncomment if you care about trailing while resizing
+			_device_dcomp->Commit();
+		}
+
+		auto fill_rectangle(
+			measure::rectangle<float> const& fill_area,
+			measure::color const& fill_color
+		) -> void
+		{
+			_brush->SetColor(D2D1::ColorF(fill_color.r, fill_color.g, fill_color.b, fill_color.a));
+
+			auto& [origin, dimension] = fill_area;
+			auto& [x, y] = origin; auto [w, h] = dimension;
+
+			_device_context_d2d1->FillRectangle(D2D1::RectF(x, y, x + w, y + h), _brush.get());
+		}
+#if 0
+		auto draw_line(
+			measure::point<float> const& start, measure::point<float> const& end,
+			float const stroke_width, measure::color const& stroke_color
+		) -> void;
+
+		auto draw_image(
+			resource::image const* image, float scale,
+			measure::point<float> const& top_left, float const opacity
+		) -> void;
+
+		auto draw_text(
+			std::string const& text, measure::point<float> const& top_left, std::string const& font_family,
+			float const font_size, measure::color const& text_color,
+			DWRITE_FONT_WEIGHT const font_weight = DWRITE_FONT_WEIGHT_NORMAL
+		) -> void;
+#endif 
+		auto push_transform(D2D1::Matrix3x2F const& transform) -> void
+		{
+			auto& previous_transform = _transforms.top();
+			_transforms.emplace(previous_transform * transform);
+			_device_context_d2d1->SetTransform(_transforms.top());
+		}
+
+		auto pop_transform() -> void
+		{
+			_transforms.pop();
+			_device_context_d2d1->SetTransform(_transforms.top());
+		}
+
+		auto resize_buffers() -> void
+		{
+			RECT window_rectangle;
+			GetClientRect(_associated_window, &window_rectangle);
+
+			_window_surface_dcomp->Resize(window_rectangle.right, window_rectangle.bottom);
+		}
+
+	private:
+		auto clear_transforms() -> void
+		{
+			_transforms = {}; 
+			_transforms.emplace(D2D1::Matrix3x2F::Identity());
+			_device_context_d2d1->SetTransform(_transforms.top());
+		}
+
+#if 0
+		auto get_texture(std::string const& filename) -> ID2D1Bitmap*
+		{
+			auto lookup_iterator = _resident_textures_map.find(filename);
+			return lookup_iterator != _resident_textures_map.end() ? lookup_iterator->second.get() : load_image_into_pool(filename);
+		}
+		//auto load_image_into_pool(std::string const& filename) -> ID2D1Bitmap*;
+		//com::unique_ptr<IWICImagingFactory>     _factory_wic;
+#endif 
+
+		com::unique_ptr<ID3D11Device>           _device_d3d11;
+		com::unique_ptr<ID3D11DeviceContext>    _device_context_d3d11;
+		com::unique_ptr<ID2D1Factory>           _factory_d2d1;
+		com::unique_ptr<ID2D1RenderTarget>      _dxgi_render_target_d2d1;
+		com::unique_ptr<IDWriteFactory>         _factory_dwrite;
+
+		com::unique_ptr<ID2D1Device>            _device_d2d1;
+		com::unique_ptr<ID2D1DeviceContext>     _device_context_d2d1;
+		com::unique_ptr<ID2D1DeviceContext>     _resource_device_context_d2d1;
+
+		com::unique_ptr<ID2D1SolidColorBrush>   _brush;
+		com::unique_ptr<IDWriteTextFormat>      _standard_text_format;
+
+		com::unique_ptr<IDCompositionDesktopDevice>     _device_dcomp;
+		com::unique_ptr<IDCompositionTarget>            _window_target_dcomp;
+		com::unique_ptr<IDCompositionVisual2>           _primary_visual_dcomp;
+		com::unique_ptr<IDCompositionVirtualSurface>    _window_surface_dcomp;
+
+		std::unordered_map<std::string, com::unique_ptr<ID2D1Bitmap>> _resident_textures_map;
+
+		HWND _associated_window = nullptr;
+
+		float _dpi_x = 96.0f, _dpi_y = 96.0f;
+
+		std::stack<D2D1::Matrix3x2F> _transforms;
+	};
+}
+#endif 
 
 #define	GUI_BUTTONCLICK		1
 
-#define BACKGROUND_BLACK	0xFF000000
-#define BACKGROUND_WHITE	0xFFFFFFFF
-#define BACKGROUND_DARK		0xFF171717
-#define BACKGROUND_LIGHT	0xFFF0F0F0
-
-#define ASK_WIN_HEIGHT		88
-#define GAP_WIN_HEIGHT		32
-#define LED_WIN_HEIGHT		24
+#define POS_LIMIT_LEFT		256
+#define POS_LIMIT_RIGHT		128
 
 #define TOOLTIP_QUICKQ		1
 #define TOOLTIP_HIDEAI		2
@@ -35,31 +391,22 @@
 #define WIN0DRAW	(0x01)
 #define WIN1DRAW	(0x02)
 #define WIN2DRAW	(0x04)
-#define WIN3DRAW	(0x08)
-#define WIN4DRAW	(0x10)
 
 #define NeedDrawWin0()			(m_paintStatus & WIN0DRAW)
 #define NeedDrawWin1()			(m_paintStatus & WIN1DRAW)
 #define NeedDrawWin2()			(m_paintStatus & WIN2DRAW)
-#define NeedDrawWin3()			(m_paintStatus & WIN3DRAW)
-#define NeedDrawWin4()			(m_paintStatus & WIN4DRAW)
-#define NeedDrawAnyWindow() 	(m_paintStatus & (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW))
+#define NeedDrawAnyWindow() 	(m_paintStatus & (WIN0DRAW|WIN1DRAW|WIN2DRAW))
 
 #define InvalidateWin0()		do { m_paintStatus |= WIN0DRAW; } while(0)
 #define InvalidateWin1()		do { m_paintStatus |= WIN1DRAW; } while(0)
 #define InvalidateWin2()		do { m_paintStatus |= WIN2DRAW; } while(0)
-#define InvalidateWin3()		do { m_paintStatus |= WIN3DRAW; } while(0)
-#define InvalidateWin4()		do { m_paintStatus |= WIN4DRAW; } while(0)
-#define InvalidateWin34()		do { m_paintStatus |= (WIN3DRAW|WIN4DRAW); } while(0)
 #define InvalidateWin12()		do { m_paintStatus |= (WIN1DRAW | WIN2DRAW); } while(0)
 #define InvalidateWin012()		do { m_paintStatus |= (WIN0DRAW | WIN1DRAW | WIN2DRAW); } while(0)
-#define InvalidateWin01234()	do { m_paintStatus |= (WIN0DRAW|WIN1DRAW|WIN2DRAW|WIN3DRAW|WIN4DRAW); } while(0)
 
 #define ClearWin0Draw()			do { m_paintStatus &= ~WIN0DRAW; } while(0)
 #define ClearWin1Draw()			do { m_paintStatus &= ~WIN1DRAW; } while(0)
 #define ClearWin2Draw()			do { m_paintStatus &= ~WIN2DRAW; } while(0)
-#define ClearWin3Draw()			do { m_paintStatus &= ~WIN3DRAW; } while(0)
-#define ClearWin4Draw()			do { m_paintStatus &= ~WIN4DRAW; } while(0)
+#define ClearWin012Draw()		do { m_paintStatus &= ~(WIN0DRAW | WIN1DRAW | WIN2DRAW); } while(0)
 
 // Splitter panes constants
 #define SPLIT_PANE_LEFT			 0
@@ -83,7 +430,6 @@
 #define LED_WIN_HEIGHT		24
 
 #define TIMER_MAINWIN		250
-#define TIMER_WAITAI		666
 #define TIMER_SHOWAI		251
 
 /* the index of the special buttons */
@@ -93,9 +439,6 @@
 #define RECT_IDX_WEST		3
 #define RECT_IDX_EAST		4
 #define RECT_IDX_CHAT		5
-#define RECT_IDX_QASK		6
-#define RECT_IDX_HIDE		7
-#define RECT_IDX_STAT		8
 #define RECT_IDX_LAST		(RECT_IDX_STAT + 1)
 #define RECT_IDX_NBTN		(RECT_IDX_CHAT + 1)
 
@@ -121,8 +464,10 @@
 #define HIT_VSPLIT			(0x00000002)
 #define HIT_HSPLIT			(0x00000003)
 
-#define IsDarkMode()		(m_dwState & WIN_DARKMODE)
+#if 0
+#define AppInDarkMode()		(m_dwState & WIN_DARKMODE)
 #define SetDarkMode(dark)	do { m_dwState = (dark)? (m_dwState|WIN_DARKMODE) : (m_dwState & ~WIN_DARKMODE); } while(0)
+#endif 
 
 #define DECLARE_FRAME_XWND_CLASS(WndClassName, uCommonResourceID) \
 static WTL::CFrameWndClassInfo& GetWndClassInfo() \
@@ -144,6 +489,12 @@ static WTL::CFrameWndClassInfo& GetWndClassInfo() \
 			return TRUE; \
 	}
 
+enum BmpID
+{
+	BMP_ICON = 0,
+	BMP_TOTAL
+};
+
 class CMainFrame :
 	public CFrameWindowImpl<CMainFrame>,
 	public CUpdateUI<CMainFrame>,
@@ -151,21 +502,26 @@ class CMainFrame :
 {
 	U8 m_paintStatus = WIN0DRAW | WIN1DRAW | WIN2DRAW;
 
-	int m_nWaitCount = 0;
 	DWORD m_dwState = 0;
 
-	UINT m_nDPI = USER_DEFAULT_SCREEN_DPI;
+	UINT m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+	bool m_inDpiChange = false;
+
+	enum WinSize { WIN_MINIMIZED, WIN_MAXIMIZED, WIN_RESTORED };
+	WinSize m_winSize = WIN_RESTORED;
+
 	int m_heightTitle = CAPTION_HEIGHT;
 	int m_heightGap = GAP_WIN_HEIGHT;
 	int m_heightLed = LED_WIN_HEIGHT;
     int m_heightWinAsk = ASK_WIN_HEIGHT;
 
-	U32* m_screenBuff = nullptr;
+	U32* m_titleBuff = nullptr;
+
+#if 0
 	U32  m_screenSize = 0;
 	U32* m_screenWin0 = nullptr;
 	U32* m_screenWin1 = nullptr;
 	U32* m_screenWin2 = nullptr;
-#if 0
 	const int m_widthWindow0 = CAPTION_HEIGHT;
 #endif 
 	RECT  m_rectButton[RECT_IDX_LAST] = { 0 };
@@ -174,6 +530,10 @@ class CMainFrame :
 
 	HMENU m_hMenuMain = NULL;
 	HMENU m_hMenuList = NULL;
+
+	float _user_scaling = 96.0f;
+	float _client_area_offset_dip = 0.0f;
+	//std::unique_ptr<graphics::renderer> _renderer;
 
 	float m_deviceScaleFactor = 1.f;
 	ID2D1HwndRenderTarget* m_pD2DRenderTarget = nullptr;
@@ -204,7 +564,7 @@ public:
 
 	HWND m_hWndFocusSave = NULL;
 	int m_nDefActivePane = SPLIT_PANE_NONE;
-	int m_cxySplitBar = 4;              // splitter bar width/height
+	int m_cxySplitBar = 0;              // splitter bar width/height
 
 	HCURSOR m_hCursorWE = NULL;
 	HCURSOR m_hCursorNS = NULL;
@@ -228,10 +588,11 @@ public:
 
 	CTTYView m_viewTTY;
 	CGPTView m_viewGPT;
-	CAskView m_viewAsk;
+
 	WTL::CToolTipCtrl m_tooltip;
 
 	// Attributes
+
 	void SetSplitterRect(LPRECT lpRect = NULL, bool bUpdate = true)
 	{
 		if (lpRect == NULL)
@@ -347,7 +708,6 @@ public:
 				::ShowWindow(m_hWndPane[nPane], SW_SHOW);
 			int nOtherPane = (nPane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
 			::ShowWindow(m_hWndPane[nOtherPane], SW_HIDE);
-			::ShowWindow(m_viewAsk.m_hWnd, SW_HIDE);
 			if (m_nDefActivePane != nPane)
 				m_nDefActivePane = nPane;
 		}
@@ -355,7 +715,6 @@ public:
 		{
 			int nOtherPane = (m_nSinglePane == SPLIT_PANE_LEFT) ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT;
 			::ShowWindow(m_hWndPane[nOtherPane], SW_SHOW);
-			::ShowWindow(m_viewAsk.m_hWnd, SW_SHOW);
 		}
 
 		m_nSinglePane = nPane;
@@ -645,14 +1004,14 @@ public:
 
 	BEGIN_MSG_MAP(CMainFrame)
 		MESSAGE_HANDLEDWM(OnDWMCheck)
-		//MESSAGE_HANDLER(WM_SHOWWINDOW, OnShowWindow)
 		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
 		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
+#if 0
 		MESSAGE_HANDLER(WM_TIMER, OnTimer)
+#endif 
 		MESSAGE_RANGE_HANDLER(WM_MOUSEFIRST, WM_MOUSELAST, OnMouseMessage)
 		MESSAGE_HANDLER(WM_NCMOUSEMOVE, OnNCMouseMove)
-		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
 		MESSAGE_HANDLER(WM_NCMOUSELEAVE, OnNCMouseLeave)
 		MESSAGE_HANDLER(WM_MOUSELEAVE, OnMouseLeave)
 		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
@@ -666,9 +1025,15 @@ public:
 		MESSAGE_HANDLER(WM_NCCALCSIZE, OnNCCalcSize)
 		MESSAGE_HANDLER(WM_NCHITTEST, OnNCHitTest)
 		MESSAGE_HANDLER(WM_GUI_EVENT, OnGUIEvent)
+		MESSAGE_HANDLER(WM_GUI_DRAGSPLIT, OnGUIDragSplit)
 		MESSAGE_HANDLER(WM_NCLBUTTONDOWN, OnNCLButtonDown)
+		MESSAGE_HANDLER(WM_NCRBUTTONUP, OnNCRButtonUp)
+#if 0
+		MESSAGE_HANDLER(WM_NCRBUTTONDOWN, OnNCRButtonDown)
 		MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
 		MESSAGE_HANDLER(WM_LBUTTONUP, OnLButtonUp)
+		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
+#endif 
 		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_SIZING, OnSizing)
 		MESSAGE_HANDLER(WM_ENTERSIZEMOVE, OnEnterSizeMove)
@@ -718,6 +1083,7 @@ public:
 
 	LRESULT OnNetworkStatus(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+#if 0
 		BOOL bGood = (BOOL)lParam;
 		BOOL bGoodPrev = (BOOL)m_dwState & GPT_NET_GOOD;
 
@@ -730,6 +1096,7 @@ public:
 			InvalidateWin4();
 			Invalidate();
 		}
+#endif 
 		return 0L;
 	}
 
@@ -865,6 +1232,7 @@ public:
 
 	void DoAskNotification(U32 code)
 	{
+#if 0
 		/* does the user hold Ctrl key? */
 		bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0;
 
@@ -925,11 +1293,13 @@ public:
 				}
 			}
 		}
+#endif 
 	}
 
 	LRESULT OnNotify(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& bHandled)
 	{
 		bHandled = FALSE;
+#if 0
 		NMHDR* pNMHDR = (NMHDR*)lParam;
 		if (pNMHDR)
 		{
@@ -941,6 +1311,7 @@ public:
 				bHandled = TRUE;
 			}
 		}
+#endif 
 		return 0L;
 	}
 
@@ -949,29 +1320,38 @@ public:
 #if 0
 		UINT dpiY = HIWORD(wParam);
 
-		m_nDPI = GetDpiForWindow(m_hWnd);
-		if (!m_nDPI)
-			m_nDPI = USER_DEFAULT_SCREEN_DPI;
+		m_currentDpi = GetDpiForWindow(m_hWnd);
+		if (!m_currentDpi)
+			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
 #endif 
-		m_nDPI = HIWORD(wParam);
+		m_inDpiChange = true;
 
-		m_heightTitle = ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightGap = ::MulDiv(m_nDPI, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightLed = ::MulDiv(m_nDPI, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightWinAsk = ::MulDiv(m_nDPI, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_xySplitterPos = ::MulDiv(m_nDPI, m_xySplitterPos, USER_DEFAULT_SCREEN_DPI);
+		m_currentDpi = HIWORD(wParam);
+		_user_scaling = static_cast<float>(m_currentDpi) / 96.0f;
+
+		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightGap = ::MulDiv(m_currentDpi, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(m_currentDpi, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightWinAsk = ::MulDiv(m_currentDpi, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_xySplitterPos = ::MulDiv(m_currentDpi, m_xySplitterPos, USER_DEFAULT_SCREEN_DPI);
 
 		MARGINS margins = { 0 };
 		margins.cyTopHeight = m_heightTitle + 1;
 		HRESULT hr = DwmExtendFrameIntoClientArea(m_hWnd, &margins);
 
+		_client_area_offset_dip = static_cast<float>(margins.cyTopHeight) / _user_scaling;
+
+		// Resize the window
+		auto lprcNewScale = reinterpret_cast<RECT*>(lParam);
+		SetWindowPos(nullptr, lprcNewScale->left, lprcNewScale->top, lprcNewScale->right - lprcNewScale->left, lprcNewScale->bottom - lprcNewScale->top, SWP_NOZORDER | SWP_NOACTIVATE);
+#if 0
 		RECT* lpRect = reinterpret_cast<RECT*>(lParam);
 		if (lpRect)
 		{
 			SetWindowPos(NULL,lpRect->left, lpRect->top,
 				lpRect->right - lpRect->left, lpRect->bottom - lpRect->top, SWP_NOZORDER);
 		}
-
+#endif 
 		UpdateSplitterLayout();
 		// force to redraw
 		ReleaseUnknown(m_pD2DRenderTarget);
@@ -987,10 +1367,14 @@ public:
 		Invalidate();
 
 		DwmGetWindowAttribute(m_hWnd, DWMWA_CAPTION_BUTTON_BOUNDS, &rb, sizeof(RECT));
-		//swprintf_s(title, 63, L"[%d]D:%d, R:%d %d %d %d", m_dpi, m_nDPI, rb.left, rb.right, rb.top, rb.botttom);
-		swprintf_s(title, 63, L"[%d]D:%d, R:%d %d, %d %d", m_dpi, m_nDPI, rb.left, rb.right - rb.left, rb.top, rb.bottom - rb.top);
+		//swprintf_s(title, 63, L"[%d]D:%d, R:%d %d %d %d", m_dpi, m_currentDpi, rb.left, rb.right, rb.top, rb.botttom);
+		swprintf_s(title, 63, L"[%d]D:%d, R:%d %d, %d %d", m_dpi, m_currentDpi, rb.left, rb.right - rb.left, rb.top, rb.bottom - rb.top);
 		SetWindowText(title);
 #endif 
+		m_inDpiChange = false;
+
+		m_viewTTY.ShowInfo(m_currentDpi);
+
 		return 0L;
 	}
 
@@ -1037,7 +1421,7 @@ public:
 			HDC hdc = (HDC)wParam;
 			if (hdc)
 			{
-				HBRUSH hBrush = IsDarkMode() ?
+				HBRUSH hBrush = AppInDarkMode() ?
 					CreateSolidBrush(RGB(0, 0, 0)) : CreateSolidBrush(RGB(255, 255, 255));
 				if (hBrush)
 				{
@@ -1054,14 +1438,18 @@ public:
 
 	LRESULT OnNCCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
 	{
-		m_nDPI = GetDpiForWindow(m_hWnd);
-		if (!m_nDPI)
-			m_nDPI = USER_DEFAULT_SCREEN_DPI;
+		EnableNonClientDpiScaling(m_hWnd);
 
-		m_heightTitle = ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightGap = ::MulDiv(m_nDPI, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightLed = ::MulDiv(m_nDPI, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
-		m_heightWinAsk = ::MulDiv(m_nDPI, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_currentDpi = GetDpiForWindow(m_hWnd);
+		if (!m_currentDpi)
+			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
+		_user_scaling = static_cast<float>(m_currentDpi) / 96.0f;
+
+		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightGap = ::MulDiv(m_currentDpi, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(m_currentDpi, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightWinAsk = ::MulDiv(m_currentDpi, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 
 		m_hMenuMain = CreatePopupMenu();
 		if (m_hMenuMain)
@@ -1085,7 +1473,10 @@ public:
 			::AppendMenu(m_hMenuList, MF_STRING, IDM_COMMANDEXE, L"Command Prompt");
 			::AppendMenu(m_hMenuList, MF_STRING, IDM_POWERSHELL, L"PowerShell");
 		}
-
+#if 0
+		_renderer = std::make_unique<graphics::renderer>();
+		_renderer->attach_to_window(m_hWnd);
+#endif 
 		bHandled = FALSE;
 		return 0L;
 	}
@@ -1093,7 +1484,8 @@ public:
 	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
 		DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
-
+		
+		//dwStyle = WS_CHILD | WS_VISIBLE;
 		Init();
 
 		// Be sure InitCommonControlsEx is called before this,
@@ -1120,18 +1512,24 @@ public:
 		pLoop->AddMessageFilter(this);
 		pLoop->AddIdleHandler(this);
 
-#if 0
-		const BOOL attribute = TRUE;
+		const BOOL attribute = AppInDarkMode()? TRUE : FALSE;
 		std::ignore = DwmSetWindowAttribute(m_hWnd,
 			DWMWA_USE_IMMERSIVE_DARK_MODE, &attribute, sizeof(attribute));
-		SetDarkMode(TRUE);
-#endif 
-		m_viewGPT.Create(m_hWnd, rcDefault, NULL, dwStyle);
-		m_viewGPT.ShowWindow(SW_HIDE);
-		m_viewAsk.Create(m_hWnd, rcDefault, NULL, dwStyle);
-		m_viewAsk.ShowWindow(SW_HIDE);
 
-		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle | WS_VSCROLL);
+		m_viewGPT.Create(m_hWnd, rcDefault, NULL, dwStyle, WS_EX_LAYERED);
+		if (m_viewGPT.IsWindow())
+		{
+			SetLayeredWindowAttributes(m_viewGPT.m_hWnd, 0, 255, LWA_ALPHA);
+			m_viewGPT.ShowWindow(SW_HIDE);
+		}
+		
+		dwStyle |= WS_VSCROLL;
+		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle, WS_EX_LAYERED);
+		if (m_viewTTY.IsWindow())
+		{
+			SetLayeredWindowAttributes(m_viewTTY.m_hWnd, 0, 255, LWA_ALPHA);
+		}
+
 		/*
 		 * Initialise the scroll bar.
 		 */
@@ -1150,7 +1548,9 @@ public:
 		m_hWndPane[SPLIT_PANE_RIGHT] = m_viewGPT.m_hWnd;
 
 		SetWindowPos(nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
-		SetTimer(TIMER_MAINWIN, 100);
+		//SetTimer(TIMER_MAINWIN, 100);
+
+		UpdateWindow();
 
 		return 0L;
 	}
@@ -1163,11 +1563,10 @@ public:
 		pLoop->RemoveMessageFilter(this);
 		pLoop->RemoveIdleHandler(this);
 
-		if (nullptr != m_screenBuff)
-			VirtualFree(m_screenBuff, 0, MEM_RELEASE);
+		if (nullptr != m_titleBuff)
+			VirtualFree(m_titleBuff, 0, MEM_RELEASE);
 
-		m_screenBuff = nullptr;
-		m_screenSize = 0;
+		m_titleBuff = nullptr;
 
 		if (m_hMenuMain)
 		{
@@ -1212,11 +1611,12 @@ public:
 
 		margins.cyTopHeight = m_heightTitle + 1;
 		HRESULT hr = DwmExtendFrameIntoClientArea(m_hWnd, &margins);
+		_client_area_offset_dip = static_cast<float>(margins.cyTopHeight) / _user_scaling;
 
 		if (m_viewTTY.IsWindow())
 		{
 			m_viewTTY.SetFocus();
-			if (IsDarkMode())
+			if (AppInDarkMode())
 				SetWindowTheme(m_viewTTY.m_hWnd, L"DarkMode_Explorer", nullptr);
 			else
 				SetWindowTheme(m_viewTTY.m_hWnd, L"Explorer", nullptr);
@@ -1224,20 +1624,20 @@ public:
 
 		if (m_viewGPT.IsWindow())
 		{
-			if (IsDarkMode())
+			if (AppInDarkMode())
 				SetWindowTheme(m_viewGPT.m_hWnd, L"DarkMode_Explorer", nullptr);
 			else
 				SetWindowTheme(m_viewGPT.m_hWnd, L"Explorer", nullptr);
 		}
-
+#if 0
 		if (m_viewAsk.IsWindow())
 		{
-			if (IsDarkMode())
+			if (AppInDarkMode())
 				SetWindowTheme(m_viewAsk.m_hWnd, L"DarkMode_Explorer", nullptr);
 			else
 				SetWindowTheme(m_viewAsk.m_hWnd, L"Explorer", nullptr);
 		}
-
+#endif 
 		bHandled = FALSE;
 		return 0L;
 	}
@@ -1251,13 +1651,13 @@ public:
 			auto parameters = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
 			auto& requested_client_area = parameters->rgrc[0];
 
-			m_nDPI = GetDpiForWindow(m_hWnd);
-			if (!m_nDPI)
-				m_nDPI = USER_DEFAULT_SCREEN_DPI;
+			m_currentDpi = GetDpiForWindow(m_hWnd);
+			if (!m_currentDpi)
+				m_currentDpi = USER_DEFAULT_SCREEN_DPI;
 
-			cx = GetSystemMetricsForDpi(SM_CXFRAME, m_nDPI);
-			cy = GetSystemMetricsForDpi(SM_CYFRAME, m_nDPI);
-			pad = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, m_nDPI);
+			cx = GetSystemMetricsForDpi(SM_CXFRAME, m_currentDpi);
+			cy = GetSystemMetricsForDpi(SM_CYFRAME, m_currentDpi);
+			pad = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, m_currentDpi);
 			requested_client_area.right -= (cx + pad);
 			requested_client_area.left += (cx + pad);
 			requested_client_area.bottom -= (cy + pad);
@@ -1299,117 +1699,13 @@ public:
 		return HTNOWHERE;
 	}
 
+#if 0
 	LRESULT OnTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		static int nCount = 0;
-		if (wParam == TIMER_MAINWIN)
-		{
-			if (NeedDrawAnyWindow())
-				Invalidate();
-
-			nCount++;
-			if (nCount >= 10)
-			{
-				nCount = 0;
-#if 0
-				InvalidateWin01234();
-				Invalidate();
-#endif 
-			}
-			else
-			{
-				BOOL found = FALSE;
-				MessageTask* p;
-
-				EnterCriticalSection(&g_csReceMsg);
-				//////////////////////////////////////////
-				p = g_receQueue;
-				while (p)
-				{
-					if (p->msg_state == 0) /* this message is new message */
-					{
-						if (p->msg_body && p->msg_length)
-						{
-							m_viewGPT.AppendText((const char*)p->msg_body, p->msg_length);
-							found = TRUE;
-						}
-						p->msg_state = 1;
-						break;
-					}
-					p = p->next;
-				}
-				//////////////////////////////////////////
-				LeaveCriticalSection(&g_csReceMsg);
-
-				if (found)
-				{
-					KillTimer(TIMER_WAITAI);
-					m_nWaitCount = 0;
-				}
-				ztPushIntoSendQueue(NULL); // clean up the last processed message task
-			}
-		}
-		else if (wParam == TIMER_WAITAI)
-		{
-			char txt[32] = { 0 };
-			char* p = txt;
-
-			if (m_nWaitCount == 0)
-			{
-				*p++ = '\n';
-				*p++ = 0xF0;
-				*p++ = 0x9F;
-				*p++ = 0x98;
-				*p++ = 0x8E;
-				*p++ = '\n';
-				*p++ = 'T';
-				*p++ = 'h';
-				*p++ = 'i';
-				*p++ = 'n';
-				*p++ = 'k';
-				*p++ = 'i';
-				*p++ = 'n';
-				*p++ = 'g';
-				*p++ = ' ';
-				*p++ = '.';
-				m_viewGPT.AppendText((const char*)txt, strlen(txt));
-			}
-			else
-			{
-				txt[0] = '.'; txt[1] = '\0';
-				m_viewGPT.AppendText((const char*)txt, 1);
-			}
-			m_nWaitCount++;
-
-			if (m_nWaitCount > 100)
-			{
-				KillTimer(TIMER_WAITAI);
-				m_nWaitCount = 0;
-			}
-		}
-		else if (wParam == TIMER_SHOWAI)
-		{
-			int step = m_xySplitterPosToRight >> 4;
-			m_xySplitterPosToRightCurrent += step;
-			if (m_xySplitterPosToRightCurrent <= m_xySplitterPosToRight)
-			{
-				int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
-				SetSplitterPos(cxyTotal - m_xySplitterPosToRightCurrent, false);
-				SetSinglePaneMode(SPLIT_PANE_NONE);
-				// force to redraw
-				InvalidateWin01234();
-				ReleaseUnknown(m_pD2DRenderTarget);
-				Invalidate();
-			}
-			else
-			{
-				KillTimer(TIMER_SHOWAI);
-				m_xySplitterPosToRightCurrent = 0;
-			}
-		}
-
+		bHandled = FALSE;
 		return 0L;
 	}
+#endif
 
 	LRESULT OnSizing(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
@@ -1446,13 +1742,6 @@ public:
 					InvalidateWin2();
 				else
 					InvalidateWin1();
-				return TRUE;
-			}
-
-			if (lpRect == &m_rectButton[RECT_IDX_QASK] ||
-				lpRect == &m_rectButton[RECT_IDX_HIDE])
-			{
-				InvalidateWin3();
 				return TRUE;
 			}
 			ATLASSERT(0); // it is impossible
@@ -1546,6 +1835,7 @@ public:
 
 	LRESULT OnMouseMove(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+#if 0
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
 		
@@ -1581,7 +1871,6 @@ public:
 				{
 					if (SetSplitterPos(xyNewSplitPos, true))
 					{
-						InvalidateWin34();
 						UpdateWindow();
 					}
 				}
@@ -1644,6 +1933,8 @@ public:
 			}
 			bHandled = FALSE;
 		}
+#endif 
+		bHandled = FALSE;
 		return 0L;
 	}
 
@@ -1666,6 +1957,21 @@ public:
 		InvalidateWin0();
 	}
 
+	LRESULT OnGUIDragSplit(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		POINT pt{};
+		if (GetCursorPos(&pt))
+		{
+            ScreenToClient(&pt);
+			if (::PtInRect(&m_rcSplitter, pt))
+			{
+				if(pt.x > POS_LIMIT_LEFT && pt.x < m_rcSplitter.right - POS_LIMIT_RIGHT)
+					SetSplitterPos(pt.x, true);
+			}
+		}
+		return 0L;
+	}
+
 	LRESULT OnGUIEvent(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		if (wParam == GUI_BUTTONCLICK)
@@ -1677,6 +1983,34 @@ public:
 			else if (lParam == RECT_IDX_QASK)
 				DoQuickAsk();
 		}
+		return 0L;
+	}
+
+	
+	LRESULT OnNCRButtonUp(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		POINT pt = {};
+		bHandled = FALSE;
+
+		if (GetCursorPos(&pt))
+		{
+			if (m_hMenuMain)
+			{
+				DeleteMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND);
+				if (m_nSinglePane != SPLIT_PANE_NONE)
+					InsertMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND, IDM_AIASSISTANT, L"Show AI Assistant");
+				else
+					InsertMenu(m_hMenuMain, IDM_AIASSISTANT, MF_BYCOMMAND, IDM_AIASSISTANT, L"Hide AI Assistant");
+
+				TrackPopupMenu(m_hMenuMain, TPM_LEFTALIGN | TPM_TOPALIGN, pt.x, pt.y, 0, m_hWnd, NULL);
+			}
+		}
+		return 0L;
+	}
+
+	LRESULT OnNCRButtonDown(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		bHandled = FALSE;
 		return 0L;
 	}
 
@@ -1730,6 +2064,7 @@ public:
 
 	LRESULT OnLButtonDown(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+#if 0
 		RECT* lpRect = nullptr;
 		BOOL bHit = FALSE;
 		int xPos = GET_X_LPARAM(lParam);
@@ -1798,7 +2133,8 @@ public:
 		{
 			PostMessage(WM_NCLBUTTONDOWN, HTCAPTION, lParam);
 		}
-
+#endif 
+		bHandled = FALSE;
 		return 0L;
 	}
 
@@ -1882,7 +2218,7 @@ public:
 		// now we can decide the position of Icon and ChatGPT button
 		// because they are all fixed before the next WM_SIZE
 		offset = (heightTitle - xyButton) >> 1;
-		offset = ::MulDiv(m_nDPI, offset, USER_DEFAULT_SCREEN_DPI);
+		offset = ::MulDiv(m_currentDpi, offset, USER_DEFAULT_SCREEN_DPI);
 
 		lpRect = &m_rectButton[RECT_IDX_ICON];
 		lpRect->top = m_rcSplitter.top + offset;
@@ -1896,14 +2232,17 @@ public:
 	{
 		m_dwState &= ~WINMAXIMIZED;
 		ReleaseUnknown(m_pD2DRenderTarget);
-
+#if 0
+		if (_renderer) 
+			_renderer->resize_buffers();
+#endif 
 		if (wParam != SIZE_MINIMIZED)
 		{
 			int w, h, top, heightTitle;
 
 			SetSplitterRect();
 
-			heightTitle = m_heightTitle; // ::MulDiv(m_nDPI, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+			heightTitle = m_heightTitle; // ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 #if 0
 			if (wParam == SIZE_MAXIMIZED)
 			{
@@ -1915,27 +2254,26 @@ public:
 			h = m_rcSplitter.bottom - m_rcSplitter.top;
 
 			// because the window size is changed, we need to re-allocate the screen buffer
-			if (nullptr != m_screenBuff)
+			if (nullptr != m_titleBuff)
 			{
-				VirtualFree(m_screenBuff, 0, MEM_RELEASE);
+				VirtualFree(m_titleBuff, 0, MEM_RELEASE);
 			}
-			m_screenBuff = nullptr;
-			m_screenSize = 0;
+			m_titleBuff = nullptr;
 
 			if (w > heightTitle && h > heightTitle)
 			{
-				m_screenSize = ZT_ALIGN_PAGE64K(w * heightTitle * sizeof(U32));
-				m_screenBuff = (U32*)VirtualAlloc(NULL, m_screenSize, MEM_COMMIT, PAGE_READWRITE);
+				U32 bytes = ZT_ALIGN_PAGE64K(w * heightTitle * sizeof(U32));
+				m_titleBuff = (U32*)VirtualAlloc(NULL, bytes, MEM_COMMIT, PAGE_READWRITE);
 #if 0
-				if (m_screenBuff)
+				if (m_titleBuff)
 				{
-					m_screenWin0 = m_screenBuff;
+					m_screenWin0 = m_titleBuff;
 					m_screenWin2 = m_screenWin0 + CAPTION_HEIGHT * heightTitle;
 					UpdateButtonPosition();
 				}
 #endif 
 			}
-			InvalidateWin01234();
+			InvalidateWin012();
 			Invalidate();
 		}
 		else
@@ -1975,9 +2313,11 @@ public:
 			drtp.dpiX = 96.f * integralDeviceScaleFactor;
 			drtp.dpiY = 96.f * integralDeviceScaleFactor;
 			// drtp.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_UNKNOWN);
-			if (IsDarkMode())
+#if 0
+			if (AppInDarkMode())
 				drtp.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_IGNORE);
 			else
+#endif 
 				drtp.pixelFormat = D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
 
 			rc.left = lpRect->left; rc.top = lpRect->top;
@@ -2007,7 +2347,7 @@ public:
 				if (result == 0)
 				{
 					U32 pixel[1];
-					pixel[0] = IsDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
+					pixel[0] = AppInDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
 					w = h = 1;
 					hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), pixel, (w << 2),
 						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -2018,8 +2358,15 @@ public:
 
 				if (result == 0)
 				{
+					hr = m_pD2DRenderTarget->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), &m_pTextBrushB);
+					if (S_OK != hr || !m_pTextBrushB)
+						result++;
+				}
+
+				if (result == 0)
+				{
 					U32 pixel[1];
-					pixel[0] = IsDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
+					pixel[0] = AppInDarkMode() ? BACKGROUND_DARK : BACKGROUND_LIGHT;
 					w = h = 1;
 					hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), pixel, (w << 2),
 						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -2027,7 +2374,7 @@ public:
 					if (S_OK != hr || !m_pBitmapSplit)
 						result++;
 				}
-
+#if 0
 				if (result == 0)
 				{
 					w = h = CAPTION_HEIGHT;
@@ -2037,7 +2384,7 @@ public:
 					if (S_OK != hr || !m_pBitmap0)
 						result++;
 				}
-
+#endif 
 				if (result)
 					hr = E_FAIL;
 
@@ -2105,10 +2452,10 @@ public:
 			width = CAPTION_HEIGHT;
 			height = width;
 
-			ScreenClear(dst, (U32)(width * height), IsDarkMode() ? BACKGROUND_BLACK : BACKGROUND_WHITE);
+			ScreenClear(dst, (U32)(width * height), AppInDarkMode() ? BACKGROUND_BLACK : BACKGROUND_WHITE);
 
 			sw = sh = 24;
-			if (IsDarkMode())
+			if (AppInDarkMode())
 			{
 				src = (U32*)xbmpDIconN;
 				if (m_lpRectHover == &m_rectButton[RECT_IDX_ICON])
@@ -2130,7 +2477,7 @@ public:
 
 #if 0
 			sw = 1; sh = 20;
-			src = IsDarkMode() ? (U32*)xbmpDVLine : (U32*)xbmpLVLine;
+			src = AppInDarkMode() ? (U32*)xbmpDVLine : (U32*)xbmpLVLine;
 			dy = (height - sh) >> 1;
 			dx = width - (sw << 1);
 			ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
@@ -2138,6 +2485,7 @@ public:
 		}
 	}
 #endif 
+#if 0
 	void DrawWindow0()
 	{
 		//UpdateWindow0();
@@ -2147,7 +2495,7 @@ public:
 		int dpiWH, offset;
 		ID2D1Bitmap* pBitmap = nullptr;
 
-		if (IsDarkMode())
+		if (AppInDarkMode())
 		{
 			src = (U32*)xbmpDIconN;
 			if (m_lpRectHover == &m_rectButton[RECT_IDX_ICON])
@@ -2173,7 +2521,7 @@ public:
 			int idx = RECT_IDX_ICON;
 			RECT* lpRect = &m_rectButton[idx];
 
-			dpiWH = ::MulDiv(m_nDPI, wh, USER_DEFAULT_SCREEN_DPI);
+			dpiWH = ::MulDiv(m_currentDpi, wh, USER_DEFAULT_SCREEN_DPI);
 			offset = (m_heightTitle - dpiWH) >> 1;
 
 			lpRect->left = m_rcSplitter.left + offset;
@@ -2225,7 +2573,7 @@ public:
 		ID2D1Bitmap* pBitmap = nullptr;
 		const int wh = 24;
 
-		int dpiWH = ::MulDiv(m_nDPI, wh, USER_DEFAULT_SCREEN_DPI);
+		int dpiWH = ::MulDiv(m_currentDpi, wh, USER_DEFAULT_SCREEN_DPI);
 		int offset = (m_heightGap - dpiWH) >> 1;
 
 		if (m_pBitmapPixel)
@@ -2242,7 +2590,7 @@ public:
 		}
 
 		src = (m_lpRectPress == nullptr) ? (U32*)xbmpLHideN : (U32*)xbmpLHideP;
-		if (IsDarkMode())
+		if (AppInDarkMode())
 		{
 			src = (m_lpRectPress == nullptr) ? (U32*)xbmpDHideN : (U32*)xbmpDHideP;
 		}
@@ -2271,7 +2619,7 @@ public:
 		ReleaseUnknown(pBitmap);
 
 		src = (m_lpRectPress == nullptr) ? (U32*)xbmpLQuestionN : (U32*)xbmpLQuestionP;
-		if (IsDarkMode())
+		if (AppInDarkMode())
 		{
 			src = (m_lpRectPress == nullptr) ? (U32*)xbmpDQuestionN : (U32*)xbmpDQuestionP;
 		}
@@ -2308,7 +2656,7 @@ public:
 		ID2D1Bitmap* pBitmap = nullptr;
 
 		src = (GPT_NET_GOOD & m_dwState) ? (U32*)xbmpLGreenLED : (U32*)xbmpLRedLED;
-		if (IsDarkMode())
+		if (AppInDarkMode())
 		{
 			src = (GPT_NET_GOOD & m_dwState) ? (U32*)xbmpDGreenLED : (U32*)xbmpDRedLED;
 		}
@@ -2330,7 +2678,7 @@ public:
 			&pBitmap);
 		if (S_OK == hr && pBitmap)
 		{
-			int dpiWH = ::MulDiv(m_nDPI, wh, USER_DEFAULT_SCREEN_DPI);
+			int dpiWH = ::MulDiv(m_currentDpi, wh, USER_DEFAULT_SCREEN_DPI);
 			int offset = (m_heightLed - dpiWH) >> 1;
 
 			int idx = RECT_IDX_STAT;
@@ -2366,9 +2714,9 @@ public:
 		if (dst)
 		{
 			U32 crBkg = (state == BUTTON_NONE) ? 0xFFFFFFFF : 0xFFE5E5E5;
-			int h = ::MulDiv(m_nDPI, 10, USER_DEFAULT_SCREEN_DPI);
+			int h = ::MulDiv(m_currentDpi, 10, USER_DEFAULT_SCREEN_DPI);
 
-			if (IsDarkMode())
+			if (AppInDarkMode())
 			{
 				crBkg = (state == BUTTON_NONE) ? 0xFF000000 : 0xFF1A1A1A;
 			}
@@ -2382,7 +2730,7 @@ public:
 			if (h < height)
 			{
 				U32 i;
-				U32 cr = IsDarkMode()? 0xFFFFFFFF: 0xFF000000;
+				U32 cr = AppInDarkMode()? 0xFFFFFFFF: 0xFF000000;
 				U32* p;
 				const int gap = (state == BUTTON_PRESS) ? 1 : 0;
 				int offsetY = (height - h) >> 1;
@@ -2435,7 +2783,7 @@ public:
 			if (m_lpRectPress == lpRect)
 				btnState = BUTTON_PRESS;
 
-			src = GenerateGPTIcon(m_screenBuff, w, h, btnState);
+			src = GenerateGPTIcon(m_titleBuff, w, h, btnState);
 
 			hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), src, (w << 2),
 				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -2454,7 +2802,7 @@ public:
 		}
 
 	}
-
+#endif 
 	LRESULT OnPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		HRESULT hr;
@@ -2465,24 +2813,99 @@ public:
 		if ((m_nSinglePane == SPLIT_PANE_NONE) && (m_xySplitterPos == -1))
 			SetSplitterPos();
 
-		if (NeedDrawAnyWindow() && m_screenBuff)
+#if 0
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			RECT rect = {};
+
+			_renderer->begin_draw();
+#if 0
+			if (GetSplitterBarRect(&rect))
+			{
+				measure::rectangle<float> client_area{
+					static_cast<float>(rect.left),
+					static_cast<float>(rect.top),
+					static_cast<float>(rect.right),
+					static_cast<float>(rect.bottom)
+				};
+				
+				//_renderer->push_transform(D2D1::Matrix3x2F::Translation(0.0f, 0.0f));
+				// Paint the whole client area into our baseline color.
+				_renderer->fill_rectangle(client_area, measure::color{ 0.6f, 0.6f, 0.6f, 1.0f });
+			}
+#endif
+			_renderer->end_draw();
+		}
+#endif
+#if 0
+		if (TRUE || NeedDrawAnyWindow() && m_titleBuff)
 		{
 			hr = CreateDeviceDependantResource(&m_rcSplitter);
 			if (S_OK == hr && m_pD2DRenderTarget)
 			{
+				ID2D1Bitmap* pBitmap = nullptr;
 				m_pD2DRenderTarget->BeginDraw();
-				//m_pD2DRenderTarget->Clear(D2D1::ColorF(IsDarkMode()? 0x171717 : 0xF0F0F0));
+				//m_pD2DRenderTarget->Clear(D2D1::ColorF(AppInDarkMode()? 0x171717 : 0xF0F0F0));
+				int w = 24;
+				int h = 24;
+
+				ScreenClear(bmp, (U32)(w * h), 0xFFFF0000);
+
+				hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), bmp, (w << 2),
+					D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+					&pBitmap);
+				if (S_OK == hr && pBitmap)
+				{
+					LPRECT lpRect = &m_rcSplitter;
+					D2D1_RECT_F area = D2D1::RectF(
+						static_cast<FLOAT>(lpRect->left),
+						static_cast<FLOAT>(lpRect->top + 1),
+						static_cast<FLOAT>(lpRect->left + w),
+						static_cast<FLOAT>(lpRect->top + 1 + h)
+					);
+					m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+				}
+				ReleaseUnknown(pBitmap);
+
+#if 0
+				if (m_nSinglePane == SPLIT_PANE_NONE)
+				{
+					if (m_pTextBrushB)
+					{
+						RECT rect = {};
+						if (GetSplitterBarRect(&rect))
+						{
+							m_pD2DRenderTarget->DrawLine(
+								D2D1::Point2F(static_cast<FLOAT>(rect.left), static_cast<FLOAT>(rect.top)),
+								D2D1::Point2F(static_cast<FLOAT>(rect.right), static_cast<FLOAT>(rect.bottom)),
+								m_pTextBrushB,
+								4.0f
+							);
+#if 0
+							D2D1_RECT_F area = D2D1::RectF(
+								static_cast<FLOAT>(rect.left),
+								static_cast<FLOAT>(rect.top),
+								static_cast<FLOAT>(rect.right),
+								static_cast<FLOAT>(rect.bottom)
+							);
+							m_pD2DRenderTarget->DrawBitmap(m_pBitmapSplit, &area);
+#endif 
+						}
+					}
+				}
+
 				if (m_pBitmapPixel)
 				{
 					D2D1_RECT_F area = D2D1::RectF(
 						static_cast<FLOAT>(m_rcSplitter.left),
 						static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 1),
 						static_cast<FLOAT>(m_rcSplitter.right),
-						static_cast<FLOAT>(m_rcSplitter.top + m_heightTitle + 2)
+						static_cast<FLOAT>(m_rcSplitter.bottom)
 					);
-					m_pD2DRenderTarget->DrawBitmap(m_pBitmapPixel, &area);
+					m_pD2DRenderTarget->DrawBitmap(m_pBitmapPixel, &area, 1.f, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, nullptr);
 				}
-
+#endif 
+#if 0
 				if (NeedDrawWin0())
 				{
 					DrawWindow0();
@@ -2530,7 +2953,7 @@ public:
 						}
 					}
 				}
-
+#endif 
 				hr = m_pD2DRenderTarget->EndDraw();
 				if (FAILED(hr) || D2DERR_RECREATE_TARGET == hr)
 				{
@@ -2538,6 +2961,9 @@ public:
 				}
 			}
 		}
+		
+		ClearWin012Draw();
+#endif 
 		EndPaint(&ps);
 		return 0L;
 	}
@@ -2545,7 +2971,7 @@ public:
 	LRESULT OnDarkMode(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 #if 0
-		const BOOL attribute = IsDarkMode()? FALSE : TRUE;
+		const BOOL attribute = AppInDarkMode()? FALSE : TRUE;
 		std::ignore = DwmSetWindowAttribute(m_hWnd,
 			DWMWA_USE_IMMERSIVE_DARK_MODE, &attribute, sizeof(attribute));
 		SetDarkMode(attribute);
@@ -2553,7 +2979,7 @@ public:
 		if (m_viewTTY.IsWindow())
 		{
 			m_viewTTY.SetFocus();
-			if (IsDarkMode())
+			if (AppInDarkMode())
 				SetWindowTheme(m_viewTTY.m_hWnd, L"DarkMode_Explorer", nullptr);
 			else
 				SetWindowTheme(m_viewTTY.m_hWnd, L"Explorer", nullptr);
@@ -2561,8 +2987,8 @@ public:
 
 		if (m_viewGPT.IsWindow())
 		{
-			m_viewGPT.EnableDarkMode(IsDarkMode());
-			if (IsDarkMode())
+			m_viewGPT.EnableDarkMode(AppInDarkMode());
+			if (AppInDarkMode())
 				SetWindowTheme(m_viewGPT.m_hWnd, L"DarkMode_Explorer", nullptr);
 			else
 				SetWindowTheme(m_viewGPT.m_hWnd, L"Explorer", nullptr);
@@ -2612,17 +3038,20 @@ public:
 			bFirst = false;
 
 			ATLASSERT(m_xySplitterPosToRight == 0);
-			m_xySplitterPosToRight = ::MulDiv(25, cxyTotal, 100);
+			m_xySplitterPosToRight = ::MulDiv(30, cxyTotal, 100);
 			if (m_xySplitterPosToRight < 200)
 				m_xySplitterPosToRight = 200;
+#if 0			
 			m_xySplitterPosToRightCurrent = 0;
 			SetTimer(TIMER_SHOWAI, 10);
+#endif 
 			// ask the network thread to ping now so 
 			// we can get the network status immediately.
 			InterlockedExchange(&g_threadPing, 1);
 			InterlockedExchange(&g_threadPingNow, 1);
 		}
-		else
+
+		//else
 		{
 			RECT* lpRect = nullptr;
 			int idx;
@@ -2661,7 +3090,7 @@ public:
 			}
 			SetSinglePaneMode(nPane);
 			// force to redraw
-			InvalidateWin01234();
+			InvalidateWin012();
 			ReleaseUnknown(m_pD2DRenderTarget);
 			Invalidate();
 		}
@@ -2709,6 +3138,7 @@ public:
 		GetSystemSettings(false);
 	}
 
+#if 0
 	void UpdateSplitterLayout()
 	{
 		RECT rect = {};
@@ -2719,12 +3149,15 @@ public:
 		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
 			if (GetSplitterBarRect(&rect))
+			{
 				InvalidateRect(&rect);
+			}
 
 			for (int nPane = 0; nPane < m_nPanesCount; nPane++)
 			{
 				if (GetSplitterPaneRect(nPane, &rect))
 				{
+#if 0
 					if (nPane == SPLIT_PANE_RIGHT)
 					{
 						int top = rect.bottom - m_heightWinAsk;
@@ -2733,9 +3166,10 @@ public:
 						::SetWindowPos(m_viewAsk.m_hWnd, NULL,
 							rect.left, top, rect.right - rect.left, m_heightWinAsk, SWP_NOZORDER);
 					}
-
+#endif 
 					if (m_hWndPane[nPane] != NULL)
-						::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+						//::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+						::SetWindowPos(m_hWndPane[nPane], HWND_TOP, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOACTIVATE);
 					else
 						InvalidateRect(&rect);
 				}
@@ -2752,10 +3186,49 @@ public:
 			}
 		}
 	}
+#endif 
+
+	void UpdateSplitterLayout()
+	{
+		RECT rect = {};
+
+		if ((m_nSinglePane == SPLIT_PANE_NONE) && (m_xySplitterPos == -1))
+			return;
+
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			// We have 2 child windows to move/resize
+			HDWP hdwp = ::BeginDeferWindowPos(2);
+			if (hdwp)
+			{
+				for (int nPane = 0; nPane < m_nPanesCount; nPane++)
+				{
+					if (GetSplitterPaneRect(nPane, &rect))
+					{
+						hdwp = ::DeferWindowPos(hdwp, m_hWndPane[nPane], NULL,
+							rect.left, rect.top,
+							rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+					}
+				}
+				if (hdwp)
+				{
+					// Apply all deferred window position and size changes
+					EndDeferWindowPos(hdwp);
+				}
+			}
+		}
+		else
+		{
+			if (GetSplitterPaneRect(m_nSinglePane, &rect))
+			{
+				::SetWindowPos(m_hWndPane[m_nSinglePane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+			}
+		}
+	}
 
 	bool GetSplitterBarRect(LPRECT lpRect) const
 	{
-		const int offsetTop = m_heightTitle + 2;
+		const int offsetTop = m_heightTitle + 1;
 		ATLASSERT(lpRect != NULL);
 		if ((m_nSinglePane != SPLIT_PANE_NONE) || (m_xySplitterPos == -1))
 			return false;
@@ -2769,7 +3242,7 @@ public:
 
 	bool GetSplitterPaneRect(int nPane, LPRECT lpRect) const
 	{
-		const int offsetTop = m_heightTitle + 2;
+		const int offsetTop = m_heightTitle + 1;
 
 		ATLASSERT((nPane == SPLIT_PANE_LEFT) || (nPane == SPLIT_PANE_RIGHT));
 		ATLASSERT(lpRect != NULL);
@@ -2957,4 +3430,45 @@ public:
 		return ((m_dwExtendedStyle & SPLIT_NONINTERACTIVE) == 0);
 	}
 #endif 
+
+#if 0
+	RECT GetWindowRect() const noexcept
+	{
+		RECT rc = { 0 };
+		::GetWindowRect(m_hWnd, &rc);
+		return rc;
+	}
+#endif 
+
+	UINT GetCurrentDpi() const noexcept
+	{
+		return ::GetDpiForWindow(m_hWnd);
+	}
+
+	float GetCurrentDpiScale() const noexcept
+	{
+		const auto dpi = ::GetDpiForWindow(m_hWnd);
+		const auto scale = static_cast<float>(dpi) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
+		return scale;
+	}
+
+	//// Gets the physical size of the client area of the HWND
+	til::size GetPhysicalSize() const noexcept
+	{
+		RECT rect = {};
+		GetClientRect(&rect);
+		const auto windowsWidth = rect.right - rect.left;
+		const auto windowsHeight = rect.bottom - rect.top;
+		return { windowsWidth, windowsHeight };
+	}
+
+	// Method Description:
+	// Reset the current dpi of the window. This method is only called after we change the
+	// initial launch position. This makes sure the dpi is consistent with the monitor on which
+	// the window will launch
+	void RefreshCurrentDPI()
+	{
+		m_currentDpi = GetDpiForWindow(m_hWnd);
+	}
+
 };
