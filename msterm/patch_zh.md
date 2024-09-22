@@ -328,7 +328,11 @@ wil::unique_hwnd _dragBarWindow;
 #ifndef _ZTERM_H_
 #define _ZTERM_H_
 
-wil::unique_hwnd m_gptPaneWindow;
+#define TITLE_BAR_HEIGHT_NORMAL 40
+
+int m_widthPaneWindow{ TITLE_BAR_HEIGHT_NORMAL };
+
+wil::unique_hwnd m_paneWindow;
 
 HWND m_hWndGPT = nullptr;
 HWND m_hWndASK = nullptr;
@@ -341,19 +345,435 @@ LRESULT ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandle
 
 void ztMakePaneWindow() noexcept;
 
-#endif // _ZTERM_H_
-```
-由上可见，我们仿照_dragBarWindow的定义，创建了一个类似的成员变量m_gptPaneWindow来表示我们的聊天子窗口。在这个子窗口上我们再创建两个孙窗口：m_hWndGPT表示聊天记录的窗口，m_hWndASK表示用户输入问题的窗口。 这两个窗口的类型都是scintilla窗口。 他们的父窗口是m_gptPaneWindow。 m_gptPaneWindow的地位和_dragBarWindow是相同的。它们两个的父窗口是NonClientIslandWindow，可以使用GetHandle()来获得NonClientIslandWindow所代表的窗口的句柄。
+void ztAdjustLayoutDPI(unsigned int dpi, bool bUpdate = true) noexcept;
 
-ztStaticPaneWndProc和ztPaneWindowMessageHandler是效仿对_dragBarWindow的处理手法，它对应的函数是：
+#endif // _ZTERM_H_```
+
+由上可见，我们仿照_dragBarWindow的定义，创建了一个类似的成员变量m_paneWindow来表示我们的聊天子窗口。 m_paneWindow的地位和_dragBarWindow是相同的。它们两个的父窗口是NonClientIslandWindow，可以使用GetHandle()来获得NonClientIslandWindow所代表的窗口的句柄。
+
+整形变量m_widthPaneWindow表示窗口m_paneWindow的宽度，单位是像素。
+
+ztStaticPaneWndProc 和 ztPaneWindowMessageHandler 是效仿对_dragBarWindow的处理手法，它对应的函数是：
 ```
     [[nodiscard]] static LRESULT __stdcall _StaticInputSinkWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
     [[nodiscard]] LRESULT _InputSinkMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
 ```
 函数ztMesssageHandler主要是处理NonClientIslandWindow窗口未处理，但是我们需要处理的消息。
-函数ztMakePaneWindow主要是创建我们的AI窗口。在它的代码中我们也会加入ZTerm的初始化函数ztInit()来初始化一些必要的资源，包括scintilla和libcurl的初始化工作。 ztInit()和ztRelease()分别代表ZTerm所有的修改的初始化和资源释放。它们并不是类的成员函数，而是独立的函数，我们把它们放在zterm.cpp中进行定义。
+
+函数ztAdjustLayoutDPI()主要是处理DPI变化的情况，就是终端窗口从一个显示器移动到另外一个显示器，可能分辨率会发生变化，这个函数处理一下。 在DPI = 96的情况下，主窗口的标题栏是40个像素高，如果DPI发生变化，就用如下公式计算新的标题高度：
+```
+m_widthPaneWindow = ::MulDiv(TITLE_BAR_HEIGHT_NORMAL, dpi, USER_DEFAULT_SCREEN_DPI);
+```
 
 #### ZTERM.CPP中的内容
 
-TBD
+这些代码主要是摘录自NonClientIslandWindow.cpp中如何创建_dragBarWindow的代码，读者对比一下就清楚了。 我们增加了两个函数，ztInit()是初始化，ztTerm()在窗口消亡的时候释放一些资源。目前这两个函数是空的。
 
+```
+// This is most part of ZTerm logic
+
+static constexpr const wchar_t* gptPaneClassName{ L"GPT_PANE_WINDOW_CLASS" };
+
+void ztInit() noexcept
+{
+}
+
+void ztTerm() noexcept
+{
+
+}
+
+void NonClientIslandWindow::ztMakePaneWindow() noexcept
+{
+    static auto paneAIWindowClass{ []() {
+        WNDCLASSEX wcEx{};
+        wcEx.cbSize = sizeof(wcEx);
+        wcEx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+        wcEx.lpszClassName = gptPaneClassName;
+        wcEx.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
+        wcEx.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wcEx.lpfnWndProc = &NonClientIslandWindow::ztStaticPaneWndProc;
+        wcEx.hInstance = wil::GetModuleInstanceHandle();
+        wcEx.cbWndExtra = sizeof(NonClientIslandWindow*);
+        return RegisterClassEx(&wcEx);
+    }() };
+
+    ztInit();
+    // The drag bar window is a child window of the top level window that is put
+    // right on top of the drag bar. The XAML island window "steals" our mouse
+    // messages which makes it hard to implement a custom drag area. By putting
+    // a window on top of it, we prevent it from "stealing" the mouse messages.
+    m_paneWindow.reset(CreateWindowExW(WS_EX_LAYERED,
+                                         gptPaneClassName,
+                                         L"",
+                                         WS_CHILD,
+                                         0,
+                                         0,
+                                         0,
+                                         0,
+                                         GetHandle(),
+                                         nullptr,
+                                         wil::GetModuleInstanceHandle(),
+                                         this));
+    THROW_HR_IF_NULL(E_UNEXPECTED, m_paneWindow);
+    SetLayeredWindowAttributes(m_paneWindow.get(), 0, 255, LWA_ALPHA);
+}
+
+[[nodiscard]] LRESULT __stdcall NonClientIslandWindow::ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept
+{
+    WINRT_ASSERT(window);
+
+    if (WM_NCCREATE == message)
+    {
+        auto cs = reinterpret_cast<CREATESTRUCT*>(lparam);
+        auto nonClientIslandWindow{ reinterpret_cast<NonClientIslandWindow*>(cs->lpCreateParams) };
+        SetWindowLongPtr(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(nonClientIslandWindow));
+
+        // fall through to default window procedure
+    }
+    else if (auto nonClientIslandWindow{ reinterpret_cast<NonClientIslandWindow*>(GetWindowLongPtr(window, GWLP_USERDATA)) })
+    {
+        return nonClientIslandWindow->ztPaneWindowMessageHandler(message, wparam, lparam);
+    }
+
+    return DefWindowProc(window, message, wparam, lparam);
+}
+
+[[nodiscard]] LRESULT NonClientIslandWindow::ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept
+{
+    ztAdjustLayoutDPI(_currentDpi, false);
+
+    switch (message)
+    {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps{ 0 };
+            HDC hdc = BeginPaint(m_paneWindow.get(), &ps);
+            if (hdc)
+            {
+                HBRUSH hBrush = CreateSolidBrush(RGB(46, 46, 46));
+                if (hBrush)
+                {
+                    RECT rc{};
+                    GetClientRect(m_paneWindow.get(), &rc);
+                    FillRect(hdc, &rc, hBrush);
+                    DeleteObject(hBrush);
+                }
+            }
+            EndPaint(m_paneWindow.get(), &ps);
+        }
+        return 0;
+    default:
+        break;
+    }
+
+    return DefWindowProc(m_paneWindow.get(), message, wparam, lparam);
+}
+
+void NonClientIslandWindow::ztAdjustLayoutDPI(unsigned int dpi, bool bUpdate) noexcept
+{
+    m_widthPaneWindow = ::MulDiv(TITLE_BAR_HEIGHT_NORMAL, dpi, USER_DEFAULT_SCREEN_DPI);
+
+    if (bUpdate)
+    {
+        RECT rc{};
+        GetClientRect(GetHandle(), &rc);
+
+        _UpdateIslandPosition(static_cast<UINT>(rc.right - rc.left), static_cast<UINT>(rc.bottom - rc.top));
+
+    }
+}
+
+//LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled) noexcept
+LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM, LPARAM, BOOL& bHandled) noexcept
+{
+    bHandled = FALSE;
+    switch (uMsg)
+    {
+    case WM_CREATE:
+        ztInit();
+        break;
+    case WM_DESTROY:
+        ztTerm();
+        break;
+    default:
+        break;
+    }
+    return 0L;
+}
+
+```
+
+#### 在微软终端源代码中的修改：
+
+##### NonClientIslandWindow.cpp中的修改：
+
+我们在如下函数中增加一行，请参考 // <== ZTERM， 这个注释表示是我们增加或者修改的代码。 这段代码属于扫尾工作。
+```
+void NonClientIslandWindow::Close()
+{
+    // Avoid further callbacks into XAML/WinUI-land after we've Close()d the DesktopWindowXamlSource
+    // inside `IslandWindow::Close()`. XAML thanks us for doing that by not crashing. Thank you XAML.
+    SetWindowLongPtr(_dragBarWindow.get(), GWLP_USERDATA, 0);
+    SetWindowLongPtr(m_paneWindow.get(), GWLP_USERDATA, 0); // <== ZTERM
+    IslandWindow::Close();
+}
+```
+
+函数MakeWindow()创建两个窗口：主窗口和_dragBarWindow。 所以我们在这个函数中加入创建子窗口m_paneWindow的代码，就是调用ztMakePaneWindow函数
+
+```
+
+void NonClientIslandWindow::MakeWindow() noexcept
+{
+    if (_window)
+    {
+        // no-op if we already have a window.
+        return;
+    }
+
+    IslandWindow::MakeWindow();
+
+    static auto dragBarWindowClass{ []() {
+        WNDCLASSEX wcEx{};
+        wcEx.cbSize = sizeof(wcEx);
+        wcEx.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+        wcEx.lpszClassName = dragBarClassName;
+        wcEx.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
+        wcEx.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        wcEx.lpfnWndProc = &NonClientIslandWindow::_StaticInputSinkWndProc;
+        wcEx.hInstance = wil::GetModuleInstanceHandle();
+        wcEx.cbWndExtra = sizeof(NonClientIslandWindow*);
+        return RegisterClassEx(&wcEx);
+    }() };
+
+    // The drag bar window is a child window of the top level window that is put
+    // right on top of the drag bar. The XAML island window "steals" our mouse
+    // messages which makes it hard to implement a custom drag area. By putting
+    // a window on top of it, we prevent it from "stealing" the mouse messages.
+    _dragBarWindow.reset(CreateWindowExW(WS_EX_LAYERED | WS_EX_NOREDIRECTIONBITMAP,
+                                         dragBarClassName,
+                                         L"",
+                                         WS_CHILD,
+                                         0,
+                                         0,
+                                         0,
+                                         0,
+                                         GetHandle(),
+                                         nullptr,
+                                         wil::GetModuleInstanceHandle(),
+                                         this));
+    THROW_HR_IF_NULL(E_UNEXPECTED, _dragBarWindow);
+
+    ztMakePaneWindow(); //<== ZTERM
+}
+
+```
+
+我们新增加的窗口的宽度是m_widthPaneWindow个像素，为了正确处理点击右上角最小化，最大化和关闭按钮的逻辑，我们需要把鼠标的x坐标调整一下，加上m_widthPaneWindow。
+
+```
+LRESULT NonClientIslandWindow::_InputSinkMessageHandler(UINT const message,
+                                                        WPARAM const wparam,
+                                                        LPARAM const lparam) noexcept
+{
+    switch (message)
+    {
+    case WM_NCHITTEST:
+    {
+        // Try to determine what part of the window is being hovered here. This
+        // is absolutely critical to making sure Snap Layouts (GH#9443) works!
+        return _dragBarNcHitTest({ GET_X_LPARAM(lparam) + m_widthPaneWindow, GET_Y_LPARAM(lparam) }); //<== ZTERM
+    }
+    break;
+
+```
+函数_UpdateIslandPosition()处理窗口的位置，我们在这里调整我们新增加的窗口和_interopWindowHandle的关系，两者左右并排放置：
+
+```
+void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const UINT windowHeight)
+{
+    const auto originalTopHeight = _GetTopBorderHeight();
+    // GH#7422
+    // !! BODGY !!
+    //
+    // For inexplicable reasons, the top row of pixels on our tabs, new tab
+    // button, and caption buttons is totally un-clickable. The mouse simply
+    // refuses to interact with them. So when we're maximized, on certain
+    // monitor configurations, this results in the top row of pixels not
+    // reacting to clicks at all. To obey Fitt's Law, we're gonna shift
+    // the entire island up one pixel. That will result in the top row of pixels
+    // in the window actually being the _second_ row of pixels for those
+    // buttons, which will make them clickable. It's perhaps not the right fix,
+    // but it works.
+    // _GetTopBorderHeight() returns 0 when we're maximized.
+    const auto topBorderHeight = (originalTopHeight == 0) ? -1 : originalTopHeight;
+
+    const til::point newIslandPos = { 0, topBorderHeight };
+
+    winrt::check_bool(SetWindowPos(_interopWindowHandle,
+                                   HWND_BOTTOM,
+                                   newIslandPos.x,
+                                   newIslandPos.y,
+                                   windowWidth - m_widthPaneWindow, //ZTERM
+                                   windowHeight - topBorderHeight,
+                                   SWP_SHOWWINDOW | SWP_NOACTIVATE));
+
+    winrt::check_bool(SetWindowPos(m_paneWindow.get(),
+                                   HWND_BOTTOM,
+                                   newIslandPos.x + windowWidth - m_widthPaneWindow,
+                                   newIslandPos.y,
+                                   m_widthPaneWindow, //ZTERM
+                                   windowHeight - topBorderHeight,
+                                   SWP_SHOWWINDOW | SWP_NOACTIVATE));
+
+    InvalidateRect(m_paneWindow.get(), NULL, TRUE);
+
+    // This happens when we go from maximized to restored or the opposite
+    // because topBorderHeight changes.
+    if (!_oldIslandPos.has_value() || _oldIslandPos.value() != newIslandPos)
+    {
+        // The drag bar's position changed compared to the client area because
+        // the island moved but we will not be notified about this in the
+        // NonClientIslandWindow::OnDragBarSizeChanged method because this
+        // method is only called when the position of the drag bar changes
+        // **inside** the island which is not the case here.
+        _ResizeDragBarWindow();
+
+        _oldIslandPos = { newIslandPos };
+    }
+}
+
+```
+
+函数MessageHandler()是主窗口的消息处理函数，我们在这里处理原来代码没有处理，但是我们需要处理的消息，主要内容在ztMesssageHandler()中。
+```
+[[nodiscard]] LRESULT NonClientIslandWindow::MessageHandler(UINT const message,
+                                                            WPARAM const wParam,
+                                                            LPARAM const lParam) noexcept
+{
+    switch (message)
+    {
+    case WM_SETCURSOR:
+        return _OnSetCursor(wParam, lParam);
+    case WM_DISPLAYCHANGE:
+        // GH#4166: When the DPI of the monitor changes out from underneath us,
+        // resize our drag bar, to reflect its newly scaled size.
+        _ResizeDragBarWindow();
+        ztAdjustLayoutDPI(_currentDpi); //<== ZTERM
+        return 0;
+    case WM_NCCALCSIZE:
+        return _OnNcCalcSize(wParam, lParam);
+    case WM_NCHITTEST:
+        return _OnNcHitTest({ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) });
+    case WM_PAINT:
+        return _OnPaint();
+    case WM_NCRBUTTONUP:
+        // The `DefWindowProc` function doesn't open the system menu for some
+        // reason so we have to do it ourselves.
+        if (wParam == HTCAPTION)
+        {
+            OpenSystemMenu(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+        }
+        break;
+    default: //ZTERM
+        {
+            BOOL bHandled = TRUE;
+                LRESULT result = ztMesssageHandler(message, wParam, lParam, bHandled);
+            if (bHandled)
+                return result;
+        }
+        break;
+    }
+
+    return IslandWindow::MessageHandler(message, wParam, lParam);
+}
+```
+
+至此，修改完毕，重新编译，我们就看到了我们新增加的窗口在右边。唯一的遗憾是最大最小和关闭三个按钮属于_interopWindowHandle窗口中的内容，也随之移动了。为了修改这个小小的瑕疵，就需要深入原来的代码。目前我们暂时忽略之。
+
+在新增加的m_paneWindow窗口中做什么事情，是我们的自由发挥的空间，和终端没有关系。 目前的修改，理论上没有引入重大的bug。 我们计划在m_paneWindow中增加两个子窗口，一个是负责用户的输入，一个是和AI的聊天记录的窗口。此外，我们还增加几个按钮。
+
+当用户向AI提问时，往往需要附上当前终端窗口中的文本数据，这样AI才能更加深入理解你的问题。 如何获取当前终端窗口中的文本数据，是下面的内容。
+
+### 获取终端窗口中的文本数据。
+
+我们首先解决一个问题，什么事件会触发获取当前终端窗口中的文本数据的逻辑？ 当用户向AI提问时，他或者点击m_paneWindow窗口中的按钮，或者在我们提供的输入窗口中输入文字，只有这两种可能性。 在这两种情况下，终端窗口都会失去键盘的输入焦点，对应的函数是void ControlCore::LostFocus()， 它在ControlCore.cpp这个文件中。
+我们在其中增加如下代码：
+
+```
+    void ControlCore::LostFocus()
+    {
+        _focusChanged(false);
+            const auto lock = _terminal->LockForReading();
+            const auto viewport = _terminal->GetViewport();
+            const auto top = viewport.Top();
+            const auto height = viewport.Height();
+
+            const auto& textBuffer = _terminal->GetTextBuffer();
+            std::wstring str;
+
+            for (auto rowIndex = top; rowIndex < top + height; rowIndex++)
+            {
+                const auto& row = textBuffer.GetRowByOffset(rowIndex);
+                const auto rowText = row.GetText();
+                const auto strEnd = rowText.find_last_not_of(UNICODE_SPACE);
+                if (strEnd != decltype(rowText)::npos)
+                {
+                    str.append(rowText.substr(0, strEnd + 1));
+                }
+                str.append(L"\r\n");
+            }
+
+    }
+```
+
+然后我们在zterm.cpp中的ztPaneWindowMessageHandler()函数中增加对鼠标点击消息的处理：鼠标点击后，把焦点放在_interopWindowHandle上，鼠标抬起时把焦点转移到m_paneWindow.get()上。
+```
+[[nodiscard]] LRESULT NonClientIslandWindow::ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept
+{
+    ztAdjustLayoutDPI(_currentDpi, false);
+
+    switch (message)
+    {
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps{ 0 };
+            HDC hdc = BeginPaint(m_paneWindow.get(), &ps);
+            if (hdc)
+            {
+                HBRUSH hBrush = CreateSolidBrush(RGB(46, 46, 46));
+                if (hBrush)
+                {
+                    RECT rc{};
+                    GetClientRect(m_paneWindow.get(), &rc);
+                    FillRect(hdc, &rc, hBrush);
+                    DeleteObject(hBrush);
+                }
+            }
+            EndPaint(m_paneWindow.get(), &ps);
+        }
+        return 0;
+    case WM_LBUTTONDOWN:
+        SetFocus(_interopWindowHandle);
+        return 0;
+    case WM_LBUTTONUP:
+        SetFocus(m_paneWindow.get());
+        return 0;
+    default:
+        break;
+    }
+
+    return DefWindowProc(m_paneWindow.get(), message, wparam, lparam);
+}
+
+```
+
+你可以在函数LostFocus()中下短点，可以观察到变量str中的确包含了当前屏幕的数据。
+
+如何从ztPaneWindowMessageHandler()函数中获取LostFocus()中变量str的值，这个问题不难。 我使用CreateFileMapping()/MapViewOfFile()把数据映射到一块内存中，就可以获取了。 
+可能还会有更好的方法。LostFocus()在动态库Microsoft.Terminal.Control.dll中，ztPaneWindowMessageHandler()在WindowsTerminal.exe中， 可能在dll中设置一个全局变量，供exe读取。

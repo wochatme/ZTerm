@@ -6,12 +6,13 @@
 #define GAP_WIN_HEIGHT		32
 #define LED_WIN_HEIGHT		24
 
-#define LEFT_MARGIN		2
+#define LEFT_MARGIN			4
 
 #define TIMER_WAITAI		666
 #define TIMER_UPDATE_GUI	555
 
 #define STATE_DRAW_WINDOW	(0x00000001)
+#define STATE_NETWORKGOOD	(0x00000002)
 
 #define NeedDrawWindow()	(m_dwState & STATE_DRAW_WINDOW)
 #define InvalidateWinow()	do { m_dwState |= STATE_DRAW_WINDOW; } while(0)
@@ -21,8 +22,14 @@
 #define RECT_IDX_HIDE		1
 #define RECT_IDX_STAT		2
 
+#define TOOLTIP_QUICKQ		1
+#define TOOLTIP_HIDEAI		2
+#define TOOLTIP_NETWORK		3
+
 class CGPTView : public CWindowImpl<CGPTView>
 {
+	UINT m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
 	DWORD m_dwState = 0;
 	int m_nWaitCount = 0;
 
@@ -40,6 +47,8 @@ class CGPTView : public CWindowImpl<CGPTView>
 
 	RECT m_rectButtons[RECT_IDX_STAT + 1] = { 0 };
 
+	WTL::CToolTipCtrl m_tooltip;
+
 	RECT m_rectClient = { 0 };
 	float m_deviceScaleFactor = 1.f;
 	ID2D1HwndRenderTarget* m_pD2DRenderTarget = nullptr;
@@ -52,6 +61,30 @@ public:
 	BOOL PreTranslateMessage(MSG* pMsg)
 	{
 		return FALSE;
+	}
+
+	void SetNetworkStatus(bool isGood, bool bUpdate = false)
+	{
+		DWORD preState = m_dwState & STATE_NETWORKGOOD;
+
+		if(isGood)
+			m_dwState |= STATE_NETWORKGOOD; 
+		else
+			m_dwState &= ~STATE_NETWORKGOOD;
+
+		if (bUpdate || (preState != (m_dwState & STATE_NETWORKGOOD)))
+			Invalidate();
+	}
+
+	void RefreshCurrentDPI(UINT dpi, bool bUpdate = false)
+	{
+		m_currentDpi = dpi;
+		m_heightGap = ::MulDiv(dpi, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(dpi, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightAsk = ::MulDiv(dpi, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		
+		if(bUpdate)
+			UpdateSplitterLayout();
 	}
 
 	BEGIN_MSG_MAP(CGPTView)
@@ -95,6 +128,22 @@ public:
 		m_viewChat.Create(m_hWnd, rcDefault, NULL, dwStyle);
 		m_viewAskQ.Create(m_hWnd, rcDefault, NULL, dwStyle);
 
+		// Be sure InitCommonControlsEx is called before this,
+		//  with one of the flags that includes the tooltip control
+		m_tooltip.Create(m_hWnd, NULL, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP /* | TTS_BALLOON */, WS_EX_TOOLWINDOW);
+		if (m_tooltip.IsWindow())
+		{
+			m_tooltip.SetWindowPos(HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+			m_tooltip.SetDelayTime(TTDT_INITIAL, ::GetDoubleClickTime() << 1);
+			m_tooltip.SetDelayTime(TTDT_AUTOPOP, ::GetDoubleClickTime() * 40);
+			m_tooltip.SetDelayTime(TTDT_RESHOW, ::GetDoubleClickTime() >> 1);
+
+			m_tooltip.AddTool(m_hWnd, L"Quick Ask", &rcDefault, TOOLTIP_QUICKQ);
+			m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant", &rcDefault, TOOLTIP_HIDEAI);
+			m_tooltip.AddTool(m_hWnd, L"Network status: green is good, red is bad", &rcDefault, TOOLTIP_NETWORK);
+			m_tooltip.Activate(TRUE);
+		}
+
 		SetTimer(TIMER_UPDATE_GUI, 100);
 
 		return 0L;
@@ -104,14 +153,29 @@ public:
 	{
 		KillTimer(TIMER_UPDATE_GUI);
 
+		if (m_tooltip.IsWindow())
+		{
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_QUICKQ);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_HIDEAI);
+			m_tooltip.DelTool(m_hWnd, TOOLTIP_NETWORK);
+			// Also sets the contained m_hWnd to NULL
+			m_tooltip.DestroyWindow();
+		}
+
 		ReleaseUnknown(m_pBitmapPixel);
 		ReleaseUnknown(m_pD2DRenderTarget);
 		bHandled = FALSE;
 		return 0L;
 	}
 
-	LRESULT OnMouseMessage(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	LRESULT OnMouseMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+		if (m_tooltip.IsWindow())
+		{
+			MSG msg = { m_hWnd, uMsg, wParam, lParam };
+			m_tooltip.RelayEvent(&msg);
+		}
+
 		bHandled = FALSE;
 		return 0L;
 	}
@@ -311,69 +375,36 @@ public:
 		return 0L;
 	}
 
-	LRESULT OnSize(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	void UpdateSplitterLayout()
 	{
-		int w, h;
-		GetClientRect(&m_rectClient);
-		ReleaseUnknown(m_pD2DRenderTarget);
-
-		w = m_rectClient.right > m_rectClient.left;
-		h = m_rectClient.bottom > m_rectClient.top;
-		if ( w > 0 && h > 0)
+		int w = m_rectClient.right > m_rectClient.left;
+		int h = m_rectClient.bottom > m_rectClient.top;
+		if (w > 0 && h > 0)
 		{
-#if 10
 			int top = m_rectClient.bottom - m_heightAsk;
 			::SetWindowPos(m_viewAskQ.m_hWnd, NULL,
 				m_rectClient.left + LEFT_MARGIN,
 				top,
 				m_rectClient.right - m_rectClient.left,
-				m_heightAsk, SWP_NOZORDER| SWP_NOACTIVATE);
+				m_heightAsk, SWP_NOZORDER | SWP_NOACTIVATE);
 
 			top = m_rectClient.top + m_heightLed;
 			::SetWindowPos(m_viewChat.m_hWnd, NULL,
 				m_rectClient.left + LEFT_MARGIN,
 				top,
 				m_rectClient.right - m_rectClient.left,
-				m_rectClient.bottom - m_rectClient.top - (m_heightAsk + m_heightGap + m_heightLed), SWP_NOZORDER| SWP_NOACTIVATE);
-#else
-			// We have 2 child windows to move/resize
-			HDWP hdwp = ::BeginDeferWindowPos(2); 
-			int top = m_rectClient.bottom - m_heightAsk;
-			if (hdwp)
-			{
-				hdwp = ::DeferWindowPos(hdwp, m_viewAskQ.m_hWnd, NULL,
-					m_rectClient.left,
-					top,           
-					w,
-					m_heightAsk, // New width and height
-					SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
-			}
-
-			if (hdwp)
-			{
-				top = m_rectClient.top + m_heightLed;
-				hdwp = ::DeferWindowPos(hdwp,
-					m_viewChat.m_hWnd, NULL,
-					m_rectClient.left,
-					top,           // New x, y position
-					w,
-					h - (m_heightAsk + m_heightGap + m_heightLed), // New width and height
-					SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE);
-			}
-
-			if (hdwp)
-			{
-				// Apply all deferred window position and size changes
-				EndDeferWindowPos(hdwp);
-			}
-
-			//m_viewAskQ.ShowWindow(SW_SHOW);
-			//m_viewChat.ShowWindow(SW_SHOW);
-#endif 
+				m_rectClient.bottom - m_rectClient.top - (m_heightAsk + m_heightGap + m_heightLed), SWP_NOZORDER | SWP_NOACTIVATE);
 		}
+	}
+
+	LRESULT OnSize(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		GetClientRect(&m_rectClient);
+		ReleaseUnknown(m_pD2DRenderTarget);
+
+		UpdateSplitterLayout();
 
 		Invalidate();
-		//bHandled = FALSE;
 		return 0L;
 	}
 
@@ -466,8 +497,9 @@ public:
 				int idx;
 				int btnW = 0;
 				int btnH = 0;
-				idx = BITMAP_HIDE_GPT;
-				U32* btnData = g_pBitmapBank->GetBitmapData(idx, btnW, btnH);
+				bool dpiAWareness = true;
+				idx = BITMAP_HIDE_GPT_N;
+				U32* btnData = g_pBitmapBank->GetBitmapData(idx, btnW, btnH, dpiAWareness);
 
 				if (btnData && btnW && btnH)
 				{
@@ -484,6 +516,9 @@ public:
 						lpRect->left = lpRect->right - btnW;
 						lpRect->bottom = m_rectClient.bottom - m_heightAsk - offset;
 						lpRect->top = lpRect->bottom - btnH;
+
+						m_tooltip.SetToolRect(m_hWnd, TOOLTIP_HIDEAI, lpRect);
+
 						D2D1_RECT_F area = D2D1::RectF(
 							static_cast<FLOAT>(lpRect->left),
 							static_cast<FLOAT>(lpRect->top),
@@ -495,8 +530,8 @@ public:
 					ReleaseUnknown(pBitmap);
 				}
 
-				idx = BITMAP_QUICKASK;
-				btnData = g_pBitmapBank->GetBitmapData(idx, btnW, btnH);
+				idx = BITMAP_QUICKASK_N;
+				btnData = g_pBitmapBank->GetBitmapData(idx, btnW, btnH, dpiAWareness);
 				if (btnData && btnW && btnH)
 				{
 					ID2D1Bitmap* pBitmap = nullptr;
@@ -512,6 +547,49 @@ public:
 						lpRect->right = lpRect->left + btnW;
 						lpRect->bottom = m_rectClient.bottom - m_heightAsk - offset;
 						lpRect->top = lpRect->bottom - btnH;
+
+						m_tooltip.SetToolRect(m_hWnd, TOOLTIP_QUICKQ, lpRect);
+
+						D2D1_RECT_F area = D2D1::RectF(
+							static_cast<FLOAT>(lpRect->left),
+							static_cast<FLOAT>(lpRect->top),
+							static_cast<FLOAT>(lpRect->right),
+							static_cast<FLOAT>(lpRect->bottom)
+						);
+						m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+					}
+					ReleaseUnknown(pBitmap);
+				}
+
+				idx = (m_dwState & STATE_NETWORKGOOD)? BITMAP_GREEN_LED : BITMAP_RED_LED;
+
+				btnData = g_pBitmapBank->GetBitmapData(idx, btnW, btnH, dpiAWareness);
+				if (btnData && btnW && btnH)
+				{
+					ID2D1Bitmap* pBitmap = nullptr;
+					hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(btnW, btnH), btnData, (btnW << 2),
+						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+						&pBitmap);
+					if (S_OK == hr && pBitmap)
+					{
+						int dpiWH = ::MulDiv(m_currentDpi, btnW, USER_DEFAULT_SCREEN_DPI);
+						int offset = (m_heightLed - dpiWH) >> 1;
+						idx = RECT_IDX_STAT;
+						LPRECT lpRect = &m_rectButtons[idx];
+
+						lpRect->right = m_rectClient.right - offset;
+						lpRect->left = lpRect->right - dpiWH;
+						lpRect->top = m_rectClient.top + offset;
+						lpRect->bottom = lpRect->top + dpiWH;
+
+						m_tooltip.SetToolRect(m_hWnd, TOOLTIP_NETWORK, lpRect);
+
+#if 0
+						lpRect->left = m_rectClient.left;
+						lpRect->right = lpRect->left + btnW;
+						lpRect->top = m_rectClient.top;
+						lpRect->bottom = lpRect->top + btnH;
+#endif 
 						D2D1_RECT_F area = D2D1::RectF(
 							static_cast<FLOAT>(lpRect->left),
 							static_cast<FLOAT>(lpRect->top),

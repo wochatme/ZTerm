@@ -372,9 +372,6 @@ namespace graphics
 #define POS_LIMIT_LEFT		256
 #define POS_LIMIT_RIGHT		128
 
-#define TOOLTIP_QUICKQ		1
-#define TOOLTIP_HIDEAI		2
-#define TOOLTIP_NETWORK		3
 #define TOOLTIP_MAINMENU	4
 #define TOOLTIP_CHATGPT		5
 
@@ -450,7 +447,6 @@ namespace graphics
 #define WIN_CAPTURED		(0x00000010)
 #define WINSETCURSOR		(0x00000020)
 #define WIN_HITTITLE		(0x00000040)
-#define GPT_NET_GOOD	    (0x00000080)
 #define WIN_DARKMODE		(0x00000100)
 #define WIN_HIT_BUTN		(0x00000200)
 #define WINHITCLIENT		(0x00000400)
@@ -1083,20 +1079,10 @@ public:
 
 	LRESULT OnNetworkStatus(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-#if 0
-		BOOL bGood = (BOOL)lParam;
-		BOOL bGoodPrev = (BOOL)m_dwState & GPT_NET_GOOD;
-
-		m_dwState &= ~GPT_NET_GOOD;
-		if (bGood)
-			m_dwState |= GPT_NET_GOOD;
-
-		if (bGood != bGoodPrev)
+		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
-			InvalidateWin4();
-			Invalidate();
+			m_viewGPT.SetNetworkStatus(static_cast<bool>(lParam), true);
 		}
-#endif 
 		return 0L;
 	}
 
@@ -1317,23 +1303,22 @@ public:
 
 	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-#if 0
-		UINT dpiY = HIWORD(wParam);
-
-		m_currentDpi = GetDpiForWindow(m_hWnd);
-		if (!m_currentDpi)
-			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
-#endif 
 		m_inDpiChange = true;
 
 		m_currentDpi = HIWORD(wParam);
 		_user_scaling = static_cast<float>(m_currentDpi) / 96.0f;
 
 		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+#if 0
 		m_heightGap = ::MulDiv(m_currentDpi, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 		m_heightLed = ::MulDiv(m_currentDpi, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 		m_heightWinAsk = ::MulDiv(m_currentDpi, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 		m_xySplitterPos = ::MulDiv(m_currentDpi, m_xySplitterPos, USER_DEFAULT_SCREEN_DPI);
+#endif 
+		g_pBitmapBank.reset();
+		g_pBitmapBank = std::make_unique<BitmapBank>(GetCurrentDpi(), AppInDarkMode());
+
+		m_viewGPT.RefreshCurrentDPI(m_currentDpi, m_nSinglePane == SPLIT_PANE_NONE);
 
 		MARGINS margins = { 0 };
 		margins.cyTopHeight = m_heightTitle + 1;
@@ -1444,6 +1429,8 @@ public:
 		if (!m_currentDpi)
 			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
 
+		m_viewGPT.RefreshCurrentDPI(m_currentDpi, m_nSinglePane == SPLIT_PANE_NONE);
+
 		_user_scaling = static_cast<float>(m_currentDpi) / 96.0f;
 
 		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
@@ -1498,9 +1485,6 @@ public:
 			m_tooltip.SetDelayTime(TTDT_AUTOPOP, ::GetDoubleClickTime() * 40);
 			m_tooltip.SetDelayTime(TTDT_RESHOW, ::GetDoubleClickTime() >> 1);
 
-			m_tooltip.AddTool(m_hWnd, L"Quick Ask", &rcDefault, TOOLTIP_QUICKQ);
-			m_tooltip.AddTool(m_hWnd, L"Hide AI Assistant", &rcDefault, TOOLTIP_HIDEAI);
-			m_tooltip.AddTool(m_hWnd, L"Network status: green is good, red is bad", &rcDefault, TOOLTIP_NETWORK);
 			m_tooltip.AddTool(m_hWnd, L"Main Menu", &rcDefault, TOOLTIP_MAINMENU);
 			m_tooltip.AddTool(m_hWnd, L"Show/Hide AI Assistant", &rcDefault, TOOLTIP_CHATGPT);
 			m_tooltip.Activate(TRUE);
@@ -1581,9 +1565,6 @@ public:
 
 		if (m_tooltip.IsWindow())
 		{
-			m_tooltip.DelTool(m_hWnd, TOOLTIP_QUICKQ);
-			m_tooltip.DelTool(m_hWnd, TOOLTIP_HIDEAI);
-			m_tooltip.DelTool(m_hWnd, TOOLTIP_NETWORK);
 			m_tooltip.DelTool(m_hWnd, TOOLTIP_MAINMENU);
 			m_tooltip.DelTool(m_hWnd, TOOLTIP_CHATGPT);
 			// Also sets the contained m_hWnd to NULL
@@ -1959,14 +1940,22 @@ public:
 
 	LRESULT OnGUIDragSplit(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		POINT pt{};
-		if (GetCursorPos(&pt))
+		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
-            ScreenToClient(&pt);
-			if (::PtInRect(&m_rcSplitter, pt))
+
+			POINT pt{};
+			if (GetCursorPos(&pt))
 			{
-				if(pt.x > POS_LIMIT_LEFT && pt.x < m_rcSplitter.right - POS_LIMIT_RIGHT)
-					SetSplitterPos(pt.x, true);
+				ScreenToClient(&pt);
+				if (::PtInRect(&m_rcSplitter, pt))
+				{
+					if (pt.x > POS_LIMIT_LEFT && pt.x < m_rcSplitter.right - POS_LIMIT_RIGHT)
+					{
+						int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
+						m_xySplitterPosToRight = cxyTotal - m_xySplitterPos;
+						SetSplitterPos(pt.x, true);
+					}
+				}
 			}
 		}
 		return 0L;
@@ -2061,7 +2050,7 @@ public:
 		}
 		return 0L;
 	}
-
+#if 0
 	LRESULT OnLButtonDown(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 #if 0
@@ -2206,6 +2195,7 @@ public:
 
 		return 0L;
 	}
+#endif 
 
 	void UpdateButtonPosition()
 	{
@@ -3031,7 +3021,7 @@ public:
 		static bool bFirst = true;
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
 
-		m_dwState &= ~GPT_NET_GOOD; // reset the network status
+		m_viewGPT.SetNetworkStatus(false); // reset
 
 		if (bFirst)
 		{
