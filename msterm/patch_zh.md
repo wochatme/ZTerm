@@ -800,5 +800,112 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
 你可以在函数LostFocus()中下短点，可以观察到变量str中的确包含了当前屏幕的数据。
 
-如何从ztPaneWindowMessageHandler()函数中获取LostFocus()中变量str的值，这个问题不难。 我使用CreateFileMapping()/MapViewOfFile()把数据映射到一块内存中，就可以获取了。 
-可能还会有更好的方法。LostFocus()在动态库Microsoft.Terminal.Control.dll中，ztPaneWindowMessageHandler()在WindowsTerminal.exe中， 可能在dll中设置一个全局变量，供exe读取。
+如何从ztPaneWindowMessageHandler()函数中获取LostFocus()中变量str的值，这个问题不难，具体操作如下：
+
+在HwndTerminal.hpp中定义：
+```
+
+__declspec(dllexport) const wchar_t* _stdcall TerminalGetWindowData();
+
+```
+在HwndTerminal.cpp中定义：
+```
+wchar_t* ztGetWindowData();
+
+const wchar_t* _stdcall TerminalGetWindowData()
+try
+{
+    return ztGetWindowData();
+}
+catch (...)
+{
+    LOG_CAUGHT_EXCEPTION();
+    return nullptr;
+}
+```
+
+在ControlCore.cpp
+```
+#define MAX_SCREEN_TEXTDATA_SIZE (1<<16)
+
+wchar_t screen_text_data[MAX_SCREEN_TEXTDATA_SIZE] = { 0 };
+
+wchar_t* ztGetWindowData()
+{
+    return screen_text_data;
+}
+
+    void ControlCore::LostFocus()
+    {
+        _focusChanged(false);
+        //-ZTERM
+        size_t realSize = 0;
+
+        const auto lock = _terminal->LockForReading();
+        const auto viewport = _terminal->GetViewport();
+        const auto top = viewport.Top();
+        const auto height = viewport.Height();
+
+        const auto& textBuffer = _terminal->GetTextBuffer();
+        std::wstring str;
+
+        for (auto rowIndex = top; rowIndex < top + height; rowIndex++)
+        {
+            const auto& row = textBuffer.GetRowByOffset(rowIndex);
+            const auto rowText = row.GetText();
+            const auto strEnd = rowText.find_last_not_of(UNICODE_SPACE);
+            if (strEnd != decltype(rowText)::npos)
+            {
+                str.append(rowText.substr(0, strEnd + 1));
+            }
+            if (!row.WasWrapForced())
+            {
+                str.append(L"\r\n");
+            }
+        }
+
+        realSize = str.size();
+        if (realSize > MAX_SCREEN_TEXTDATA_SIZE - 1)
+        {
+            realSize = MAX_SCREEN_TEXTDATA_SIZE - 1;
+        }
+
+        if (realSize)
+        {
+            for (size_t i = 0; i < realSize; i++)
+                screen_text_data[i] = str[i];
+        }
+        screen_text_data[realSize] = L'\0';
+
+    }
+
+
+```
+在zterm.cpp中
+```
+    case WM_LBUTTONUP:
+        SetFocus(m_paneWindow.get());
+        {
+            HMODULE hTMC{};
+            hTMC = ::LoadLibraryEx(TEXT("Microsoft.Terminal.Control.dll"), 0, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+            if (hTMC)
+            {
+                typedef wchar_t* (*getTerminalDataFunc)(int* bytes);
+
+                getTerminalDataFunc pfn = (getTerminalDataFunc)GetProcAddress(hTMC, "TerminalGetWindowData");
+                if (pfn)
+                {
+                    int bytes = 0;
+                    wchar_t* data = pfn(&bytes);
+                    bytes++;
+                    if (data)
+                    {
+                        wchar_t charw = data[1];
+                        charw++;
+                    }
+                }
+                FreeLibrary(hTMC);
+            }
+        }
+        return 0;
+```
