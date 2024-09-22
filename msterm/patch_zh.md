@@ -154,7 +154,6 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 ```
 以上代码是读取终端全部的文本，包括窗口上显示的，也包括窗口中没有显示的。 我们并不需要读取缓冲区内所有的文本，只要读取屏幕上的数据。 遵循的原则是：无法看到的数据不应该发给AI。我写出来读取当前窗口的文本数据的代码如下：
 ```
-```
 	const auto lock = _terminal->LockForReading();
 	const auto viewport = _terminal->GetViewport();
 	const auto top = viewport.Top();
