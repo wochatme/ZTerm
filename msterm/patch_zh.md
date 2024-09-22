@@ -1,6 +1,6 @@
 # 如何改造微软Terminal
 
-微软终端(Microsoft Terminal)是一款很优秀的终端软件，很幸运，它是开源的。它也有一个AI辅助功能，叫做Term Chat，但是目前尚处于实验阶段，源代码也未公开。 我们的目的是改造微软终端，使之具备AI聊天功能。 为了完成这个任务，我们需要解决三个问题：
+微软终端(Microsoft Terminal)是一款很优秀的终端软件，很幸运，它是开源的。它也有一个AI辅助功能，叫做Terminal Chat，但是目前尚处于实验阶段。 我们的目的是改造微软终端，使之具备AI聊天功能。 为了完成这个任务，我们需要解决三个问题：
 1. 如何编译微软终端软件的源代码。
 2. 如何在其中插入聊天窗口。
 3. 如何读取终端窗口上的文本数据。
@@ -123,7 +123,7 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
 ## 如何读取终端窗口中的文本数据？
 
-当用户向AI提问时，往往需要把终端窗口的数据也发送给AI，这样AI才能真正理解用户的问题。 如何读取终端窗口的文本数据呢？这个问题折磨了我很久，最终解决了。 给我启示的代码是C:\wterm\term0919\src\cascadia\TerminalControl\ControlCore.cpp中的ReadEntireBuffer()函数。它的代码如下：
+当用户向AI提问时，往往需要把终端窗口的文本数据也发送给AI，这样AI才能真正理解用户的问题。 如何读取终端窗口的文本数据呢？这个问题折磨了我很久，最终解决了。 给我启示的代码是C:\wterm\term0919\src\cascadia\TerminalControl\ControlCore.cpp中的ReadEntireBuffer()函数。它的代码如下：
 ```
     hstring ControlCore::ReadEntireBuffer() const
     {
@@ -154,6 +154,7 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 ```
 以上代码是读取终端全部的文本，包括窗口上显示的，也包括窗口中没有显示的。 我们并不需要读取缓冲区内所有的文本，只要读取屏幕上的数据。 遵循的原则是：无法看到的数据不应该发给AI。我写出来读取当前窗口的文本数据的代码如下：
 ```
+```
 	const auto lock = _terminal->LockForReading();
 	const auto viewport = _terminal->GetViewport();
 	const auto top = viewport.Top();
@@ -171,7 +172,10 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 		{
 			str.append(rowText.substr(0, strEnd + 1));
 		}
-		str.append(L"\r\n");
+		if (!row.WasWrapForced())
+		{
+			str.append(L"\r\n");
+		}
 	}
 ```
 viewport, 识口，就代表窗口上显示的文本的范围，从top开始，共height行。 这段代码执行后，str变量中就包含了当前窗口可见的文本信息。
@@ -337,6 +341,8 @@ wil::unique_hwnd m_paneWindow;
 HWND m_hWndGPT = nullptr;
 HWND m_hWndASK = nullptr;
 
+unsigned int m_prevDpi = 0;
+
 [[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
 
 [[nodiscard]] LRESULT ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
@@ -347,7 +353,8 @@ void ztMakePaneWindow() noexcept;
 
 void ztAdjustLayoutDPI(unsigned int dpi, bool bUpdate = true) noexcept;
 
-#endif // _ZTERM_H_```
+#endif // _ZTERM_H_
+```
 
 由上可见，我们仿照_dragBarWindow的定义，创建了一个类似的成员变量m_paneWindow来表示我们的聊天子窗口。 m_paneWindow的地位和_dragBarWindow是相同的。它们两个的父窗口是NonClientIslandWindow，可以使用GetHandle()来获得NonClientIslandWindow所代表的窗口的句柄。
 
@@ -364,6 +371,9 @@ ztStaticPaneWndProc 和 ztPaneWindowMessageHandler 是效仿对_dragBarWindow的
 ```
 m_widthPaneWindow = ::MulDiv(TITLE_BAR_HEIGHT_NORMAL, dpi, USER_DEFAULT_SCREEN_DPI);
 ```
+
+为了侦测DPI的变化，我设计了一个变量m_prevDpi，记录以前的DPI的值。 如果m_prevDpi和_currentDpi不等，就调整一下。
+
 
 #### ZTERM.CPP中的内容
 
@@ -648,12 +658,25 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
 ```
 
-函数MessageHandler()是主窗口的消息处理函数，我们在这里处理原来代码没有处理，但是我们需要处理的消息，主要内容在ztMesssageHandler()中。
+函数MessageHandler()是主窗口的消息处理函数，我们在这里处理原来代码没有处理，但是我们需要处理的消息，主要内容在ztMesssageHandler()中。 我们在消息处理开始增加了一些逻辑，来判断DPI是否发生了变化。
 ```
 [[nodiscard]] LRESULT NonClientIslandWindow::MessageHandler(UINT const message,
                                                             WPARAM const wParam,
                                                             LPARAM const lParam) noexcept
 {
+    // detect DPI change
+    if (m_prevDpi != _currentDpi)  //- ZTERM
+    {
+        bool bUpdate = false;
+        m_prevDpi = _currentDpi;
+
+        if (IsWindow(m_paneWindow.get()))
+        {
+            bUpdate = true;
+        }
+        ztAdjustLayoutDPI(_currentDpi, bUpdate);
+    }
+
     switch (message)
     {
     case WM_SETCURSOR:
@@ -707,26 +730,29 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
     void ControlCore::LostFocus()
     {
         _focusChanged(false);
-            const auto lock = _terminal->LockForReading();
-            const auto viewport = _terminal->GetViewport();
-            const auto top = viewport.Top();
-            const auto height = viewport.Height();
+        //-ZTERM
+        const auto lock = _terminal->LockForReading();
+        const auto viewport = _terminal->GetViewport();
+        const auto top = viewport.Top();
+        const auto height = viewport.Height();
 
-            const auto& textBuffer = _terminal->GetTextBuffer();
-            std::wstring str;
+        const auto& textBuffer = _terminal->GetTextBuffer();
+        std::wstring str;
 
-            for (auto rowIndex = top; rowIndex < top + height; rowIndex++)
+        for (auto rowIndex = top; rowIndex < top + height; rowIndex++)
+        {
+            const auto& row = textBuffer.GetRowByOffset(rowIndex);
+            const auto rowText = row.GetText();
+            const auto strEnd = rowText.find_last_not_of(UNICODE_SPACE);
+            if (strEnd != decltype(rowText)::npos)
             {
-                const auto& row = textBuffer.GetRowByOffset(rowIndex);
-                const auto rowText = row.GetText();
-                const auto strEnd = rowText.find_last_not_of(UNICODE_SPACE);
-                if (strEnd != decltype(rowText)::npos)
-                {
-                    str.append(rowText.substr(0, strEnd + 1));
-                }
+                str.append(rowText.substr(0, strEnd + 1));
+            }
+            if (!row.WasWrapForced())
+            {
                 str.append(L"\r\n");
             }
-
+        }
     }
 ```
 
