@@ -212,6 +212,7 @@ dir *.lib /s
 ```
 //-ZTERM
 #include <bcrypt.h>
+#define CURL_STATICLIB
 #include "zterm/curl/curl.h"
 #include "zterm/zlib/zlib.h"
 #include "zterm/scintilla/Sci_Position.h"
@@ -219,7 +220,7 @@ dir *.lib /s
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Bcrypt.lib")
 ```
-稍后我们会创建对应的目录，把相关的头文件拷贝过来。
+其中定义CURL_STATICLIB是为了保证我们链接的是libcurl的静态库。 稍后我们会创建对应的目录，把相关的头文件拷贝过来。
 
 在VSTS中打开OpenConsole.sln项目文件，在右边的Solution Explorer窗口中选择Terminal -> Window -> Windows Terminal(Desktop)，鼠标右键选择Properties。 
 在随后弹出的属性设置对话框中选择Configuration Properties -> Linker -> Input，然后在Additional Dependencies中加入如下三行，分别代表三个依赖的库：
@@ -514,6 +515,27 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM, LPARAM, BOOL
 }
 
 ```
+我们可能需要执行初始化和最后的扫尾工作。 所以我设置了ztInit()和ztTerm()两个函数。 微软终端的退出方式比较粗暴，直接调用TerminateProcess()终止本进程。所以你可以考虑把ztTerm()放在如下的位置。
+```
+void ztTerm();
+
+void WindowEmperor::WaitForWindows()
+{
+    MSG message{};
+    while (GetMessageW(&message, nullptr, 0, 0))
+    {
+        TranslateMessage(&message);
+        DispatchMessage(&message);
+    }
+
+    _finalizeSessionPersistence();
+
+    ztTerm(); //ZTERM
+
+    TerminateProcess(GetCurrentProcess(), 0);
+}
+```
+
 
 #### 在微软终端源代码中的修改：
 
@@ -800,7 +822,33 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
 你可以在函数LostFocus()中下短点，可以观察到变量str中的确包含了当前屏幕的数据。
 
-如何从ztPaneWindowMessageHandler()函数中获取LostFocus()中变量str的值，这个问题不难，具体操作如下：
+如何从ztPaneWindowMessageHandler()函数中获取LostFocus()中变量str的值，这个问题不难，思路是导出dll的一个函数，然后就可以调用了。如何导出dll中的函数，可以参考HwndTerminal.hpp/HwndTerminal.cpp中的定义：
+```
+extern "C" {
+__declspec(dllexport) HRESULT _stdcall CreateTerminal(HWND parentHwnd, _Out_ void** hwnd, _Out_ void** terminal);
+__declspec(dllexport) void _stdcall TerminalSendOutput(void* terminal, LPCWSTR data);
+__declspec(dllexport) void _stdcall TerminalRegisterScrollCallback(void* terminal, void __stdcall callback(int, int, int));
+__declspec(dllexport) HRESULT _stdcall TerminalTriggerResize(_In_ void* terminal, _In_ til::CoordType width, _In_ til::CoordType height, _Out_ til::size* dimensions);
+__declspec(dllexport) HRESULT _stdcall TerminalTriggerResizeWithDimension(_In_ void* terminal, _In_ til::size dimensions, _Out_ til::size* dimensionsInPixels);
+__declspec(dllexport) HRESULT _stdcall TerminalCalculateResize(_In_ void* terminal, _In_ til::CoordType width, _In_ til::CoordType height, _Out_ til::size* dimensions);
+__declspec(dllexport) void _stdcall TerminalDpiChanged(void* terminal, int newDpi);
+__declspec(dllexport) void _stdcall TerminalUserScroll(void* terminal, int viewTop);
+__declspec(dllexport) void _stdcall TerminalClearSelection(void* terminal);
+__declspec(dllexport) const wchar_t* _stdcall TerminalGetSelection(void* terminal);
+__declspec(dllexport) bool _stdcall TerminalIsSelectionActive(void* terminal);
+__declspec(dllexport) void _stdcall DestroyTerminal(void* terminal);
+__declspec(dllexport) void _stdcall TerminalSetTheme(void* terminal, TerminalTheme theme, LPCWSTR fontFamily, til::CoordType fontSize, int newDpi);
+__declspec(dllexport) void _stdcall TerminalRegisterWriteCallback(void* terminal, const void __stdcall callback(wchar_t*));
+__declspec(dllexport) void _stdcall TerminalSendKeyEvent(void* terminal, WORD vkey, WORD scanCode, WORD flags, bool keyDown);
+__declspec(dllexport) void _stdcall TerminalSendCharEvent(void* terminal, wchar_t ch, WORD flags, WORD scanCode);
+__declspec(dllexport) void _stdcall TerminalBlinkCursor(void* terminal);
+__declspec(dllexport) void _stdcall TerminalSetCursorVisible(void* terminal, const bool visible);
+__declspec(dllexport) void _stdcall TerminalSetFocus(void* terminal);
+__declspec(dllexport) void _stdcall TerminalKillFocus(void* terminal);
+};
+```
+
+具体操作如下：
 
 在HwndTerminal.hpp中定义：
 ```
@@ -834,7 +882,9 @@ wchar_t* ztGetWindowData()
 {
     return screen_text_data;
 }
-
+```
+screen_text_data中的数据由ControlCore::LostFocus()进行更新，就是终端失去焦点的时候触发这个函数更新数据。
+```
     void ControlCore::LostFocus()
     {
         _focusChanged(false);
@@ -860,9 +910,13 @@ wchar_t* ztGetWindowData()
             }
             if (!row.WasWrapForced())
             {
-                str.append(L"\r\n");
+                str.append(L"\n");
             }
         }
+
+        // get rid of the tailed new line characters
+        str.erase(std::find_if(str.rbegin(), str.rend(), [](wchar_t ch) { return ch != L'\n'; }).base(), str.end());
+        str.append(L"\n");
 
         realSize = str.size();
         if (realSize > MAX_SCREEN_TEXTDATA_SIZE - 1)
@@ -878,8 +932,6 @@ wchar_t* ztGetWindowData()
         screen_text_data[realSize] = L'\0';
 
     }
-
-
 ```
 在zterm.cpp中
 ```
@@ -890,22 +942,124 @@ wchar_t* ztGetWindowData()
             hTMC = ::LoadLibraryEx(TEXT("Microsoft.Terminal.Control.dll"), 0, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
             if (hTMC)
             {
-                typedef wchar_t* (*getTerminalDataFunc)(int* bytes);
+                typedef wchar_t* (*getTerminalDataFunc)();
 
                 getTerminalDataFunc pfn = (getTerminalDataFunc)GetProcAddress(hTMC, "TerminalGetWindowData");
                 if (pfn)
                 {
-                    int bytes = 0;
-                    wchar_t* data = pfn(&bytes);
-                    bytes++;
-                    if (data)
-                    {
-                        wchar_t charw = data[1];
-                        charw++;
-                    }
+                    wchar_t* data = pfn();
                 }
                 FreeLibrary(hTMC);
             }
         }
         return 0;
+```
+data实际上就指向了dll中的screen_text_data静态数组。
+
+```
+#if defined(WT_BRANDING_RELEASE)
+IDI_APPICON             ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_BLACK    ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_WHITE    ICON                    "zterm\\zterm.ico"
+#elif defined(WT_BRANDING_PREVIEW)
+IDI_APPICON             ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_BLACK    ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_WHITE    ICON                    "zterm\\zterm.ico"
+#elif defined(WT_BRANDING_CANARY)
+IDI_APPICON             ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_BLACK    ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_WHITE    ICON                    "zterm\\zterm.ico"
+#else
+IDI_APPICON             ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_BLACK    ICON                    "zterm\\zterm.ico"
+IDI_APPICON_HC_WHITE    ICON                    "zterm\\zterm.ico"
+#endif
+
+void WindowEmperor::HandleCommandlineArgs(int nCmdShow)
+{
+    std::vector<winrt::hstring> args;
+    _buildArgsFromCommandline(args);
+    const auto cwd{ wil::GetCurrentDirectoryW<std::wstring>() };
+
+    ztInit();
+
+    {
+        // ALWAYS change the _real_ CWD of the Terminal to system32, so that we
+        // don't lock the directory we were spawned in.
+        std::wstring system32{};
+        if (SUCCEEDED_LOG(wil::GetSystemDirectoryW<std::wstring>(system32)))
+        {
+            LOG_IF_WIN32_BOOL_FALSE(SetCurrentDirectoryW(system32.c_str()));
+        }
+    }
+
+    // GetEnvironmentStringsW() returns a double-null terminated string.
+    // The hstring(wchar_t*) constructor however only works for regular null-terminated strings.
+    // Due to that we need to manually search for the terminator.
+    winrt::hstring env;
+    {
+        const wil::unique_environstrings_ptr strings{ GetEnvironmentStringsW() };
+        const auto beg = strings.get();
+        auto end = beg;
+
+        for (; *end; end += wcsnlen(end, SIZE_T_MAX) + 1)
+        {
+        }
+
+        env = winrt::hstring{ beg, gsl::narrow<uint32_t>(end - beg) };
+    }
+
+    const Remoting::CommandlineArgs eventArgs{ args, cwd, gsl::narrow_cast<uint32_t>(nCmdShow), std::move(env) };
+    const auto isolatedMode{ _app.Logic().IsolatedMode() };
+    const auto result = _manager.ProposeCommandline(eventArgs, isolatedMode);
+    int exitCode = 0;
+
+    if (result.ShouldCreateWindow())
+    {
+        _createNewWindowThread(Remoting::WindowRequestedArgs{ result, eventArgs });
+        _becomeMonarch();
+        WaitForWindows();
+    }
+    else
+    {
+        const auto res = _app.Logic().GetParseCommandlineMessage(eventArgs.Commandline());
+        if (!res.Message.empty())
+        {
+            AppHost::s_DisplayMessageBox(res);
+        }
+        exitCode = res.ExitCode;
+    }
+
+    // There's a mysterious crash in XAML on Windows 10 if you just let _app get destroyed (GH#15410).
+    // We also need to ensure that all UI threads exit before WindowEmperor leaves the scope on the main thread (MSFT:46744208).
+    // Both problems can be solved and the shutdown accelerated by using TerminateProcess.
+    // std::exit(), etc., cannot be used here, because those use ExitProcess for unpackaged applications.
+    TerminateProcess(GetCurrentProcess(), gsl::narrow_cast<UINT>(exitCode));
+    __assume(false);
+}
+
+void WindowEmperor::WaitForWindows()
+{
+    MSG message{};
+
+    while (GetMessageW(&message, nullptr, 0, 0))
+    {
+        TranslateMessage(&message);
+        DispatchMessage(&message);
+    }
+
+    _finalizeSessionPersistence();
+
+    ztTerm(); //ZTERM
+
+    TerminateProcess(GetCurrentProcess(), 0);
+}
+
+C:\wterm\zterm\debug\scintilla\scintilla.lib
+C:\wterm\zterm\debug\zlib\zlibstaticd.lib
+C:\wterm\zterm\debug\curl\lib\libcurl-d.lib
+
+C:\wterm\zterm\release\scintilla\scintilla.lib
+C:\wterm\zterm\release\curl\lib\libcurl.lib
+C:\wterm\zterm\release\zlib\zlibstatic.lib
 ```

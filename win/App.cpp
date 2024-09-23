@@ -15,6 +15,7 @@
 
 #include "ViewGPT.h"
 #include "ViewTTY.h"
+#include "View.h"
 #include "WinDlg.h"
 #include "MainFrm.h"
 
@@ -120,6 +121,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	const auto wndMain = std::make_shared<CMainFrame>();	
 
 	dwExStyle = (WS_EX_NOREDIRECTIONBITMAP | (AppIsTopMost()? WS_EX_TOPMOST : 0));
+	dwExStyle = 0;
 
 	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
@@ -133,11 +135,13 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		wndMain->UpdateWindow();
 		cloak = FALSE;
 		DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
-
+		wndMain->ShowWindow(SW_SHOWMINIMIZED);
+		wndMain->ShowWindow(SW_SHOWMAXIMIZED);
+		wndMain->UpdateMainView();
+		wndMain->ShowWindow(SW_SHOWMINIMIZED);
+		wndMain->UpdateMainView();
 #endif 
 		g_pBitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
-
-		wndMain->ShowWindow(SW_SHOWMINIMIZED);
 		wndMain->ShowWindow(nCmdShow);
 		ztStartupNetworkThread(wndMain->m_hWnd);
 		nRet = theLoop.Run();
