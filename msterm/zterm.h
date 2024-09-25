@@ -1,49 +1,50 @@
 #ifndef _ZTERM_H_
 #define _ZTERM_H_
 
-#ifndef S8
-#define S8 int8_t
-#endif
-#ifndef S16
-#define S16 int16_t
-#endif
-#ifndef S32
-#define S32 int32_t
-#endif
-#ifndef S64
-#define S64 int64_t
-#endif
-#ifndef U8
-#define U8 uint8_t
-#endif
-#ifndef U16
-#define U16 uint16_t
-#endif
-#ifndef U32
-#define U32 uint32_t
-#endif
-#ifndef U64
-#define U64 uint64_t
-#endif
-
+// the left margin of m_hWndGPT and m_hWndASK
+// in the window m_paneWindow. We use this value
+// to decide if the cursor show West-East shape
 #define LEFT_MARGIN     4
 
+// when the user drag the vertical split line
+// we limit the width of _interopWindowHandle
+// and m_paneWindow
 #define POS_LIMIT_LEFT      256
 #define POS_LIMIT_RIGHT     128
 
-#define IDX_RECT_GPT    0
-#define IDX_RECT_ASK    1
-#define IDX_RECT_CFG    2
-#define IDX_RECT_NET    3
+// in the windoe of m_paneWindow, we have totally
+// 4 buttons.
+#define IDX_RECT_GPT    0       // the Show/Hide GPT button
+#define IDX_RECT_ASK    1       // the Quick Ask button
+#define IDX_RECT_CFG    2       // the Configuratoin button
+#define IDX_RECT_NET    3       // the Network status button
 
 RECT m_rectButton[4] { 0 };
+
+// when the user press a button, this pointer
+// will point to that button, so the code in
+// WM_PAINT know how to draw the button
 LPRECT m_lpRectPress{ nullptr };
 
+// we have two modes, one is that GPT is hiden
+// the second is that GPT is showing.
 #define GUI_GPT_READY   (0x00000001)
+
+// when the user set the cursor shape to WS/NS
+// or hand, this bit will indicate this status
 #define GUI_SETCURSOR   (0x00000002)
+
+// this bit indicates the network to AI server
+// is good or bad.
 #define GUI_NETWORKOK   (0x00000004)
 
+#define GUI_DRAGFULL    (0x00000008)
+
+// we use this 32-bit to store different status
+// of the GUI
 DWORD m_dwState{ 0 };
+
+BOOL m_bDragFull{ FALSE };
 
 #define InGPTMode()     (m_dwState & GUI_GPT_READY)
 #define SetGPTMode(gpt) \
@@ -53,37 +54,60 @@ DWORD m_dwState{ 0 };
     } \
     while (0);
 
+// we use these 3 cursors to indicate different cases
+// when the mouse is over the vertical split line
 HCURSOR m_hCursorWE;
+// when the mouse is over the horizonal split line
 HCURSOR m_hCursorNS;
+// when the mouse is over some buttons
 HCURSOR m_hCursorHand;
 
+// when the user submitted the question, there is
+// a timer to show the progress. This variable will
+// increase and stop when it reach 100
 int m_nWaitCount{ 0 };
 
+// the title height of the main window. It is DPI
+// awareness.
 #define TITLE_BAR_HEIGHT_NORMAL 40
 int m_widthPaneWindow{ TITLE_BAR_HEIGHT_NORMAL };
 
 #define GAP_BAR_HEIGHT_NORMAL   32
 #define ASK_WIN_HEIGHT_NORMAL   88
 
+// both are DPI aware
+// the gap between m_hWndGPT and m_hWndASK
 int m_heightGapBar{ GAP_BAR_HEIGHT_NORMAL };
+// the height of the m_hWndASK window in pixel
 int m_heightAskWin{ ASK_WIN_HEIGHT_NORMAL };
 
+// the vertical split line
 int m_xySplitterPos{ -1 };
 
-#define HIT_NONE    0
-#define HIT_VSPLIT  1
-#define HIT_HSPLIT  2
-#define HIT_BUTTON  3
+// when the mouse is pressed, it may press the button
+// it may press the veritcal split line, or it may
+// press the horizontal split line
+#define HIT_NONE        0
+#define HIT_VSPLIT      1
+#define HIT_HSPLIT      2
+#define HIT_BUTTON      3
 
-U8 m_hitType{ HIT_NONE };
+int m_hitType{ HIT_NONE };
 
+// this is the pane window which holds two child windows
+// m_hWndGPT and m_hWndASK.
 wil::unique_hwnd m_paneWindow;
 
 HWND m_hWndGPT = nullptr;
 HWND m_hWndASK = nullptr;
 
+// this is to save the window handle which
+// have the focus before we do something
 HWND m_hWndFocusPrev = nullptr;
 
+// the previous DPI. If the current DPI is not
+// the same as the previous DPI, we need to adjust
+// the UI.
 unsigned int m_prevDpi = 0;
 
 [[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
@@ -127,9 +151,9 @@ int GetFirstIntegralMultipleDeviceScaleFactor() noexcept
     return static_cast<int>(std::ceil(m_deviceScaleFactor));
 }
 
-HRESULT CreateDeviceDependantResource(RECT* lpRect);
+HRESULT CreateDeviceDependantResource(LPRECT lpRect);
 
-void AppendTextToGPTWindow(const char* text, U32 length)
+void AppendTextToGPTWindow(const char* text, uint32_t length)
 {
     if (IsWindow(m_hWndGPT))
     {
@@ -143,6 +167,8 @@ void AppendTextToGPTWindow(const char* text, U32 length)
     }
 }
 
+// put the utf8 text into the window of
+// m_hWndASK.
 int SetAskText(const char* text)
 {
     if (IsWindow(m_hWndASK) && text)
@@ -152,6 +178,8 @@ int SetAskText(const char* text)
     return 0;
 }
 
+// get the last character the user input into the
+// window of m_hWndASK. It is UTF-8 encoded.
 char GetLastInputChar()
 {
     char ch = '\0';
@@ -164,93 +192,8 @@ char GetLastInputChar()
     return ch;
 }
 
-U8* GetInputData(U8* buffer, U32 maxSize, bool donotShare, U32& bytes, U8& offset, bool& shareScreen)
-{
-    U8* p = nullptr;
-
-    shareScreen = donotShare;
-
-    if (IsWindow(m_hWndASK))
-    {
-        U32 real_len, len = 0;
-        bool hasPrefix = false;
-        len = (U32)SendMessage(m_hWndASK, SCI_GETTEXTLENGTH, 0, 0);
-        if (len > maxSize - 10)
-            len = maxSize - 10;
-
-        p = buffer + 10;
-        SendMessage(m_hWndASK, SCI_GETTEXT, len, (LPARAM)p);
-        p[len] = '\0';
-
-        if (len > 3)
-        {
-            if (p[0] == '-' && p[1] == '-')
-            {
-                hasPrefix = true;
-                shareScreen = false;
-                p += 2;
-                len -= 2;
-            }
-            else if (p[0] == '+' && p[1] == '+')
-            {
-                hasPrefix = true;
-                shareScreen = true;
-                p += 2;
-                len -= 2;
-            }
-        }
-        /* skip the white space */
-        real_len = len;
-        while (real_len && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
-        {
-            p++;
-            real_len--;
-        }
-
-        if (real_len) /* the user does input some data */
-        {
-            offset = 6;
-            U8* q = p - offset;
-            if (hasPrefix)
-            {
-                offset = 9;
-                q = p - offset;
-                q[0] = '\n';
-                q[1] = 0xF0;
-                q[2] = 0x9F;
-                q[3] = 0xA4;
-                q[4] = 0x9A;
-                q[5] = '\n';
-                if (!donotShare)
-                {
-                    q[6] = '+';
-                    q[7] = '+';
-                    q[8] = ' ';
-                }
-                else
-                {
-                    q[6] = '-';
-                    q[7] = '-';
-                    q[8] = ' ';
-                }
-            }
-            else
-            {
-                q[0] = '\n';
-                q[1] = 0xF0;
-                q[2] = 0x9F;
-                q[3] = 0xA4;
-                q[4] = 0x9A;
-                q[5] = '\n';
-            }
-            bytes = real_len + offset;
-            p = q;
-        }
-        else
-            p = nullptr;
-    }
-    return p;
-}
-
+// get the input data from the window of m_hWndASK
+uint8_t* GetInputData(uint8_t* buffer, uint32_t maxSize, bool donotShare,
+    uint32_t& bytes, uint8_t& offset, bool& shareScreen) noexcept;
 
 #endif // _ZTERM_H_

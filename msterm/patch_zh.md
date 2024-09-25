@@ -1059,6 +1059,7 @@ C:\wterm\zterm\debug\scintilla\scintilla.lib
 C:\wterm\zterm\debug\zlib\zlibstaticd.lib
 C:\wterm\zterm\debug\curl\lib\libcurl-d.lib
 
+
 C:\wterm\zterm\release\scintilla\scintilla.lib
 C:\wterm\zterm\release\curl\lib\libcurl.lib
 C:\wterm\zterm\release\zlib\zlibstatic.lib
