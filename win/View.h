@@ -32,6 +32,8 @@ class CView : public CWindowImpl<CView>
 
 	CTTYView m_viewTTY;
 
+	COLORREF m_crBkg;
+
 public:
 	DECLARE_WND_CLASS(NULL)
 
@@ -61,11 +63,18 @@ public:
 		return 1L;
 	}
 
+	void SetBackGroundColor(COLORREF cr)
+	{
+		m_crBkg = cr;
+	}
+
 	LRESULT OnNCCreate(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		m_hCursorWE = ::LoadCursor(NULL, IDC_SIZEWE);
 		m_hCursorNS = ::LoadCursor(NULL, IDC_SIZENS);
 		m_hCursorHand = ::LoadCursor(NULL, IDC_HAND);
+
+		m_crBkg = RGB(0, 0, 0);
 
 		m_hWndParent = ::GetParent(m_hWnd);
 
@@ -471,7 +480,7 @@ public:
 		{
 			m_pD2DRenderTarget->BeginDraw();
 			//m_pD2DRenderTarget->Clear(D2D1::ColorF(AppInDarkMode() ? 0x171717 : 0xF0F0F0));
-			m_pD2DRenderTarget->Clear(D2D1::ColorF(AppInDarkMode() ? 0x000000 : 0x000000));
+			m_pD2DRenderTarget->Clear(D2D1::ColorF(m_crBkg));
 #if 0
 			if (g_pBitmapBank)
 			{

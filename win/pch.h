@@ -130,6 +130,7 @@ extern CAppModule _Module;
 
 #include <d2d1.h>
 #include <d2d1_1.h>
+#include <d2d1_3.h>
 #include <dwrite.h>
 #include <d3d11.h>
 #include <dxgi.h>

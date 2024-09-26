@@ -121,7 +121,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	const auto wndMain = std::make_shared<CMainFrame>();	
 
 	dwExStyle = (WS_EX_NOREDIRECTIONBITMAP | (AppIsTopMost()? WS_EX_TOPMOST : 0));
-	dwExStyle = 0;
+	//dwExStyle = 0;
 
 	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
 	{
@@ -140,10 +140,10 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		wndMain->UpdateMainView();
 		wndMain->ShowWindow(SW_SHOWMINIMIZED);
 		wndMain->UpdateMainView();
-#endif 
 		g_pBitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
+#endif 
 		wndMain->ShowWindow(nCmdShow);
-		ztStartupNetworkThread(wndMain->m_hWnd);
+		//ztStartupNetworkThread(wndMain->m_hWnd);
 		nRet = theLoop.Run();
 	}
 
