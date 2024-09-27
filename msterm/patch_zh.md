@@ -1063,4 +1063,43 @@ C:\wterm\zterm\debug\curl\lib\libcurl-d.lib
 C:\wterm\zterm\release\scintilla\scintilla.lib
 C:\wterm\zterm\release\curl\lib\libcurl.lib
 C:\wterm\zterm\release\zlib\zlibstatic.lib
+C:\wterm\term0919\bin\x64\Debug\Microsoft.Terminal.Control\Microsoft.Terminal.Control.lib
+```
+
+
+```
+#define IDD_ZTERM_CONF			201
+#define IDC_EDIT_URL			202
+#define IDC_EDIT_TIMEOUT		203
+#define IDC_COMBO_PROXYTYPE		204
+#define IDC_EDIT_PROXYSTRING	205
+#define IDC_EDIT_PUBLICKEY		206
+#define IDC_BUTTON_COPY			207
+#define IDC_CHECK_SHARESCREEN	208
+#define IDC_BUTTON_FONT			209
+#define IDC_STATIC_FONT			210
+
+IDD_ZTERM_CONF DIALOGEX 0, 0, 309, 207
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "ZTerm@AI Configuration"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    EDITTEXT        IDC_EDIT_URL,7,20,295,14,ES_AUTOHSCROLL,WS_EX_CLIENTEDGE
+    EDITTEXT        IDC_EDIT_TIMEOUT,109,40,23,14,ES_AUTOHSCROLL | ES_NUMBER
+    COMBOBOX        IDC_COMBO_PROXYTYPE,7,67,295,30,CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+    EDITTEXT        IDC_EDIT_PROXYSTRING,7,97,295,14,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT_PUBLICKEY,7,129,258,14,ES_AUTOHSCROLL
+    PUSHBUTTON      "Copy",IDC_BUTTON_COPY,268,129,34,14
+    CONTROL         "Send Screen Information to AI",IDC_CHECK_SHARESCREEN,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,157,146,10
+    PUSHBUTTON      "Font",IDC_BUTTON_FONT,158,154,34,14
+    DEFPUSHBUTTON   "OK",IDOK,198,186,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,252,186,50,14
+    LTEXT           "Courier New - 11 pt",IDC_STATIC_FONT,198,157,100,8
+    LTEXT           "Network Timeout in Seconds :",IDC_STATIC,7,42,99,8
+    LTEXT           "My Public Key :",IDC_STATIC,7,118,99,8
+    LTEXT           "Network Proxy String :",IDC_STATIC,7,86,99,8
+    LTEXT           "AI Server URL :",IDC_STATIC,7,8,99,8
+    LTEXT           "Network Proxy Type :",IDC_STATIC,7,56,99,8
+END
 ```

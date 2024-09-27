@@ -10,7 +10,7 @@
 #include "resource.h"
 #include "NotificationIcon.h"
 
-static BOOL ztDrageFULL = TRUE; //ZTERM
+extern BOOL ztDrageFULL; //ZTERM
 
 using namespace winrt;
 using namespace winrt::Microsoft::Terminal;
@@ -67,7 +67,7 @@ void WindowEmperor::HandleCommandlineArgs(int nCmdShow)
     const auto cwd{ wil::GetCurrentDirectoryW<std::wstring>() };
 
     SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &ztDrageFULL, 0);
-
+    //ztDrageFULL = TRUE;
     {
         // ALWAYS change the _real_ CWD of the Terminal to system32, so that we
         // don't lock the directory we were spawned in.
