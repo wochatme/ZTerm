@@ -38,13 +38,9 @@ LPRECT m_lpRectPress{ nullptr };
 // is good or bad.
 #define GUI_NETWORKOK   (0x00000004)
 
-#define GUI_DRAGFULL    (0x00000008)
-
 // we use this 32-bit to store different status
 // of the GUI
 DWORD m_dwState{ 0 };
-
-BOOL m_bDragFull{ FALSE };
 
 #define InGPTMode()     (m_dwState & GUI_GPT_READY)
 #define SetGPTMode(gpt) \

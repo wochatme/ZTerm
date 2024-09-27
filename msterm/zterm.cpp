@@ -1001,6 +1001,7 @@ static const unsigned char ai_greeting[] =
 #define ZT_DIRECT2D_OK      (0x00000001)
 #define ZT_LIBCURL_OK       (0x00000002)
 #define ZT_SCINTILLA_OK     (0x00000004)
+#define ZT_DRAGFULL         (0x00000008)
 
 static DWORD ztStatus { 0 };
 
@@ -1057,6 +1058,7 @@ static U8* ztGetTerminalTextData(U32& bytes)
                         {
                             bytes = utf8len;
                             ztUTF16ToUTF8(reinterpret_cast<U16*>(screen_data), utf16len, g_UTF8data, nullptr);
+                            g_UTF8data[utf8len] = '\0';
                             ptr = g_UTF8data;
                         }
                     }
@@ -1963,7 +1965,7 @@ void NonClientIslandWindow::ztAdjustLayoutDPI(unsigned int dpi) noexcept
     }
 }
 
-LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM, LPARAM lParam, BOOL& bHandled) noexcept
+LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled) noexcept
 {
     bHandled = FALSE;
 
@@ -2088,6 +2090,7 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM, LPARAM lPara
                     *s++ = '"';
                     *s++ = '"';
                     *s = '\0';
+
                     ztPushIntoSendQueue(mt);
 
                     m_nWaitCount = 0;
@@ -2115,34 +2118,26 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM, LPARAM lPara
         InvalidateRect(GetHandle(), nullptr, TRUE);
     }
         break;
-#if 10
-    case WM_NCLBUTTONDOWN:
+    case WM_ACTIVATE:
     {
+        const BOOL activated = LOWORD(wParam) != 0;
         BOOL bTemp = TRUE;
-        SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, FALSE, &bTemp, 0);
-    }
-        break;
-    case WM_EXITSIZEMOVE:
-    {
-        BOOL bTemp = TRUE;
-        SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, m_bDragFull, &bTemp, 0);
-    }
-    break;
-    case WM_CREATE:
-    {
-        BOOL bDragFull = FALSE;
-        if (SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bDragFull, 0))
+        if (activated)
         {
-            //m_dwState = bDragFull ? (m_dwState | GUI_DRAGFULL) : ( m_dwState & ~GUI_DRAGFULL);
-            m_bDragFull = bDragFull;
+            SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, FALSE, &bTemp, 0);
         }
     }
+        break;
+    case WM_NCLBUTTONDOWN:
+        break;
+    case WM_CREATE:
+    {
         ztInit();
+    }
         break;
     case WM_DESTROY:
         ztTerm();
         break;
-#endif 
     default:
         break;
     }

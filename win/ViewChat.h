@@ -185,7 +185,7 @@ public:
 		_In_ _U_MENUorID MenuOrID = 0U,
 		_In_opt_ LPVOID lpCreateParam = NULL)
 	{
-		m_hWnd = CreateWindowExW(0, L"Scintilla", NULL,
+		m_hWnd = CreateWindowExW(WS_EX_LAYERED, L"Scintilla", NULL,
 			WS_CHILD | WS_VISIBLE | WS_VSCROLL,
 			0, 0, 16, 16, hWndParent, NULL, HINST_THISCOMPONENT, NULL);
 
@@ -204,7 +204,7 @@ public:
 			::SendMessage(m_hWnd, SCI_SETMARGINWIDTHN, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINS, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINLEFT, 0, 0);
-#if 0
+#if 10
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_LINENUMBER, RGB(0, 0, 0));
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_DEFAULT, RGB(13, 13, 13));
 			::SendMessage(m_hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));

@@ -74,7 +74,7 @@ public:
 		m_hCursorNS = ::LoadCursor(NULL, IDC_SIZENS);
 		m_hCursorHand = ::LoadCursor(NULL, IDC_HAND);
 
-		m_crBkg = RGB(0, 0, 0);
+		m_crBkg = RGB(255, 210, 20);
 
 		m_hWndParent = ::GetParent(m_hWnd);
 
