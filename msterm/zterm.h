@@ -4,8 +4,6 @@
 // the left margin of m_hWndGPT and m_hWndASK
 // in the window m_paneWindow. We use this value
 // to decide if the cursor show West-East shape
-#define LEFT_MARGIN     4
-
 #define SPLIT_MARGIN    4
 
 // when the user drag the vertical split line
@@ -110,7 +108,6 @@ HWND m_hWndFocusPrev = nullptr;
 // the UI.
 unsigned int m_prevDpi = 0;
 
-#if 0
 //ID2D1Factory1* m_pD2DFactory1 = nullptr;
 ID3D11Device* m_pD3D11Device = nullptr;
 ID3D11DeviceContext* m_pD3D11DeviceContext = nullptr;
@@ -125,16 +122,19 @@ ID2D1SolidColorBrush* m_pD2DBrushSplitD = nullptr;
 
 IDCompositionDevice* m_pDCompositionDevice = nullptr;
 IDCompositionTarget* m_pDCompositionTarget = nullptr;
-#endif 
+
 HRESULT CreateD3D11Device();
 HRESULT CreateDeviceResources();
-HRESULT CreateSwapChain(HWND hWnd);
-HRESULT ConfigureSwapChain(HWND hWnd);
-HRESULT CreateDirectComposition(HWND hWnd);
+HRESULT CreateSwapChain(HWND);
+HRESULT ConfigureSwapChain(HWND);
+HRESULT CreateDirectComposition(HWND);
 void CleanDeviceResources();
 void CleanAllResources();
-void OnResize(HWND hWnd, UINT nWidth, UINT nHeight);
-void DrawSplitLine(bool bRealDraw = true);
+void OnResize(HWND, UINT, UINT);
+void DrawSplitLine();
+#if 0
+void DrawBackGround(float alpha);
+#endif
 
 [[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
 

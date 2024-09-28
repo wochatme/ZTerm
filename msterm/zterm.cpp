@@ -1592,23 +1592,9 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
         }
         return 0;
     case WM_MOUSEMOVE:
-    {
-        POINT pt = { GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam) };
-
-        if (::GetCapture() == m_paneWindow.get())
+        if (::GetCapture() != m_paneWindow.get())
         {
-#if 0
-            SetFocus(m_hWndGPT);
-            SetFocus(m_hWndASK);
-            if (HIT_VSPLIT == m_hitType)
-            {
-                SendMessage(GetHandle(), WM_GPT_NOTIFY, 0, GPT_NOTIFY_DRAG_SPLIT);
-                //PostMessage(GetHandle(), WM_GPT_NOTIFY, 0, GPT_NOTIFY_DRAG_SPLIT);
-            }
-#endif
-        }
-        else
-        {
+            POINT pt = { GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam) };
             if (PtInRect(&m_rectButton[IDX_RECT_GPT], pt))
             {
                 m_dwState |= GUI_SETCURSOR;
@@ -1616,7 +1602,7 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
             }
             if (InGPTMode())
             {
-                if (pt.x < LEFT_MARGIN && pt.y > m_widthPaneWindow)
+                if (pt.x < SPLIT_MARGIN && pt.y > m_widthPaneWindow)
                 {
                     m_dwState |= GUI_SETCURSOR;
                     SetCursor(m_hCursorWE);
@@ -1636,7 +1622,6 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
                 }
             }
         }
-    }
         break;
     case WM_NOTIFY:
         if (InGPTMode())
@@ -1823,17 +1808,17 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
         ReleaseUnknown(m_pD2DRenderTarget);
         SetWindowPos(m_hWndASK,
                         HWND_TOP,
-                        m_rectClient.left + LEFT_MARGIN,
+                        m_rectClient.left + SPLIT_MARGIN,
                         m_rectClient.bottom - m_heightAskWin,
-                        m_rectClient.right - m_rectClient.left - LEFT_MARGIN,
+                        m_rectClient.right - m_rectClient.left - SPLIT_MARGIN,
                         m_heightAskWin,
                         SWP_NOACTIVATE | showFalg);
 
         SetWindowPos(m_hWndGPT,
                      HWND_TOP,
-                     m_rectClient.left + LEFT_MARGIN,
+                     m_rectClient.left + SPLIT_MARGIN,
                      m_rectClient.top + m_widthPaneWindow,
-                     m_rectClient.right - m_rectClient.left - LEFT_MARGIN,
+                     m_rectClient.right - m_rectClient.left - SPLIT_MARGIN,
                      m_rectClient.bottom - m_rectClient.top - (m_widthPaneWindow + m_heightGapBar + m_heightAskWin),
                      SWP_NOACTIVATE | showFalg);
 
@@ -1866,7 +1851,7 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
 
             if (InGPTMode())
             {
-                if (pt.x < LEFT_MARGIN && pt.y > m_widthPaneWindow)
+                if (pt.x < SPLIT_MARGIN && pt.y > m_widthPaneWindow)
                 {
                     POINT pt{};
                     if (GetCursorPos(&pt))
@@ -1878,17 +1863,23 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
                         bHit = true;
                         m_xySplitterPosNew = m_xySplitterPos;
                         m_cxyDragOffset = pt.x - m_xySplitterPosNew;
-                        DrawSplitLine();
+
+		                HRESULT hr = CreateD3D11Device();
+                        hr = CreateDeviceResources();
+                        hr = CreateSwapChain(NULL);
+                        if (SUCCEEDED(hr))
+                        {
+                            UINT nWidth = static_cast<UINT>(m_rcSplitter.right - m_rcSplitter.left);
+                            UINT nHeight = static_cast<UINT>(m_rcSplitter.bottom - m_rcSplitter.top);
+                            hr = ConfigureSwapChain(g_hWndMain);
+                            hr = CreateDirectComposition(g_hWndMain);
+                            OnResize(GetHandle(), nWidth, nHeight);
+                            DrawSplitLine();
+                        }
                         if (GetCapture() != GetHandle())
                         {
                             SetCapture(GetHandle());
                         }
-#if 0
-                    if (GetCapture() != m_paneWindow.get())
-                    {
-                        SetCapture(m_paneWindow.get());
-                    }
-#endif
                     }
                 }
                 else
@@ -1926,7 +1917,6 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
 
                 }
             }
-
             if (!bHit)
             {
                 PostMessage(GetHandle(), WM_NCLBUTTONDOWN, HTCAPTION, lparam);
@@ -1934,7 +1924,6 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
         }
         return 0;
     case WM_LBUTTONUP:
-        DrawSplitLine(false);
         SetFocus(m_paneWindow.get());
         SetFocus(_interopWindowHandle);
         {
@@ -1961,7 +1950,7 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
                 SetFocus(m_hWndGPT);
                 SetFocus(m_hWndASK);
 #endif 
-                if (pt.x < LEFT_MARGIN && pt.y > m_widthPaneWindow)
+                if (pt.x < SPLIT_MARGIN && pt.y > m_widthPaneWindow)
                 {
                     m_dwState |= GUI_SETCURSOR;
                     SetCursor(m_hCursorWE);
@@ -1988,11 +1977,6 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
                 InvalidateRect(m_paneWindow.get(), lpRectPress, TRUE);
             }
         }
-#if 0
-        winrt::check_bool(SetWindowPos(_interopWindowHandle,
-                                       HWND_BOTTOM, 0, 0, 0, 0,
-                                       SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE));
-#endif 
         return 0;
     case WM_CREATE:
         m_hCursorWE = ::LoadCursor(NULL, IDC_SIZEWE);
@@ -2035,7 +2019,7 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
     {
     case WM_ERASEBKGND:
         bHandled = TRUE;
-        return 0;
+        return 1;
     case WM_GETMINMAXINFO:
     {
         // to keep the minimal size of the main window
@@ -2049,12 +2033,15 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
     case WM_GPT_NOTIFY:
         if (GPT_NOTIFY_CHANGEMODE == lParam)
         {
+            GetClientRect(GetHandle(), &m_rcSplitter);
+
             m_dwState &= ~GUI_NETWORKOK;
 
             if (m_xySplitterPos < 0)
             {
                 m_xySplitterPos = ::MulDiv(70, m_rcSplitter.right - m_rcSplitter.left, 100);
             }
+
             if (InGPTMode())
             {
                 InterlockedExchange(&g_threadPing, 0);
@@ -2071,9 +2058,10 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
             SetGPTMode(InGPTMode() == 0);
             OnSize(m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
         }
+#if 0
         else if (GPT_NOTIFY_DRAG_SPLIT == lParam)
         {
-#if 10
+#if 0
             POINT pt{};
             if (GetCursorPos(&pt))
             {
@@ -2098,6 +2086,7 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
             }
 #endif 
         }
+#endif 
         else if (GPT_NOTIFY_QUIK_ASK == lParam)
         {
             U32 utf8len = 0;
@@ -2179,11 +2168,10 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
         }
         bHandled = TRUE;
         break;
+
     case WM_SIZE:
         if(wParam != SIZE_MINIMIZED)
         {
-            UINT nWidth = LOWORD(lParam);
-            UINT nHeight = HIWORD(lParam);
             int rightMargin = m_rcSplitter.right - m_xySplitterPos;
             GetClientRect(GetHandle(), &m_rcSplitter);
             if (InGPTMode())
@@ -2192,10 +2180,9 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                 if (m_xySplitterPos < POS_LIMIT_LEFT)
                     m_xySplitterPos = POS_LIMIT_LEFT;
             }
-            OnResize(GetHandle(), nWidth, nHeight);
         }
         break;
-#if 10
+
     case WM_SETCURSOR:
         if (m_dwState & GUI_SETCURSOR)
         {
@@ -2208,9 +2195,9 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
     case WM_MOUSEMOVE:
         if (InGPTMode())
         {
-            int xPos = GET_X_LPARAM(lParam);
             if (GetCapture() == GetHandle())
             {
+                int xPos = GET_X_LPARAM(lParam);
                 int xyNewSplitPos = xPos - m_cxyDragOffset;
 
                 m_dwState |= GUI_SETCURSOR;
@@ -2223,16 +2210,15 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                         DrawSplitLine();
                         m_xySplitterPosNew = xyNewSplitPos;
                         DrawSplitLine();
+                        bHandled = TRUE;
                     }
-                    bHandled = TRUE;
                 }
             }
         }
         break;
-#endif
+
     case WM_LBUTTONUP:
-#if 10
-        DrawSplitLine(false);
+        CleanAllResources();
         SetFocus(_interopWindowHandle);
         if (InGPTMode())
         {
@@ -2247,16 +2233,20 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                         UINT width = static_cast<UINT>(m_rcSplitter.right - m_rcSplitter.left);
                         UINT height = static_cast<UINT>(m_rcSplitter.bottom - m_rcSplitter.top);
                         m_xySplitterPos = m_xySplitterPosNew;
+#if 0
+                        DrawBackGround(1.0f);
+#endif 
                         OnSize(width, height);
                     }
                 }
-                //bHandled = TRUE;
+                bHandled = TRUE;
             }
         }
-#endif
         break;
+#if 0
     case WM_NCLBUTTONDOWN:
         break;
+#endif 
     case WM_ACTIVATE:
     {
         const BOOL activated = LOWORD(wParam) != 0;
@@ -2275,19 +2265,9 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
     {
         g_hWndMain = GetHandle(); // save the main window handle
         ztInit();
-
-		HRESULT	hr = CreateD3D11Device();
-        hr = CreateDeviceResources();
-        hr = CreateSwapChain(NULL);
-        if (SUCCEEDED(hr))
-        {
-            hr = ConfigureSwapChain(g_hWndMain);
-            hr = CreateDirectComposition(g_hWndMain);
-        }
     }
         break;
     case WM_DESTROY:
-        CleanAllResources();
         ztTerm();
         break;
     default:
@@ -2299,10 +2279,11 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
 HRESULT NonClientIslandWindow::CreateD3D11Device()
 {
     HRESULT hr = S_OK;
-#if 0
-	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
 
+	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+#if 0
+    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif 
     // This array defines the set of DirectX hardware feature levels this app  supports.
     // The ordering is important and you should  preserve it.
     // Don't forget to declare your app's minimum required feature level in its
@@ -2348,28 +2329,24 @@ HRESULT NonClientIslandWindow::CreateD3D11Device()
             }
         }
     }
-#endif 
+
     return hr;
 }
 
 HRESULT NonClientIslandWindow::CreateDeviceResources()
 {
     HRESULT hr = S_OK;
-#if 0
     if (m_pD2DDeviceContext3)
     {
         hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue, 1.0f), &m_pD2DBrushSplitL);
-        //hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(0x2e2e2e, 1.0f), &m_pD2DBrushSplitD);
         hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(0x7f7f7f, 1.0f), &m_pD2DBrushSplitD);
     }
-#endif 
     return hr;
 }
 
-HRESULT NonClientIslandWindow::CreateSwapChain(HWND)
+HRESULT NonClientIslandWindow::CreateSwapChain(HWND hWnd)
 {
     HRESULT hr = S_OK;
-#if 0
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
     swapChainDesc.Width = 1;
     swapChainDesc.Height = 1;
@@ -2405,14 +2382,13 @@ HRESULT NonClientIslandWindow::CreateSwapChain(HWND)
         }
         ReleaseUnknown(pDXGIAdapter);
     }
-#endif 
     return hr;
 }
 
-HRESULT NonClientIslandWindow::ConfigureSwapChain(HWND)
+HRESULT NonClientIslandWindow::ConfigureSwapChain(HWND hWnd)
 {
     HRESULT hr = S_OK;
-#if 0
+
     D2D1_BITMAP_PROPERTIES1 bitmapProperties = D2D1::BitmapProperties1(
         D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
         D2D1::PixelFormat(DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE::D2D1_ALPHA_MODE_PREMULTIPLIED),
@@ -2437,14 +2413,12 @@ HRESULT NonClientIslandWindow::ConfigureSwapChain(HWND)
             ReleaseUnknown(pDXGISurface);
         }
     }
-#endif 
     return hr;
 }
 
-HRESULT NonClientIslandWindow::CreateDirectComposition(HWND)
+HRESULT NonClientIslandWindow::CreateDirectComposition(HWND hWnd)
 {
     HRESULT hr = S_OK;
-#if 0
     hr = DCompositionCreateDevice(m_pDXGIDevice, __uuidof(m_pDCompositionDevice), (void**)(&m_pDCompositionDevice));
     if (SUCCEEDED(hr))
     {
@@ -2462,21 +2436,17 @@ HRESULT NonClientIslandWindow::CreateDirectComposition(HWND)
             }
         }
     }
-#endif 
     return hr;
 }
 
 void NonClientIslandWindow::CleanDeviceResources()
 {
-#if 0
     ReleaseUnknown(m_pD2DBrushSplitL);
     ReleaseUnknown(m_pD2DBrushSplitD);
-#endif 
 }
 
 void NonClientIslandWindow::CleanAllResources()
 {
-#if 0
     ReleaseUnknown(m_pD2DDevice);
     ReleaseUnknown(m_pD2DDeviceContext3);
     ReleaseUnknown(m_pD2DTargetBitmap);
@@ -2489,60 +2459,68 @@ void NonClientIslandWindow::CleanAllResources()
 
     ReleaseUnknown(m_pDCompositionDevice);
     ReleaseUnknown(m_pDCompositionTarget);
-#endif 
 }
 
-void NonClientIslandWindow::OnResize(HWND, UINT, UINT)
+void NonClientIslandWindow::OnResize(HWND hWnd, UINT nWidth, UINT nHeight)
 {
-#if 0
-    if (m_pDXGISwapChain1)
+    if (m_pDXGISwapChain1 && nWidth != 0 && nHeight != 0)
     {
         HRESULT hr = S_OK;
-        if (nWidth != 0 && nHeight != 0)
+        m_pD2DDeviceContext3->SetTarget(nullptr);
+        ReleaseUnknown(m_pD2DTargetBitmap);
+        hr = m_pDXGISwapChain1->ResizeBuffers(
+            2, // Double-buffered swap chain.
+            nWidth,
+            nHeight,
+            DXGI_FORMAT_B8G8R8A8_UNORM,
+            0);
+        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
         {
-            m_pD2DDeviceContext3->SetTarget(nullptr);
-            ReleaseUnknown(m_pD2DTargetBitmap);
-            hr = m_pDXGISwapChain1->ResizeBuffers(
-                2, // Double-buffered swap chain.
-                nWidth,
-                nHeight,
-                DXGI_FORMAT_B8G8R8A8_UNORM,
-                0);
-            if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
-            {
-                CreateD3D11Device();
-                CreateSwapChain(NULL);
-                return;
-            }
-            else
-            {
-                //DX::ThrowIfFailed(hr);
-            }
-            ConfigureSwapChain(hWnd);
+            CreateD3D11Device();
+            CreateSwapChain(NULL);
+            //return;
         }
-    }
+#if 0
+        else
+        {
+            //DX::ThrowIfFailed(hr);
+        }
 #endif 
+        ConfigureSwapChain(hWnd);
+    }
 }
 
-void NonClientIslandWindow::DrawSplitLine(bool)
-{
 #if 0
-    HRESULT hr = S_OK;
-    if (m_pD2DDeviceContext3 && m_pDXGISwapChain1 && m_xySplitterPosNew > 0)
+void NonClientIslandWindow::DrawBackGround(float alpha)
+{
+    if (m_pD2DDeviceContext3 && m_pDXGISwapChain1)
     {
-        float pos = static_cast<float>(m_xySplitterPosNew);
-        float top = static_cast<float>(m_widthPaneWindow);
+        HRESULT hr = S_OK;
         m_pD2DDeviceContext3->BeginDraw();
-        D2D1_SIZE_F size = m_pD2DDeviceContext3->GetSize();
-        m_pD2DDeviceContext3->Clear(D2D1::ColorF(D2D1::ColorF::Red, 0.f));
-        if (bRealDraw)
-        {
-            m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(pos, top, pos + SPLIT_MARGIN, size.height), m_pD2DBrushSplitD);
-        }
+        m_pD2DDeviceContext3->Clear(D2D1::ColorF(D2D1::ColorF::Black, alpha));
         hr = m_pD2DDeviceContext3->EndDraw();
         hr = m_pDXGISwapChain1->Present(1, 0);
     }
-#endif 
+}
+#endif
+
+void NonClientIslandWindow::DrawSplitLine()
+{
+    if (InGPTMode() && m_xySplitterPosNew > 0)
+    {
+        if (m_pD2DDeviceContext3 && m_pDXGISwapChain1)
+        {
+            HRESULT hr = S_OK;
+            float pos = static_cast<float>(m_xySplitterPosNew);
+            float top = static_cast<float>(m_widthPaneWindow);
+            m_pD2DDeviceContext3->BeginDraw();
+            D2D1_SIZE_F size = m_pD2DDeviceContext3->GetSize();
+            m_pD2DDeviceContext3->Clear(D2D1::ColorF(D2D1::ColorF::Red, 0.f));
+            m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(pos, top, pos + SPLIT_MARGIN, size.height), m_pD2DBrushSplitD);
+            hr = m_pD2DDeviceContext3->EndDraw();
+            hr = m_pDXGISwapChain1->Present(1, 0);
+        }
+    }
 }
 
 uint8_t* NonClientIslandWindow::GetInputData(uint8_t* buffer, uint32_t maxSize, bool donotShare, uint32_t& bytes, uint8_t& offset, bool& shareScreen) noexcept
