@@ -1,7 +1,18 @@
 // This is most part of ZTerm logic
 
+#if defined _M_IX86
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#elif defined _M_IA64
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#elif defined _M_X64
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#else
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#endif
+
 // this file contains the bitmap data of the buttons
 // in the pane window
+#include "resource.h"
 #include "bitmap.h"
 
 #ifndef S8
@@ -159,11 +170,13 @@ typedef struct ZTConfig
     int winBottom;
 } ZTConfig;
 
+static INT_PTR CALLBACK ZTermConfDialogProc(HWND, UINT, WPARAM, LPARAM);
+
 static const char* default_AI_URL = "https://zterm.ai/v1";
 static const char* default_AI_FONT = "Courier New";
 static const char* default_AI_PWD = "ZTerm@AI";
 static const char* default_KB_URL = "http://zterm.ai/kb.en";
-static const char* default_AI_PUBKEY = "02ffff4aa93fe0f04a287de969d8d4df49c4fef195ee203a3b4dca9b439b8ca3ee";
+static const char* default_AI_PUBKEY = "02ffff4aa93fe0f04a287de969d8d4df49c4fef195ee203a3b4dca9b439b8caeee";
 
 // check if the string contains only 0-9 and a-f
 static bool ztIsHexString(U8* str, U8 len)
@@ -280,7 +293,7 @@ static void ztInitConfig(ZTConfig* cf)
 }
 
 extern IDWriteFactory* g_pIDWriteFactory;
-extern ID2D1Factory* g_pD2DFactory;
+extern ID2D1Factory1* g_pD2DFactory;
 
 extern volatile LONG g_threadCount;
 extern volatile LONG g_threadCountBKG;
@@ -1004,6 +1017,9 @@ static const unsigned char ai_greeting[] =
 #define ZT_DRAGFULL         (0x00000008)
 
 static DWORD ztStatus { 0 };
+static HWND g_hWndMain = NULL;
+
+BOOL ztDrageFULL = TRUE;
 
 ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
 
@@ -1025,21 +1041,45 @@ MessageTask* g_receQueue = nullptr;
 CRITICAL_SECTION g_csSendMsg;
 CRITICAL_SECTION g_csReceMsg;
 
-ID2D1Factory* g_pD2DFactory = nullptr;
+ID2D1Factory1* g_pD2DFactory = nullptr;
 static D2D1_DRAW_TEXT_OPTIONS d2dDrawTextOptions = D2D1_DRAW_TEXT_OPTIONS_NONE;
 static HMODULE hDLLD2D{};
+#if 0
 static HMODULE hDLLTerm{};
-
+#endif 
 #define MAX_SCREEN_TEXTUTF8_SIZE (1 << 20)
 static U8 g_UTF8data[MAX_SCREEN_TEXTUTF8_SIZE] = { 0 };
 
 typedef wchar_t* (*ztGetTerminalWindowDataFunc)();
+
+extern "C" wchar_t* TerminalGetWindowData();
 
 static U8* ztGetTerminalTextData(U32& bytes)
 {
     U8* ptr = nullptr;
     bytes = 0;
 
+    wchar_t* screen_data = TerminalGetWindowData();
+    if (screen_data)
+    {
+        U32 utf16len = (U32)wcslen(screen_data);
+        if (utf16len)
+        {
+            U32 utf8len = 0;
+            if (ZT_OK == ztUTF16ToUTF8(reinterpret_cast<U16*>(screen_data), utf16len, nullptr, &utf8len))
+            {
+                if (utf8len && utf8len < MAX_SCREEN_TEXTUTF8_SIZE - 1)
+                {
+                    bytes = utf8len;
+                    ztUTF16ToUTF8(reinterpret_cast<U16*>(screen_data), utf16len, g_UTF8data, nullptr);
+                    g_UTF8data[utf8len] = '\0';
+                    ptr = g_UTF8data;
+                }
+            }
+        }
+    }
+
+#if 0
     if (hDLLTerm)
     {
         ztGetTerminalWindowDataFunc pfn = (ztGetTerminalWindowDataFunc)GetProcAddress(hDLLTerm, "TerminalGetWindowData");
@@ -1066,6 +1106,7 @@ static U8* ztGetTerminalTextData(U32& bytes)
             }
         }
     }
+#endif 
     return ptr;
 }
 
@@ -1111,7 +1152,7 @@ static bool LoadD2D() noexcept
     }
     return g_pD2DFactory;
 }
-
+#if 0
 static bool ztLoadTerminalDLL() noexcept
 {
     bool bRet = true;
@@ -1126,7 +1167,7 @@ static bool ztLoadTerminalDLL() noexcept
     }
     return true;
 }
-
+#endif 
 void ztInit() noexcept
 {
     if (!ztIntilaized)
@@ -1150,9 +1191,9 @@ void ztInit() noexcept
 
         if(CURLE_OK == curl_global_init(CURL_GLOBAL_ALL))
             ztStatus |= ZT_LIBCURL_OK;
-
+#if 0
         ztLoadTerminalDLL();
-
+#endif 
     }
     ztIntilaized = true;
 }
@@ -1185,13 +1226,13 @@ void ztTerm() noexcept
                 hDLLD2D = {};
             }
         }
-
+#if 0
         if (hDLLTerm)
         {
             FreeLibrary(hDLLTerm);
             hDLLTerm = {};
         }
-
+#endif 
 	    while (g_threadCount && tries > 0)
         {
             Sleep(1000);
@@ -1556,14 +1597,15 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
 
         if (::GetCapture() == m_paneWindow.get())
         {
+#if 0
             SetFocus(m_hWndGPT);
             SetFocus(m_hWndASK);
-
             if (HIT_VSPLIT == m_hitType)
             {
                 SendMessage(GetHandle(), WM_GPT_NOTIFY, 0, GPT_NOTIFY_DRAG_SPLIT);
                 //PostMessage(GetHandle(), WM_GPT_NOTIFY, 0, GPT_NOTIFY_DRAG_SPLIT);
             }
+#endif
         }
         else
         {
@@ -1826,13 +1868,27 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
             {
                 if (pt.x < LEFT_MARGIN && pt.y > m_widthPaneWindow)
                 {
-                    m_hitType = HIT_VSPLIT;
-                    m_dwState |= GUI_SETCURSOR;
-                    SetCursor(m_hCursorWE);
-                    bHit = true;
+                    POINT pt{};
+                    if (GetCursorPos(&pt))
+                    {
+                        ScreenToClient(GetHandle(), &pt);
+                        m_hitType = HIT_VSPLIT;
+                        m_dwState |= GUI_SETCURSOR;
+                        SetCursor(m_hCursorWE);
+                        bHit = true;
+                        m_xySplitterPosNew = m_xySplitterPos;
+                        m_cxyDragOffset = pt.x - m_xySplitterPosNew;
+                        DrawSplitLine();
+                        if (GetCapture() != GetHandle())
+                        {
+                            SetCapture(GetHandle());
+                        }
+#if 0
                     if (GetCapture() != m_paneWindow.get())
                     {
                         SetCapture(m_paneWindow.get());
+                    }
+#endif
                     }
                 }
                 else
@@ -1878,7 +1934,9 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
         }
         return 0;
     case WM_LBUTTONUP:
+        DrawSplitLine(false);
         SetFocus(m_paneWindow.get());
+        SetFocus(_interopWindowHandle);
         {
             POINT pt = { GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam) };
             LPRECT lpRectPress = m_lpRectPress;
@@ -1899,9 +1957,10 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
 
             if (InGPTMode())
             {
+#if 0
                 SetFocus(m_hWndGPT);
                 SetFocus(m_hWndASK);
-
+#endif 
                 if (pt.x < LEFT_MARGIN && pt.y > m_widthPaneWindow)
                 {
                     m_dwState |= GUI_SETCURSOR;
@@ -1924,13 +1983,16 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
                 }
             }
 
-            SetFocus(m_hWndFocusPrev);
-
             if (lpRectPress)
             {
                 InvalidateRect(m_paneWindow.get(), lpRectPress, TRUE);
             }
         }
+#if 0
+        winrt::check_bool(SetWindowPos(_interopWindowHandle,
+                                       HWND_BOTTOM, 0, 0, 0, 0,
+                                       SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE));
+#endif 
         return 0;
     case WM_CREATE:
         m_hCursorWE = ::LoadCursor(NULL, IDC_SIZEWE);
@@ -2003,13 +2065,15 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
             {
                 InterlockedExchange(&g_threadPing, 1);
                 InterlockedExchange(&g_threadPingNow, 1);
-                SetFocus(m_hWndASK);
+                //SetFocus(m_hWndASK);
+                SetFocus(_interopWindowHandle);
             }
             SetGPTMode(InGPTMode() == 0);
             OnSize(m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
         }
         else if (GPT_NOTIFY_DRAG_SPLIT == lParam)
         {
+#if 10
             POINT pt{};
             if (GetCursorPos(&pt))
             {
@@ -2018,6 +2082,9 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                 {
                     if (pt.x > POS_LIMIT_LEFT && pt.x < m_rcSplitter.right - POS_LIMIT_RIGHT)
                     {
+                        m_xySplitterPosNew = pt.x;
+                        DrawSplitLine();
+#if 0
                         m_xySplitterPos = pt.x;
                         //OnSize(m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
                         _UpdateIslandPosition(static_cast<UINT>(m_rcSplitter.right - m_rcSplitter.left),
@@ -2025,9 +2092,11 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                         SetFocus(m_hWndGPT);
                         SetFocus(m_hWndASK);
                         SetFocus(m_hWndFocusPrev);
+#endif 
                     }
                 }
             }
+#endif 
         }
         else if (GPT_NOTIFY_QUIK_ASK == lParam)
         {
@@ -2101,22 +2170,92 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
         }
         else if (GPT_NOTIFY_CONFIG_GPT == lParam)
         {
-            MessageBox(GetHandle(), L"Will be ready in next release", L"ZTerm Configuration", MB_OK);
+            //MessageBox(GetHandle(), L"Will be ready in next release", L"ZTerm Configuration", MB_OK);
+            ZTConfig prev{};
+
+            memcpy_s(&prev, sizeof(ZTConfig), &ZTCONFIGURATION, sizeof(ZTConfig));
+            DialogBox(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDD_ZTERM_CONF), GetHandle(), ZTermConfDialogProc);
+
         }
         bHandled = TRUE;
         break;
     case WM_SIZE:
-    {
-        int rightMargin = m_rcSplitter.right - m_xySplitterPos;
-        GetClientRect(GetHandle(), &m_rcSplitter);
+        if(wParam != SIZE_MINIMIZED)
+        {
+            UINT nWidth = LOWORD(lParam);
+            UINT nHeight = HIWORD(lParam);
+            int rightMargin = m_rcSplitter.right - m_xySplitterPos;
+            GetClientRect(GetHandle(), &m_rcSplitter);
+            if (InGPTMode())
+            {
+                m_xySplitterPos = m_rcSplitter.right - rightMargin;
+                if (m_xySplitterPos < POS_LIMIT_LEFT)
+                    m_xySplitterPos = POS_LIMIT_LEFT;
+            }
+            OnResize(GetHandle(), nWidth, nHeight);
+        }
+        break;
+#if 10
+    case WM_SETCURSOR:
+        if (m_dwState & GUI_SETCURSOR)
+        {
+            m_dwState &= ~GUI_SETCURSOR;
+            bHandled = TRUE;
+            return 1;
+        }
+        break;
+
+    case WM_MOUSEMOVE:
         if (InGPTMode())
         {
-            m_xySplitterPos = m_rcSplitter.right - rightMargin;
-            if (m_xySplitterPos < POS_LIMIT_LEFT)
-                m_xySplitterPos = POS_LIMIT_LEFT;
+            int xPos = GET_X_LPARAM(lParam);
+            if (GetCapture() == GetHandle())
+            {
+                int xyNewSplitPos = xPos - m_cxyDragOffset;
+
+                m_dwState |= GUI_SETCURSOR;
+                SetCursor(m_hCursorWE);
+
+                if (xyNewSplitPos > POS_LIMIT_LEFT && xyNewSplitPos < m_rcSplitter.right - POS_LIMIT_RIGHT)
+                {
+                    if (m_xySplitterPosNew != xyNewSplitPos)
+                    {
+                        DrawSplitLine();
+                        m_xySplitterPosNew = xyNewSplitPos;
+                        DrawSplitLine();
+                    }
+                    bHandled = TRUE;
+                }
+            }
         }
-        InvalidateRect(GetHandle(), nullptr, TRUE);
-    }
+        break;
+#endif
+    case WM_LBUTTONUP:
+#if 10
+        DrawSplitLine(false);
+        SetFocus(_interopWindowHandle);
+        if (InGPTMode())
+        {
+            if (GetCapture() == GetHandle())
+            {
+                ReleaseCapture();
+                GetClientRect(GetHandle(), &m_rcSplitter);
+                if (m_rcSplitter.right > m_rcSplitter.left && m_rcSplitter.bottom > m_rcSplitter.top)
+                {
+                    if (m_xySplitterPosNew != m_xySplitterPos)
+                    {
+                        UINT width = static_cast<UINT>(m_rcSplitter.right - m_rcSplitter.left);
+                        UINT height = static_cast<UINT>(m_rcSplitter.bottom - m_rcSplitter.top);
+                        m_xySplitterPos = m_xySplitterPosNew;
+                        OnSize(width, height);
+                    }
+                }
+                //bHandled = TRUE;
+            }
+        }
+#endif
+        break;
+    case WM_NCLBUTTONDOWN:
         break;
     case WM_ACTIVATE:
     {
@@ -2126,22 +2265,284 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
         {
             SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, FALSE, &bTemp, 0);
         }
+        else
+        {
+            SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, ztDrageFULL, &bTemp, 0);
+        }
     }
-        break;
-    case WM_NCLBUTTONDOWN:
         break;
     case WM_CREATE:
     {
+        g_hWndMain = GetHandle(); // save the main window handle
         ztInit();
+
+		HRESULT	hr = CreateD3D11Device();
+        hr = CreateDeviceResources();
+        hr = CreateSwapChain(NULL);
+        if (SUCCEEDED(hr))
+        {
+            hr = ConfigureSwapChain(g_hWndMain);
+            hr = CreateDirectComposition(g_hWndMain);
+        }
     }
         break;
     case WM_DESTROY:
+        CleanAllResources();
         ztTerm();
         break;
     default:
         break;
     }
     return 0L;
+}
+
+HRESULT NonClientIslandWindow::CreateD3D11Device()
+{
+    HRESULT hr = S_OK;
+#if 0
+	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+    creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
+
+    // This array defines the set of DirectX hardware feature levels this app  supports.
+    // The ordering is important and you should  preserve it.
+    // Don't forget to declare your app's minimum required feature level in its
+    // description.  All apps are assumed to support 9.1 unless otherwise stated.
+    D3D_FEATURE_LEVEL featureLevels[] = {
+        D3D_FEATURE_LEVEL_11_1,
+        D3D_FEATURE_LEVEL_11_0,
+        D3D_FEATURE_LEVEL_10_1,
+        D3D_FEATURE_LEVEL_10_0,
+        D3D_FEATURE_LEVEL_9_3,
+        D3D_FEATURE_LEVEL_9_2,
+        D3D_FEATURE_LEVEL_9_1
+    };
+    D3D_FEATURE_LEVEL featureLevel;
+    hr = D3D11CreateDevice(
+        nullptr, // specify null to use the default adapter
+        D3D_DRIVER_TYPE_HARDWARE,
+        0,
+        creationFlags, // optionally set debug and Direct2D compatibility flags
+        featureLevels, // list of feature levels this app can support
+        ARRAYSIZE(featureLevels), // number of possible feature levels
+        D3D11_SDK_VERSION,
+        &m_pD3D11Device, // returns the Direct3D device created
+        &featureLevel, // returns feature level of device created
+        &m_pD3D11DeviceContext // returns the device immediate context
+    );
+    if (SUCCEEDED(hr))
+    {
+        // Obtain the underlying DXGI device of the Direct3D11 device.
+        hr = m_pD3D11Device->QueryInterface((IDXGIDevice1**)&m_pDXGIDevice);
+        if (SUCCEEDED(hr))
+        {
+            // Obtain the Direct2D device for 2-D rendering.
+            hr = g_pD2DFactory->CreateDevice(m_pDXGIDevice, &m_pD2DDevice);
+            if (SUCCEEDED(hr))
+            {
+                // Get Direct2D device's corresponding device context object.
+                ID2D1DeviceContext* pD2DDeviceContext = NULL;
+                hr = m_pD2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pD2DDeviceContext);
+                if (SUCCEEDED(hr))
+                    hr = pD2DDeviceContext->QueryInterface((ID2D1DeviceContext3**)&m_pD2DDeviceContext3);
+                ReleaseUnknown(pD2DDeviceContext);
+            }
+        }
+    }
+#endif 
+    return hr;
+}
+
+HRESULT NonClientIslandWindow::CreateDeviceResources()
+{
+    HRESULT hr = S_OK;
+#if 0
+    if (m_pD2DDeviceContext3)
+    {
+        hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue, 1.0f), &m_pD2DBrushSplitL);
+        //hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(0x2e2e2e, 1.0f), &m_pD2DBrushSplitD);
+        hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(0x7f7f7f, 1.0f), &m_pD2DBrushSplitD);
+    }
+#endif 
+    return hr;
+}
+
+HRESULT NonClientIslandWindow::CreateSwapChain(HWND)
+{
+    HRESULT hr = S_OK;
+#if 0
+    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
+    swapChainDesc.Width = 1;
+    swapChainDesc.Height = 1;
+    swapChainDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
+    swapChainDesc.Stereo = false;
+    swapChainDesc.SampleDesc.Count = 1; // don't use multi-sampling
+    swapChainDesc.SampleDesc.Quality = 0;
+    swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    swapChainDesc.BufferCount = 2; // use double buffering to enable flip
+    swapChainDesc.Scaling = (hWnd != NULL) ? DXGI_SCALING::DXGI_SCALING_NONE : DXGI_SCALING::DXGI_SCALING_STRETCH;
+    swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+    swapChainDesc.Flags = 0;
+    swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+    IDXGIAdapter* pDXGIAdapter = nullptr;
+    hr = m_pDXGIDevice->GetAdapter(&pDXGIAdapter);
+    if (SUCCEEDED(hr))
+    {
+        IDXGIFactory2* pDXGIFactory2 = nullptr;
+        hr = pDXGIAdapter->GetParent(IID_PPV_ARGS(&pDXGIFactory2));
+        if (SUCCEEDED(hr))
+        {
+            if (hWnd != NULL)
+            {
+                hr = pDXGIFactory2->CreateSwapChainForHwnd(m_pD3D11Device, hWnd, &swapChainDesc, nullptr, nullptr, &m_pDXGISwapChain1);
+            }
+            else
+            {
+                hr = pDXGIFactory2->CreateSwapChainForComposition(m_pD3D11Device, &swapChainDesc, nullptr, &m_pDXGISwapChain1);
+            }
+            if (SUCCEEDED(hr))
+                hr = m_pDXGIDevice->SetMaximumFrameLatency(1);
+            ReleaseUnknown(pDXGIFactory2);
+        }
+        ReleaseUnknown(pDXGIAdapter);
+    }
+#endif 
+    return hr;
+}
+
+HRESULT NonClientIslandWindow::ConfigureSwapChain(HWND)
+{
+    HRESULT hr = S_OK;
+#if 0
+    D2D1_BITMAP_PROPERTIES1 bitmapProperties = D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+        D2D1::PixelFormat(DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE::D2D1_ALPHA_MODE_PREMULTIPLIED),
+        0,
+        0,
+        NULL);
+    unsigned int nDPI = GetDpiForWindow(hWnd);
+    bitmapProperties.dpiX = static_cast<FLOAT>(nDPI);
+    bitmapProperties.dpiY = static_cast<FLOAT>(nDPI);
+
+    IDXGISurface* pDXGISurface;
+    if (m_pDXGISwapChain1)
+    {
+        hr = m_pDXGISwapChain1->GetBuffer(0, IID_PPV_ARGS(&pDXGISurface));
+        if (SUCCEEDED(hr))
+        {
+            hr = m_pD2DDeviceContext3->CreateBitmapFromDxgiSurface(pDXGISurface, bitmapProperties, &m_pD2DTargetBitmap);
+            if (SUCCEEDED(hr))
+            {
+                m_pD2DDeviceContext3->SetTarget(m_pD2DTargetBitmap);
+            }
+            ReleaseUnknown(pDXGISurface);
+        }
+    }
+#endif 
+    return hr;
+}
+
+HRESULT NonClientIslandWindow::CreateDirectComposition(HWND)
+{
+    HRESULT hr = S_OK;
+#if 0
+    hr = DCompositionCreateDevice(m_pDXGIDevice, __uuidof(m_pDCompositionDevice), (void**)(&m_pDCompositionDevice));
+    if (SUCCEEDED(hr))
+    {
+        hr = m_pDCompositionDevice->CreateTargetForHwnd(hWnd, true, &m_pDCompositionTarget);
+        if (SUCCEEDED(hr))
+        {
+            IDCompositionVisual* pDCompositionVisual = NULL;
+            hr = m_pDCompositionDevice->CreateVisual(&pDCompositionVisual);
+            if (SUCCEEDED(hr))
+            {
+                hr = pDCompositionVisual->SetContent(m_pDXGISwapChain1);
+                hr = m_pDCompositionTarget->SetRoot(pDCompositionVisual);
+                hr = m_pDCompositionDevice->Commit();
+                ReleaseUnknown(pDCompositionVisual);
+            }
+        }
+    }
+#endif 
+    return hr;
+}
+
+void NonClientIslandWindow::CleanDeviceResources()
+{
+#if 0
+    ReleaseUnknown(m_pD2DBrushSplitL);
+    ReleaseUnknown(m_pD2DBrushSplitD);
+#endif 
+}
+
+void NonClientIslandWindow::CleanAllResources()
+{
+#if 0
+    ReleaseUnknown(m_pD2DDevice);
+    ReleaseUnknown(m_pD2DDeviceContext3);
+    ReleaseUnknown(m_pD2DTargetBitmap);
+    CleanDeviceResources();
+    ReleaseUnknown(m_pDXGISwapChain1);
+    ReleaseUnknown(m_pDXGIDevice);
+    ReleaseUnknown(m_pD3D11Device);
+    ReleaseUnknown(m_pD3D11DeviceContext);
+    //ReleaseUnknown(&m_pD2DFactory1);
+
+    ReleaseUnknown(m_pDCompositionDevice);
+    ReleaseUnknown(m_pDCompositionTarget);
+#endif 
+}
+
+void NonClientIslandWindow::OnResize(HWND, UINT, UINT)
+{
+#if 0
+    if (m_pDXGISwapChain1)
+    {
+        HRESULT hr = S_OK;
+        if (nWidth != 0 && nHeight != 0)
+        {
+            m_pD2DDeviceContext3->SetTarget(nullptr);
+            ReleaseUnknown(m_pD2DTargetBitmap);
+            hr = m_pDXGISwapChain1->ResizeBuffers(
+                2, // Double-buffered swap chain.
+                nWidth,
+                nHeight,
+                DXGI_FORMAT_B8G8R8A8_UNORM,
+                0);
+            if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+            {
+                CreateD3D11Device();
+                CreateSwapChain(NULL);
+                return;
+            }
+            else
+            {
+                //DX::ThrowIfFailed(hr);
+            }
+            ConfigureSwapChain(hWnd);
+        }
+    }
+#endif 
+}
+
+void NonClientIslandWindow::DrawSplitLine(bool)
+{
+#if 0
+    HRESULT hr = S_OK;
+    if (m_pD2DDeviceContext3 && m_pDXGISwapChain1 && m_xySplitterPosNew > 0)
+    {
+        float pos = static_cast<float>(m_xySplitterPosNew);
+        float top = static_cast<float>(m_widthPaneWindow);
+        m_pD2DDeviceContext3->BeginDraw();
+        D2D1_SIZE_F size = m_pD2DDeviceContext3->GetSize();
+        m_pD2DDeviceContext3->Clear(D2D1::ColorF(D2D1::ColorF::Red, 0.f));
+        if (bRealDraw)
+        {
+            m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(pos, top, pos + SPLIT_MARGIN, size.height), m_pD2DBrushSplitD);
+        }
+        hr = m_pD2DDeviceContext3->EndDraw();
+        hr = m_pDXGISwapChain1->Present(1, 0);
+    }
+#endif 
 }
 
 uint8_t* NonClientIslandWindow::GetInputData(uint8_t* buffer, uint32_t maxSize, bool donotShare, uint32_t& bytes, uint8_t& offset, bool& shareScreen) noexcept
@@ -2230,4 +2631,165 @@ uint8_t* NonClientIslandWindow::GetInputData(uint8_t* buffer, uint32_t maxSize, 
             p = nullptr;
     }
     return p;
+}
+
+// this code is from ATL
+static BOOL CenterWindow(_Inout_opt_ HWND hWnd, _Inout_opt_ HWND hWndCenter = NULL)
+{
+    RECT rcDlg;
+    RECT rcArea;
+    RECT rcCenter;
+    HWND hWndParent;
+    DWORD dwStyle = (DWORD)::GetWindowLong(hWnd, GWL_STYLE);
+
+	if (hWndCenter == NULL)
+    {
+        if (dwStyle & WS_CHILD)
+            hWndCenter = ::GetParent(hWnd);
+        else
+            hWndCenter = ::GetWindow(hWnd, GW_OWNER);
+    }
+
+	// get coordinates of the window relative to its parent
+    ::GetWindowRect(hWnd, &rcDlg);
+    if (!(dwStyle & WS_CHILD))
+    {
+        // don't center against invisible or minimized windows
+        if (hWndCenter != NULL)
+        {
+            DWORD dwStyleCenter = ::GetWindowLong(hWndCenter, GWL_STYLE);
+            if (!(dwStyleCenter & WS_VISIBLE) || (dwStyleCenter & WS_MINIMIZE))
+                hWndCenter = NULL;
+        }
+
+        // center within screen coordinates
+        HMONITOR hMonitor = NULL;
+        if (hWndCenter != NULL)
+        {
+            hMonitor = ::MonitorFromWindow(hWndCenter, MONITOR_DEFAULTTONEAREST);
+        }
+        else
+        {
+            hMonitor = ::MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+        }
+
+        MONITORINFO minfo = { 0 };
+        minfo.cbSize = sizeof(MONITORINFO);
+        ::GetMonitorInfo(hMonitor, &minfo);
+
+        rcArea = minfo.rcWork;
+
+        if (hWndCenter == NULL)
+            rcCenter = rcArea;
+        else
+            ::GetWindowRect(hWndCenter, &rcCenter);
+    }
+    else
+    {
+        // center within parent client coordinates
+        hWndParent = ::GetParent(hWnd);
+
+        ::GetClientRect(hWndParent, &rcArea);
+        ::GetClientRect(hWndCenter, &rcCenter);
+        ::MapWindowPoints(hWndCenter, hWndParent, (POINT*)&rcCenter, 2);
+    }
+
+    int DlgWidth = rcDlg.right - rcDlg.left;
+    int DlgHeight = rcDlg.bottom - rcDlg.top;
+
+    // find dialog's upper left based on rcCenter
+    int xLeft = (rcCenter.left + rcCenter.right) / 2 - DlgWidth / 2;
+    int yTop = (rcCenter.top + rcCenter.bottom) / 2 - DlgHeight / 2;
+
+    // if the dialog is outside the screen, move it inside
+    if (xLeft + DlgWidth > rcArea.right)
+        xLeft = rcArea.right - DlgWidth;
+    if (xLeft < rcArea.left)
+        xLeft = rcArea.left;
+
+    if (yTop + DlgHeight > rcArea.bottom)
+        yTop = rcArea.bottom - DlgHeight;
+    if (yTop < rcArea.top)
+        yTop = rcArea.top;
+
+    // map screen coordinates to child coordinates
+    return ::SetWindowPos(hWnd, NULL, xLeft, yTop, -1, -1, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static constexpr const WCHAR* pxtype0 = L"0 - NO PROXY";
+static constexpr const WCHAR* pxtype1 = L"1 - CURLPROXY_HTTP";
+static constexpr const WCHAR* pxtype2 = L"2 - CURLPROXY_HTTPS";
+static constexpr const WCHAR* pxtype3 = L"3 - CURLPROXY_HTTPS2";
+static constexpr const WCHAR* pxtype4 = L"4 - CURLPROXY_HTTP_1_0";
+static constexpr const WCHAR* pxtype5 = L"5 - CURLPROXY_SOCKS4";
+static constexpr const WCHAR* pxtype6 = L"6 - CURLPROXY_SOCKS4A";
+static constexpr const WCHAR* pxtype7 = L"7 - CURLPROXY_SOCKS5";
+static constexpr const WCHAR* pxtype8 = L"8 - CURLPROXY_SOCKS5_HOSTNAME";
+
+static WCHAR wbuffer[300] = { 0 };
+
+INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM)
+{
+#if 0
+    ZTConfig* cf = &ZTCONFIGURATION;
+    U32 status = ZT_OK;
+    U32 utf16len, utf8len;
+#endif 
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        // Initialization code goes here
+        if (IsWindow(g_hWndMain))
+        {
+            HWND hWndCtl;
+
+            hWndCtl = GetDlgItem(hDlg, IDC_EDIT_PUBLICKEY);
+            if (::IsWindow(hWndCtl))
+            {
+#if 0
+                utf8len = strlen((const char*)(cf->pubKeyHex));
+                if (utf8len)
+                {
+                    utf8len++;
+                }
+#endif 
+                ::SetWindowTextW(hWndCtl, (LPCWSTR)L"1234567890abcedf");
+                ::SendMessage(hWndCtl, EM_SETREADONLY, TRUE, 0);
+            }
+
+            hWndCtl = GetDlgItem(hDlg, IDC_COMBO_PROXYTYPE);
+            if (::IsWindow(hWndCtl))
+            {
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype0);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype1);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype2);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype3);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype4);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype5);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype6);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype7);
+                ::SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype8);
+
+                ::SendMessage(hWndCtl, CB_SETCURSEL, 0, 0);
+            }
+
+            CheckDlgButton(hDlg, IDC_CHECK_SHARESCREEN, BST_CHECKED);
+
+            CenterWindow(hDlg, g_hWndMain);
+        }
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+
+    case WM_CLOSE:
+        EndDialog(hDlg, IDCANCEL);
+        return (INT_PTR)TRUE;
+    }
+    return (INT_PTR)FALSE;
 }

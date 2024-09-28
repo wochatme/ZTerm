@@ -6,6 +6,8 @@
 // to decide if the cursor show West-East shape
 #define LEFT_MARGIN     4
 
+#define SPLIT_MARGIN    4
+
 // when the user drag the vertical split line
 // we limit the width of _interopWindowHandle
 // and m_paneWindow
@@ -79,6 +81,8 @@ int m_heightAskWin{ ASK_WIN_HEIGHT_NORMAL };
 
 // the vertical split line
 int m_xySplitterPos{ -1 };
+int m_xySplitterPosNew{ -1 };
+int m_cxyDragOffset { 0 };
 
 // when the mouse is pressed, it may press the button
 // it may press the veritcal split line, or it may
@@ -106,6 +110,32 @@ HWND m_hWndFocusPrev = nullptr;
 // the UI.
 unsigned int m_prevDpi = 0;
 
+#if 0
+//ID2D1Factory1* m_pD2DFactory1 = nullptr;
+ID3D11Device* m_pD3D11Device = nullptr;
+ID3D11DeviceContext* m_pD3D11DeviceContext = nullptr;
+IDXGIDevice1* m_pDXGIDevice = nullptr;
+ID2D1Device* m_pD2DDevice = nullptr;
+ID2D1DeviceContext3* m_pD2DDeviceContext3 = nullptr;
+IDXGISwapChain1* m_pDXGISwapChain1 = nullptr;
+ID2D1Bitmap1* m_pD2DTargetBitmap = nullptr;
+
+ID2D1SolidColorBrush* m_pD2DBrushSplitL = nullptr;
+ID2D1SolidColorBrush* m_pD2DBrushSplitD = nullptr;
+
+IDCompositionDevice* m_pDCompositionDevice = nullptr;
+IDCompositionTarget* m_pDCompositionTarget = nullptr;
+#endif 
+HRESULT CreateD3D11Device();
+HRESULT CreateDeviceResources();
+HRESULT CreateSwapChain(HWND hWnd);
+HRESULT ConfigureSwapChain(HWND hWnd);
+HRESULT CreateDirectComposition(HWND hWnd);
+void CleanDeviceResources();
+void CleanAllResources();
+void OnResize(HWND hWnd, UINT nWidth, UINT nHeight);
+void DrawSplitLine(bool bRealDraw = true);
+
 [[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
 
 [[nodiscard]] LRESULT ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
@@ -124,6 +154,8 @@ int ztGetOffset()
     int offset = m_widthPaneWindow;
     if (InGPTMode())
     {
+        if (m_rcSplitter.right == 0 || m_rcSplitter.bottom == 0)
+            GetClientRect(GetHandle(), &m_rcSplitter);
         offset = m_rcSplitter.right - m_rcSplitter.left - m_xySplitterPos;
     }
     return offset;

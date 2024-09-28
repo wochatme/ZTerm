@@ -101,6 +101,10 @@ TRACELOGGING_DECLARE_PROVIDER(g_hWindowsTerminalProvider);
 //-ZTERM
 #include <d2d1.h>
 #include <d2d1_1.h>
+#include <d2d1_3.h>
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <dcomp.h>
 #include <bcrypt.h>
 #define CURL_STATICLIB
 #include "zterm/curl/curl.h"
@@ -111,3 +115,5 @@ TRACELOGGING_DECLARE_PROVIDER(g_hWindowsTerminalProvider);
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Bcrypt.lib")
 #pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "D3D11")
+#pragma comment(lib, "dcomp")

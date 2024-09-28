@@ -508,10 +508,20 @@ til::rect NonClientIslandWindow::_GetDragAreaRect() const noexcept
 //   if the window went from maximized to restored or the opposite.
 void NonClientIslandWindow::OnSize(const UINT width, const UINT height)
 {
+    GetClientRect(GetHandle(), &m_rcSplitter); //ZTERM
+
     _UpdateMaximizedState();
 
     if (_interopWindowHandle)
     {
+#if 0
+        if (IsWindow(_interopWindowHandle))
+        {
+            DWORD dwExStyle = GetWindowLong(_interopWindowHandle, GWL_EXSTYLE);
+            dwExStyle |= WS_EX_LAYERED;
+            SetWindowLong(_interopWindowHandle, GWL_EXSTYLE, dwExStyle);
+        }
+#endif
         _UpdateIslandPosition(width, height);
     }
 
@@ -588,12 +598,13 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
     const til::point newIslandPos = { 0, topBorderHeight };
 
+    // ZTERM
     int offset = ztGetOffset();
     winrt::check_bool(SetWindowPos(_interopWindowHandle,
                                    HWND_BOTTOM,
                                    newIslandPos.x,
                                    newIslandPos.y,
-                                   windowWidth - offset, //ZTERM
+                                   windowWidth - offset, 
                                    windowHeight - topBorderHeight,
                                    SWP_SHOWWINDOW | SWP_NOACTIVATE));
 
@@ -601,7 +612,7 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
                                    HWND_BOTTOM,
                                    newIslandPos.x + windowWidth - offset,
                                    newIslandPos.y,
-                                   offset, //ZTERM
+                                   offset,
                                    windowHeight - topBorderHeight,
                                    SWP_SHOWWINDOW | SWP_NOACTIVATE));
 
@@ -981,7 +992,12 @@ void NonClientIslandWindow::_UpdateFrameMargins() const noexcept
                                                             WPARAM const wParam,
                                                             LPARAM const lParam) noexcept
 {
+    BOOL bHandled = TRUE;
     ztAdjustLayoutDPI(_currentDpi); //-ZTERM
+
+    LRESULT result = ztMesssageHandler(message, wParam, lParam, bHandled);
+    if (bHandled)
+        return result;
 
     switch (message)
     {
@@ -1006,13 +1022,7 @@ void NonClientIslandWindow::_UpdateFrameMargins() const noexcept
             OpenSystemMenu(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         }
         break;
-    default: //ZTERM
-        {
-            BOOL bHandled = TRUE;
-                LRESULT result = ztMesssageHandler(message, wParam, lParam, bHandled);
-            if (bHandled)
-                return result;
-        }
+    default: 
         break;
     }
 
