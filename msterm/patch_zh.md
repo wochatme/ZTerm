@@ -1058,12 +1058,12 @@ void WindowEmperor::WaitForWindows()
 C:\wterm\zterm\debug\scintilla\scintilla.lib
 C:\wterm\zterm\debug\zlib\zlibstaticd.lib
 C:\wterm\zterm\debug\curl\lib\libcurl-d.lib
-
+C:\wterm\term0919\bin\x64\Debug\Microsoft.Terminal.Control\Microsoft.Terminal.Control.lib
 
 C:\wterm\zterm\release\scintilla\scintilla.lib
 C:\wterm\zterm\release\curl\lib\libcurl.lib
 C:\wterm\zterm\release\zlib\zlibstatic.lib
-C:\wterm\term0919\bin\x64\Debug\Microsoft.Terminal.Control\Microsoft.Terminal.Control.lib
+C:\wterm\term0919\bin\x64\Release\Microsoft.Terminal.Control\Microsoft.Terminal.Control.lib
 ```
 
 
