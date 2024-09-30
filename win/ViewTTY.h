@@ -59,14 +59,9 @@ class CTTYView : public CWindowImpl<CTTYView>
 
 public:
 	//DECLARE_TTYWND_CLASS(L"TTYVIEW")
+
 	DECLARE_TTYWND_CLASS(NULL)
-#if 0
-	BOOL PreTranslateMessage(MSG* pMsg)
-	{
-		pMsg;
-		return FALSE;
-	}
-#endif 
+
 	D2D1_SIZE_U GetSizeUFromRect(const RECT& rc, const int scaleFactor) noexcept
 	{
 		const long width = rc.right - rc.left;

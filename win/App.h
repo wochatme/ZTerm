@@ -58,7 +58,7 @@ inline T DLLFunction(HMODULE hModule, LPCSTR lpProcName) noexcept {
 #define BACKGROUND_LIGHT	0x00F0F0F0
 
 extern IDWriteFactory* g_pIDWriteFactory;
-extern ID2D1Factory* g_pD2DFactory;
+extern ID2D1Factory1* g_pD2DFactory;
 
 extern volatile LONG g_threadCount;
 extern volatile LONG g_threadCountBKG;
@@ -77,10 +77,15 @@ extern CRITICAL_SECTION  g_csReceMsg;
 extern ZTConfig ZTCONFIGURATION;
 extern std::unique_ptr<BitmapBank> g_pBitmapBank;
 
+
+#define TITLEBAR_DARK_BACKGROUND_COLOR	(0xffffff)
+
+
 extern DWORD guiState;
 
 #define GUISTATE_DARKMODE	(0x00000001)
 #define GUISTATE_TOPMOST	(0x00000002)
+#define GUISTATE_DRAGFULL	(0x00000004)
 
 inline bool AppInDarkMode()
 {
@@ -95,5 +100,15 @@ inline void AppSetDarkMode(bool dark=true)
 inline bool AppIsTopMost()
 {
 	return static_cast<bool>(guiState & GUISTATE_TOPMOST);
+}
+
+inline BOOL AppInFullDragMode()
+{
+	return static_cast<BOOL>(guiState & GUISTATE_DRAGFULL);
+}
+
+inline void AppSetDragMode(BOOL dragFull)
+{
+	guiState = dragFull ? (guiState | GUISTATE_DRAGFULL) : (guiState & ~GUISTATE_DRAGFULL);
 }
 

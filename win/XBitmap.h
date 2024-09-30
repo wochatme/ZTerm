@@ -66,7 +66,7 @@ public:
             U32* p = m_bitmapData;
 
             //ScreenFillColor(m_bitmapData, size, isDarkMode ? 0xFF171717 : 0xFFF0F0F0);
-            ScreenFillColor(m_bitmapData, size, isDarkMode ? 0xFFA7A7A7 : 0xFF0F0F0F);
+            //ScreenFillColor(m_bitmapData, size, isDarkMode ? 0xFFA7A7A7 : 0xFF0F0F0F);
             
             for (int i = BITMAP_MIN_ID; i < BITMAP_MAX_ID; i++)
             {

@@ -1,5 +1,217 @@
 #pragma once
 
+class CView : public CWindowImpl<CView>
+{
+	RECT m_rcSplitter { 0 };
+
+	HWND m_hWndParent = NULL;
+
+	HCURSOR m_hCursorWE = NULL;
+	HCURSOR m_hCursorNS = NULL;
+	HCURSOR m_hCursorHand = NULL;
+
+	float m_deviceScaleFactor = 1.f;
+	ID2D1HwndRenderTarget* m_pD2DRenderTarget = nullptr;
+
+	ID2D1Bitmap* m_pBitmapPixel = nullptr;
+	ID2D1Bitmap* m_pBitmap0 = nullptr;
+	ID2D1Bitmap* m_pBitmap1 = nullptr;
+	ID2D1Bitmap* m_pBitmap2 = nullptr;
+
+public:
+	DECLARE_WND_CLASS(NULL)
+
+	CAskView m_viewTTY;
+	//CTTYView m_viewTTY;
+
+	BOOL PreTranslateMessage(MSG* pMsg)
+	{
+		pMsg;
+		return FALSE;
+	}
+
+	BEGIN_MSG_MAP(CView)
+		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
+		MESSAGE_HANDLER(WM_PAINT, OnPaint)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
+		MESSAGE_HANDLER(WM_CREATE, OnCreate)
+		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+	END_MSG_MAP()
+
+	// Handler prototypes (uncomment arguments if needed):
+	//	LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+	//	LRESULT CommandHandler(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	//	LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
+	LRESULT OnEraseBackground(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
+	{
+		return 1L;
+	}
+
+	LRESULT OnCreate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
+
+		dwStyle |= WS_VSCROLL;
+		m_viewTTY.Create(m_hWnd, rcDefault, NULL, dwStyle);
+
+		if (m_viewTTY.IsWindow())
+		{
+			if (AppInDarkMode())
+				SetWindowTheme(m_viewTTY.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewTTY.m_hWnd, L"Explorer", nullptr);
+		}
+#if 0
+		//SetWindowPos(nullptr, 0, 0, 0, 0, SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOSIZE);
+		HDC hdc = GetDC();
+		DoPaint(hdc);
+#endif 
+		return 0L;
+	}
+
+	LRESULT OnDestroy(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		bHandled = FALSE;
+		return 0L;
+	}
+
+	void DoPaint(HDC hdc)
+	{
+#if 0
+		if (hdc)
+		{
+#if 0
+			HBRUSH hBrush = AppInDarkMode() ?
+				CreateSolidBrush(RGB(0, 0, 0)) : CreateSolidBrush(RGB(255, 255, 255));
+#endif 
+			HBRUSH hBrush = CreateSolidBrush(RGB(0, 0, 0));
+			if (hBrush)
+			{
+				RECT rc = m_rcSplitter;
+				FillRect(hdc, &rc, hBrush);
+				DeleteObject(hBrush);
+			}
+		}
+#endif 
+	}
+
+	LRESULT OnPaint(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+	{
+		HRESULT hr;
+		PAINTSTRUCT ps = { 0 };
+		HDC hdc = BeginPaint(&ps);
+#if 0
+		DoPaint(hdc);
+		UpdateView();
+#endif 
+		EndPaint(&ps);
+		return 0;
+	}
+
+	LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		m_rcSplitter.left = m_rcSplitter.right = m_rcSplitter.top = m_rcSplitter.bottom = 0;
+		if (wParam != SIZE_MINIMIZED)
+		{
+			GetClientRect(&m_rcSplitter);
+			if (m_rcSplitter.right > m_rcSplitter.left && m_rcSplitter.bottom > m_rcSplitter.top)
+			{
+				if (m_viewTTY.IsWindow())
+				{
+					int offset = 0;
+					::SetWindowPos(m_viewTTY.m_hWnd, NULL,
+						m_rcSplitter.left, m_rcSplitter.top + offset,
+						m_rcSplitter.right - m_rcSplitter.left - 0,
+						m_rcSplitter.bottom - m_rcSplitter.top - offset, SWP_NOZORDER);
+#if 0
+					m_viewTTY.Invalidate();
+					m_viewTTY.UpdateWindow();
+#endif 
+				}
+#if 0
+				//SetLayeredWindowAttributes(m_hWnd, 0, 255, LWA_ALPHA);
+				//SetWindowPos(nullptr, 0, 0, 0, 0, SWP_NOCOPYBITS | SWP_NOMOVE | SWP_NOSIZE);
+				Invalidate(FALSE);
+				UpdateWindow();
+				UpdateView();
+#endif 
+			}
+		}
+
+		return 0L;
+	}
+
+	void UpdateView()
+	{
+#if 0
+		LONG exStyle = GetWindowLong(GWL_EXSTYLE);
+		exStyle &= ~WS_EX_LAYERED;
+		SetWindowLong(GWL_EXSTYLE, exStyle);
+		exStyle |= WS_EX_LAYERED;
+		SetWindowLong(GWL_EXSTYLE, exStyle);
+#endif 
+#if 0
+		RECT cr, wr;
+		GetClientRect(&cr);
+		GetWindowRect(&wr);
+		int W = wr.right - wr.left;
+		int H = wr.bottom - wr.top;
+		HDC hsdc = ::GetDC(NULL); // Note that this is not GetDC(hwnd) because UpdateLayeredWindow requires DC of screen
+		HDC hdc = GetDC();
+		HDC hbdc = CreateCompatibleDC(hdc); // Should create from window DC rather than screen DC 
+		HBITMAP bmp = CreateCompatibleBitmap(hsdc, W, H);
+		HGDIOBJ oldbmp = SelectObject(hbdc, reinterpret_cast<HGDIOBJ>(bmp));
+		FillRect(hbdc, &cr, reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+		UpdateLayeredWindow(m_hWnd, hsdc, &(POINT() = { wr.left, wr.top }),
+			&(SIZE() = { W, H }), hbdc, &(POINT() = { 0, 0 }), NULL, NULL, ULW_OPAQUE);
+		SelectObject(hbdc, oldbmp);
+		DeleteObject(bmp);
+		DeleteDC(hbdc);
+		ReleaseDC(hdc);
+		::ReleaseDC(NULL, hsdc);
+#endif 
+#if 0
+		HDC hdcScreen = ::GetDC(NULL);
+		if (hdcScreen)
+		{
+			HDC hdcMem = CreateCompatibleDC(hdcScreen);
+			if (hdcMem)
+			{
+				RECT rw{};
+				
+				GetWindowRect(&rw);
+                SIZE sz = { rw.right - rw.left, rw.bottom - rw.top };
+				HBITMAP hBitmap = CreateCompatibleBitmap(hdcMem, sz.cx, sz.cy);
+				HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmap);
+				HBRUSH hBrush = CreateSolidBrush(RGB(255, 0, 0));
+				FillRect(hdcMem, &rw, hBrush);
+				DeleteObject(hBrush);
+
+				// Set up the blend function for transparency
+				BLENDFUNCTION blend = {};
+				blend.BlendOp = AC_SRC_OVER;
+				blend.BlendFlags = 0;
+				blend.SourceConstantAlpha = 255;   // 255 means fully opaque
+				blend.AlphaFormat = AC_SRC_ALPHA;  // Use the alpha channel
+
+				POINT ptSrc = { 0, 0 };
+				POINT ptPos = { 0, 0 };
+
+				// Update the layered window with the bitmap
+				HRESULT hr = UpdateLayeredWindow(m_hWnd, hdcScreen, NULL, &sz, hdcMem, &ptSrc, 205, &blend, ULW_ALPHA);
+
+				SelectObject(hdcMem, hOldBitmap);
+				DeleteObject(hBitmap);
+				DeleteDC(hdcMem);
+			}
+			::ReleaseDC(NULL, hdcScreen);
+		}
+#endif 
+	}
+
+};
+
+#if 0
 #define DECLARE_XWND_CLASS(WndClassName) \
 static ATL::CWndClassInfo& GetWndClassInfo() \
 { \
@@ -819,3 +1031,4 @@ public:
 #endif 
 	}
 };
+#endif 

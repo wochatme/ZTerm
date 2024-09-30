@@ -185,7 +185,7 @@ public:
 		_In_ _U_MENUorID MenuOrID = 0U,
 		_In_opt_ LPVOID lpCreateParam = NULL)
 	{
-		m_hWnd = CreateWindowExW(WS_EX_LAYERED, L"Scintilla", NULL,
+		m_hWnd = CreateWindowExW(0, L"Scintilla", NULL,
 			WS_CHILD | WS_VISIBLE | WS_VSCROLL,
 			0, 0, 16, 16, hWndParent, NULL, HINST_THISCOMPONENT, NULL);
 

@@ -9,6 +9,7 @@
 #include <atlscrl.h>
 
 #include "resource.h"
+#include "XBitmap.h"
 #include "App.h"
 #include "Settings.h"
 #include "Network.h"
@@ -42,7 +43,7 @@ CRITICAL_SECTION     g_csSendMsg;
 CRITICAL_SECTION     g_csReceMsg;
 
 IDWriteFactory* g_pIDWriteFactory = nullptr;
-ID2D1Factory* g_pD2DFactory = nullptr;
+ID2D1Factory1* g_pD2DFactory = nullptr;
 
 static D2D1_DRAW_TEXT_OPTIONS d2dDrawTextOptions = D2D1_DRAW_TEXT_OPTIONS_NONE;
 
@@ -111,6 +112,23 @@ static bool LoadD2D() noexcept
 	return g_pIDWriteFactory && g_pD2DFactory;
 }
 
+static void GetMainWindowPosition(UINT dpi, RECT& position)
+{
+	int left, top;
+	DWORD tc;
+
+	tc = GetTickCount();
+	left = (tc % 100) + 100;
+	tc = GetTickCount();
+	top = (tc % 100) + 100;
+
+	position.left = left;
+	position.top = top;
+	position.right = left + 1200;
+	position.bottom = top + 1024;
+
+}
+
 static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 {
 	int nRet = 0;
@@ -122,8 +140,10 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 
 	dwExStyle = (WS_EX_NOREDIRECTIONBITMAP | (AppIsTopMost()? WS_EX_TOPMOST : 0));
 	//dwExStyle = 0;
+	
+	RECT rw = { 0, 0, 2, 2};
 
-	if (wndMain->CreateEx(NULL, NULL, 0, dwExStyle) != NULL)
+	if (wndMain->CreateEx(NULL, &rw, 0, dwExStyle) != NULL)
 	{
 		// 
 		// Please check this question:
@@ -138,11 +158,23 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		wndMain->ShowWindow(SW_SHOWMINIMIZED);
 		wndMain->ShowWindow(SW_SHOWMAXIMIZED);
 		wndMain->UpdateMainView();
-		wndMain->ShowWindow(SW_SHOWMINIMIZED);
 		wndMain->UpdateMainView();
 		g_pBitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
+		COLORREF borderColor = RGB(0, 128, 128); // Custom border color
+		HRESULT hr = DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
 #endif 
+
 		wndMain->ShowWindow(nCmdShow);
+#if 10
+		{
+			GetMainWindowPosition(wndMain->GetCurrentDpi(), rw);
+
+			::SetWindowPos(wndMain->m_hWnd, NULL,
+				rw.left, rw.top,
+				rw.right - rw.left,
+				rw.bottom - rw.top, SWP_NOZORDER);
+		}
+#endif 
 		//ztStartupNetworkThread(wndMain->m_hWnd);
 		nRet = theLoop.Run();
 	}
@@ -163,7 +195,13 @@ static int AppInit(HINSTANCE hInstance)
 
 	ztInitConfig(&ZTCONFIGURATION);
 
-	//AppSetDarkMode();
+	AppSetDarkMode();
+
+	{
+		BOOL bFullDrag = TRUE;
+		::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
+		AppSetDragMode(bFullDrag);
+	}
 
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);
@@ -204,6 +242,11 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 
 	// tell all threads to quit
 	InterlockedIncrement(&g_Quit);
+	
+	{
+		BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
+		::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
+	}
 
 	ReleaseUnknown(g_pIDWriteFactory);
 	ReleaseUnknown(g_pD2DFactory);

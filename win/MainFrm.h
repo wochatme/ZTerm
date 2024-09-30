@@ -3,6 +3,62 @@
 /////////////////////////////////////////////////////////////////////////////
 #pragma once
 
+static const unsigned int xbmpL[24 * 24] =
+{
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0xFF000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000
+};
+
+static const unsigned int xbmpD[24 * 24] =
+{
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0xFFFFFFFF,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,
+0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000,0x00000000
+};
+
 #define DECLARE_FRAME_XWND_CLASS(WndClassName, uCommonResourceID) \
 static WTL::CFrameWndClassInfo& GetWndClassInfo() \
 { \
@@ -14,6 +70,684 @@ static WTL::CFrameWndClassInfo& GetWndClassInfo() \
 	}; \
 	return wc; \
 }
+
+#define MESSAGE_HANDLEDWM(func) \
+	{ \
+		bHandled = TRUE; \
+		lResult = func(uMsg, wParam, lParam, bHandled); \
+		if(bHandled) \
+			return TRUE; \
+	}
+
+#define CAPTION_HEIGHT		40
+
+class CMainFrame :
+	public CFrameWindowImpl<CMainFrame>,
+	public CUpdateUI<CMainFrame>,
+	public CMessageFilter, public CIdleHandler
+{
+	bool m_inDpiChange = false;
+	UINT m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
+	int m_heightTitle = CAPTION_HEIGHT;
+
+	RECT m_rectClient = { 0 };
+
+	ID3D11Device* m_pD3D11Device = NULL;
+	ID3D11DeviceContext* m_pD3D11DeviceContext = NULL;
+	IDXGIDevice1* m_pDXGIDevice = NULL;
+	ID2D1Device* m_pD2DDevice = NULL;
+	ID2D1DeviceContext3* m_pD2DDeviceContext3 = NULL;
+	IDXGISwapChain1* m_pDXGISwapChain1 = NULL;
+	ID2D1Bitmap1* m_pD2DTargetBitmap = NULL;
+	ID2D1SolidColorBrush* m_pD2DBrushTitleBar = NULL;
+	ID2D1SolidColorBrush* m_pD2DBrushBlack = NULL;
+	IDCompositionDevice* m_pDCompositionDevice = NULL;
+	IDCompositionTarget* m_pDCompositionTarget = NULL;
+
+	//HRESULT CreateD2D1Factory();
+	// https://docs.microsoft.com/en-us/windows/win32/direct2d/devices-and-device-contexts
+	HRESULT CreateD3D11Device()
+	{
+		HRESULT hr = S_OK;
+		UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+#if 0
+		creationFlags |= D3D11_CREATE_DEVICE_DEBUG;
+#endif 
+		// This array defines the set of DirectX hardware feature levels this app  supports.
+		// The ordering is important and you should  preserve it.
+		// Don't forget to declare your app's minimum required feature level in its
+		// description.  All apps are assumed to support 9.1 unless otherwise stated.
+		D3D_FEATURE_LEVEL featureLevels[] =
+		{
+			D3D_FEATURE_LEVEL_11_1,
+			D3D_FEATURE_LEVEL_11_0,
+			D3D_FEATURE_LEVEL_10_1,
+			D3D_FEATURE_LEVEL_10_0,
+			D3D_FEATURE_LEVEL_9_3,
+			D3D_FEATURE_LEVEL_9_2,
+			D3D_FEATURE_LEVEL_9_1
+		};
+		D3D_FEATURE_LEVEL featureLevel;
+		hr = D3D11CreateDevice(
+			nullptr,                    // specify null to use the default adapter
+			D3D_DRIVER_TYPE_HARDWARE,
+			0,
+			creationFlags,              // optionally set debug and Direct2D compatibility flags
+			featureLevels,              // list of feature levels this app can support
+			ARRAYSIZE(featureLevels),   // number of possible feature levels
+			D3D11_SDK_VERSION,
+			&m_pD3D11Device,                    // returns the Direct3D device created
+			&featureLevel,            // returns feature level of device created
+			&m_pD3D11DeviceContext                    // returns the device immediate context
+		);
+		if (SUCCEEDED(hr))
+		{
+			// Obtain the underlying DXGI device of the Direct3D11 device.
+			hr = m_pD3D11Device->QueryInterface((IDXGIDevice1**)&m_pDXGIDevice);
+			if (SUCCEEDED(hr))
+			{
+				// Obtain the Direct2D device for 2-D rendering.
+				hr = g_pD2DFactory->CreateDevice(m_pDXGIDevice, &m_pD2DDevice);
+				if (SUCCEEDED(hr))
+				{
+					// Get Direct2D device's corresponding device context object.
+					ID2D1DeviceContext* pD2DDeviceContext = NULL;
+					hr = m_pD2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pD2DDeviceContext);
+					if (SUCCEEDED(hr))
+						hr = pD2DDeviceContext->QueryInterface((ID2D1DeviceContext3**)&m_pD2DDeviceContext3);
+					ReleaseUnknown(pD2DDeviceContext);
+				}
+			}
+		}
+		return hr;
+	}
+
+	HRESULT CreateDeviceResources()
+	{
+		HRESULT hr = S_OK;
+		if (m_pD2DDeviceContext3)
+		{
+			hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black, 1.f), &m_pD2DBrushBlack);
+			hr = m_pD2DDeviceContext3->CreateSolidColorBrush(D2D1::ColorF(TITLEBAR_DARK_BACKGROUND_COLOR, 0.18f), &m_pD2DBrushTitleBar);
+		}
+		return hr;
+	}
+	
+	HRESULT CreateSwapChain(HWND hWnd)
+	{
+		HRESULT hr = S_OK;
+		DXGI_SWAP_CHAIN_DESC1 swapChainDesc = { 0 };
+		swapChainDesc.Width = 1;
+		swapChainDesc.Height = 1;
+		swapChainDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
+		swapChainDesc.Stereo = false;
+		swapChainDesc.SampleDesc.Count = 1; // don't use multi-sampling
+		swapChainDesc.SampleDesc.Quality = 0;
+		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+		swapChainDesc.BufferCount = 2; // use double buffering to enable flip
+		swapChainDesc.Scaling = (hWnd != NULL) ? DXGI_SCALING::DXGI_SCALING_NONE : DXGI_SCALING::DXGI_SCALING_STRETCH;
+		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT::DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
+		swapChainDesc.Flags = 0;
+		swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+		IDXGIAdapter* pDXGIAdapter = nullptr;
+		hr = m_pDXGIDevice->GetAdapter(&pDXGIAdapter);
+		if (SUCCEEDED(hr))
+		{
+			IDXGIFactory2* pDXGIFactory2 = nullptr;
+			hr = pDXGIAdapter->GetParent(IID_PPV_ARGS(&pDXGIFactory2));
+			if (SUCCEEDED(hr))
+			{
+				if (hWnd != NULL)
+				{
+					hr = pDXGIFactory2->CreateSwapChainForHwnd(m_pD3D11Device, hWnd, &swapChainDesc, nullptr, nullptr, &m_pDXGISwapChain1);
+				}
+				else
+				{
+					hr = pDXGIFactory2->CreateSwapChainForComposition(m_pD3D11Device, &swapChainDesc, nullptr, &m_pDXGISwapChain1);
+				}
+				if (SUCCEEDED(hr))
+					hr = m_pDXGIDevice->SetMaximumFrameLatency(1);
+				ReleaseUnknown(pDXGIFactory2);
+			}
+			ReleaseUnknown(pDXGIAdapter);
+		}
+		return hr;
+	}
+	
+	HRESULT ConfigureSwapChain(HWND hWnd)
+	{
+		HRESULT hr = S_OK;
+
+		D2D1_BITMAP_PROPERTIES1 bitmapProperties = D2D1::BitmapProperties1(
+			D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS::D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+			D2D1::PixelFormat(DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE::D2D1_ALPHA_MODE_PREMULTIPLIED),
+			0,
+			0,
+			NULL
+		);
+		unsigned int nDPI = GetDpiForWindow(hWnd);
+		bitmapProperties.dpiX = nDPI;
+		bitmapProperties.dpiY = nDPI;
+
+		IDXGISurface* pDXGISurface;
+		if (m_pDXGISwapChain1)
+		{
+			hr = m_pDXGISwapChain1->GetBuffer(0, IID_PPV_ARGS(&pDXGISurface));
+			if (SUCCEEDED(hr))
+			{
+				hr = m_pD2DDeviceContext3->CreateBitmapFromDxgiSurface(pDXGISurface, bitmapProperties, &m_pD2DTargetBitmap);
+				if (SUCCEEDED(hr))
+				{
+					m_pD2DDeviceContext3->SetTarget(m_pD2DTargetBitmap);
+				}
+				ReleaseUnknown(pDXGISurface);
+			}
+		}
+		return hr;
+	}
+	
+	HRESULT CreateDirectComposition(HWND hWnd)
+	{
+		HRESULT hr = S_OK;
+		hr = DCompositionCreateDevice(m_pDXGIDevice, __uuidof(m_pDCompositionDevice), (void**)(&m_pDCompositionDevice));
+		if (SUCCEEDED(hr))
+		{
+			hr = m_pDCompositionDevice->CreateTargetForHwnd(hWnd, true, &m_pDCompositionTarget);
+			if (SUCCEEDED(hr))
+			{
+				IDCompositionVisual* pDCompositionVisual = NULL;
+				hr = m_pDCompositionDevice->CreateVisual(&pDCompositionVisual);
+				if (SUCCEEDED(hr))
+				{
+					hr = pDCompositionVisual->SetContent(m_pDXGISwapChain1);
+					hr = m_pDCompositionTarget->SetRoot(pDCompositionVisual);
+					hr = m_pDCompositionDevice->Commit();
+					ReleaseUnknown(pDCompositionVisual);
+				}
+			}
+		}
+		return hr;
+	}
+	
+	void ResizeDirectComposition(UINT nWidth, UINT nHeight)
+	{
+		if (m_pDXGISwapChain1)
+		{
+			HRESULT hr = S_OK;
+			if (nWidth != 0 && nHeight != 0)
+			{
+				m_pD2DDeviceContext3->SetTarget(nullptr);
+				ReleaseUnknown(m_pD2DTargetBitmap);
+				hr = m_pDXGISwapChain1->ResizeBuffers(
+					2, // Double-buffered swap chain.
+					nWidth,
+					nHeight,
+					DXGI_FORMAT_B8G8R8A8_UNORM,
+					0
+				);
+				if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+				{
+					CreateD3D11Device();
+					CreateSwapChain(NULL);
+					return;
+				}
+#if 0
+				else
+				{
+					//DX::ThrowIfFailed(hr);
+				}
+#endif 
+				ConfigureSwapChain(m_hWnd);
+			}
+		}
+
+	}
+
+	HRESULT CreateAllDirectCompositionResource()
+	{
+		HRESULT hr = S_OK;
+
+		CleanAllDirectCompositionResource();
+		hr = CreateD3D11Device();
+		hr = CreateDeviceResources();
+		hr = CreateSwapChain(NULL);
+		if (SUCCEEDED(hr))
+		{
+			hr = ConfigureSwapChain(m_hWnd);
+			hr = CreateDirectComposition(m_hWnd);
+		}
+
+		return hr;
+	}
+
+	void CleanAllDirectCompositionResource()
+	{
+		ReleaseUnknown(m_pD2DDevice);
+		ReleaseUnknown(m_pD2DDeviceContext3);
+		ReleaseUnknown(m_pD2DTargetBitmap);
+
+		ReleaseUnknown(m_pD2DBrushBlack);
+		ReleaseUnknown(m_pD2DBrushTitleBar);
+
+		ReleaseUnknown(m_pDXGISwapChain1);
+		ReleaseUnknown(m_pDXGIDevice);
+		ReleaseUnknown(m_pD3D11Device);
+		ReleaseUnknown(m_pD3D11DeviceContext);
+
+		ReleaseUnknown(m_pDCompositionDevice);
+		ReleaseUnknown(m_pDCompositionTarget);
+	}
+
+public:
+	DECLARE_FRAME_XWND_CLASS(NULL, IDR_MAINFRAME)
+
+	CView m_view;
+
+	UINT GetCurrentDpi() noexcept
+	{
+		m_currentDpi = ::GetDpiForWindow(m_hWnd);
+		if (!m_currentDpi)
+			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
+		return m_currentDpi;
+	}
+
+	virtual BOOL PreTranslateMessage(MSG* pMsg)
+	{
+		if (CFrameWindowImpl<CMainFrame>::PreTranslateMessage(pMsg))
+			return TRUE;
+
+		return m_view.PreTranslateMessage(pMsg);
+	}
+
+	virtual BOOL OnIdle()
+	{
+		return FALSE;
+	}
+
+	BEGIN_UPDATE_UI_MAP(CMainFrame)
+	END_UPDATE_UI_MAP()
+
+	BEGIN_MSG_MAP(CMainFrame)
+		MESSAGE_HANDLEDWM(OnDWMCheck)
+		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
+		MESSAGE_HANDLER(WM_PAINT, OnPaint)
+		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
+		MESSAGE_HANDLER(WM_ACTIVATE, OnActivate)
+		MESSAGE_HANDLER(WM_NCCALCSIZE, OnNCCalcSize)
+		MESSAGE_HANDLER(WM_NCHITTEST, OnNCHitTest)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
+		MESSAGE_HANDLER(WM_NCCREATE, OnNCCreate)
+		MESSAGE_HANDLER(WM_DPICHANGED, OnDPIChanged)
+		MESSAGE_HANDLER(WM_CREATE, OnCreate)
+		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+#if 0
+		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
+#endif 
+		CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
+		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
+	END_MSG_MAP()
+
+#if 0
+	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		CAboutDlg dlg;
+		dlg.DoModal();
+		return 0;
+}
+#endif 
+
+	LRESULT OnNCCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
+	{
+		const BOOL attribute = AppInDarkMode() ? TRUE : FALSE;
+
+		EnableNonClientDpiScaling(m_hWnd);
+
+		m_currentDpi = GetDpiForWindow(m_hWnd);
+		if (!m_currentDpi)
+			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
+		std::ignore = DwmSetWindowAttribute(m_hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &attribute, sizeof(attribute));
+
+		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+
+		CreateAllDirectCompositionResource();
+
+		bHandled = FALSE;
+		return 0L;
+	}
+
+	LRESULT OnCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+	{
+		HRESULT hr;
+		DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
+		DWORD dwExStyle =  WS_EX_LAYERED;
+
+		m_view.Create(m_hWnd, rcDefault, NULL,
+			WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE, dwExStyle);
+#if 10
+		if (m_view.IsWindow())
+		{
+			SetLayeredWindowAttributes(m_view.m_hWnd, 0, 255, LWA_ALPHA);
+			//SetLayeredWindowAttributes(m_view.m_hWnd, NULL, NULL, NULL);
+		}
+#endif 
+		// register object for message filtering and idle updates
+		CMessageLoop* pLoop = _Module.GetMessageLoop();
+		ATLASSERT(pLoop != NULL);
+		pLoop->AddMessageFilter(this);
+		pLoop->AddIdleHandler(this);
+
+		SetWindowPos(nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE);
+		return 0;
+	}
+
+	LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
+	{
+		// unregister message filtering and idle updates
+		CMessageLoop* pLoop = _Module.GetMessageLoop();
+		ATLASSERT(pLoop != NULL);
+		pLoop->RemoveMessageFilter(this);
+		pLoop->RemoveIdleHandler(this);
+
+		CleanAllDirectCompositionResource();
+
+		bHandled = FALSE;
+		return 1;
+	}
+
+	LRESULT OnEraseBackground(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
+	{
+		return 1L;
+	}
+
+	LRESULT OnPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		PAINTSTRUCT ps = { 0 };
+		BeginPaint(&ps);
+		EndPaint(&ps);
+		return 0L;
+	}
+
+	LRESULT OnDWMCheck(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		LRESULT result = 0;
+		BOOL dwm_has_processed = DwmDefWindowProc(m_hWnd, uMsg, wParam, lParam, &result);
+		if (dwm_has_processed)
+			return result;
+
+		bHandled = FALSE;
+		return 0L;
+	}
+
+	LRESULT OnNCCalcSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		bHandled = FALSE;
+		if (wParam)
+		{
+			int cx, cy, pad;
+			auto parameters = reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+			auto& requested_client_area = parameters->rgrc[0];
+
+			m_currentDpi = GetDpiForWindow(m_hWnd);
+			if (!m_currentDpi)
+				m_currentDpi = USER_DEFAULT_SCREEN_DPI;
+
+			cx = GetSystemMetricsForDpi(SM_CXFRAME, m_currentDpi);
+			cy = GetSystemMetricsForDpi(SM_CYFRAME, m_currentDpi);
+			pad = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, m_currentDpi);
+			requested_client_area.right -= (cx + pad);
+			requested_client_area.left += (cx + pad);
+			requested_client_area.bottom -= (cy + pad);
+			bHandled = TRUE;
+		}
+		return 0L;
+	}
+
+	LRESULT OnNCHitTest(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		const int offset = 10;
+		RECT rw = { 0 };
+		GetWindowRect(&rw);
+
+		POINT cursor_position
+		{
+			GET_X_LPARAM(lParam),
+			GET_Y_LPARAM(lParam)
+		};
+
+		if (cursor_position.y < rw.top + offset && cursor_position.x < rw.left + offset)
+			return HTTOPLEFT;
+		if (cursor_position.y < rw.top + offset && cursor_position.x > rw.right - offset)
+			return HTTOPRIGHT;
+
+		if (cursor_position.x > rw.left && cursor_position.x < rw.right)
+		{
+			if (cursor_position.y < rw.top + 4)
+				return HTTOP;
+		}
+
+		if (cursor_position.x > rw.left && cursor_position.x < rw.right)
+		{
+			if (cursor_position.y < rw.top + m_heightTitle)
+				return HTCAPTION;
+		}
+
+		bHandled = FALSE;
+		return HTNOWHERE;
+	}
+
+	LRESULT OnDPIChanged(UINT /*uMsg*/, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		m_inDpiChange = true;
+
+		m_currentDpi = HIWORD(wParam);
+		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+
+		MARGINS margins = { 0 };
+		margins.cyTopHeight = m_heightTitle + 1;
+		HRESULT hr = DwmExtendFrameIntoClientArea(m_hWnd, &margins);
+
+		RECT* lpRect = reinterpret_cast<RECT*>(lParam);
+		if (lpRect)
+		{
+			SetWindowPos(NULL, lpRect->left, lpRect->top,
+				lpRect->right - lpRect->left, lpRect->bottom - lpRect->top, SWP_NOZORDER);
+		}
+
+		DoSize();
+#if 0
+		m_heightGap = ::MulDiv(m_currentDpi, GAP_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightLed = ::MulDiv(m_currentDpi, LED_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_heightWinAsk = ::MulDiv(m_currentDpi, ASK_WIN_HEIGHT, USER_DEFAULT_SCREEN_DPI);
+		m_xySplitterPos = ::MulDiv(m_currentDpi, m_xySplitterPos, USER_DEFAULT_SCREEN_DPI);
+
+		g_pBitmapBank.reset();
+		g_pBitmapBank = std::make_unique<BitmapBank>(GetCurrentDpi(), AppInDarkMode());
+
+		m_viewGPT.RefreshCurrentDPI(m_currentDpi, m_nSinglePane == SPLIT_PANE_NONE);
+
+
+		_client_area_offset_dip = static_cast<float>(margins.cyTopHeight) / _user_scaling;
+
+		// Resize the window
+		auto lprcNewScale = reinterpret_cast<RECT*>(lParam);
+		SetWindowPos(nullptr, lprcNewScale->left, lprcNewScale->top, lprcNewScale->right - lprcNewScale->left, lprcNewScale->bottom - lprcNewScale->top, SWP_NOZORDER | SWP_NOACTIVATE);
+
+		UpdateSplitterLayout();
+		// force to redraw
+		ReleaseUnknown(m_pD2DRenderTarget);
+		Invalidate();
+
+		GetClientRect(&m_rcSplitter);
+		int top = m_rcSplitter.top + m_heightTitle + 2;
+		::SetWindowPos(m_viewTTY.m_hWnd, NULL,
+			m_rcSplitter.left, top,
+			m_rcSplitter.right - m_rcSplitter.left,
+			m_rcSplitter.bottom - top, SWP_NOZORDER);
+
+		Invalidate();
+
+		DwmGetWindowAttribute(m_hWnd, DWMWA_CAPTION_BUTTON_BOUNDS, &rb, sizeof(RECT));
+		//swprintf_s(title, 63, L"[%d]D:%d, R:%d %d %d %d", m_dpi, m_currentDpi, rb.left, rb.right, rb.top, rb.botttom);
+		swprintf_s(title, 63, L"[%d]D:%d, R:%d %d, %d %d", m_dpi, m_currentDpi, rb.left, rb.right - rb.left, rb.top, rb.bottom - rb.top);
+		SetWindowText(title);
+#endif 
+		m_inDpiChange = false;
+
+		//m_viewTTY.ShowInfo(m_currentDpi);
+
+		return 0L;
+	}
+
+
+
+	LRESULT OnActivate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		// wparam = 0 indicates the window was deactivated
+		const bool activated = LOWORD(wParam) != 0;
+
+		MARGINS margins = { 0 };
+
+		margins.cyTopHeight = m_heightTitle + 1;
+		HRESULT hr = DwmExtendFrameIntoClientArea(m_hWnd, &margins);
+
+		if (activated)
+		{
+			::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, FALSE, NULL, 0);
+		}
+		else
+		{
+			BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
+			::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
+		}
+
+		if (m_view.IsWindow())
+		{
+			//SetLayeredWindowAttributes(m_view.m_hWnd, RGB(0,0,0), 0, LWA_COLORKEY);
+			//SetLayeredWindowAttributes(m_view.m_hWnd, 0, 255, LWA_ALPHA);
+#if 0
+			m_view.UpdateWindow();
+			LONG exStyle = m_view.GetWindowLong(GWL_EXSTYLE);
+			exStyle &= ~WS_EX_LAYERED;
+			m_view.SetWindowLong(GWL_EXSTYLE, exStyle);
+			exStyle |= WS_EX_LAYERED;
+			m_view.SetWindowLong(GWL_EXSTYLE, exStyle);
+
+			m_view.UpdateView();
+#endif 
+		}
+
+#if 0
+		_client_area_offset_dip = static_cast<float>(margins.cyTopHeight) / _user_scaling;
+
+		if (m_viewTTY.IsWindow())
+		{
+			m_viewTTY.SetFocus();
+			if (AppInDarkMode())
+				SetWindowTheme(m_viewTTY.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewTTY.m_hWnd, L"Explorer", nullptr);
+		}
+
+		if (m_viewGPT.IsWindow())
+		{
+			if (AppInDarkMode())
+				SetWindowTheme(m_viewGPT.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewGPT.m_hWnd, L"Explorer", nullptr);
+		}
+		if (m_viewAsk.IsWindow())
+		{
+			if (AppInDarkMode())
+				SetWindowTheme(m_viewAsk.m_hWnd, L"DarkMode_Explorer", nullptr);
+			else
+				SetWindowTheme(m_viewAsk.m_hWnd, L"Explorer", nullptr);
+		}
+#endif 
+		bHandled = FALSE;
+		return 0L;
+	}
+
+	void UpdateTitleBar()
+	{
+		HRESULT hr = S_OK;
+		if (m_pD2DDeviceContext3 && m_pDXGISwapChain1)
+		{
+			const int wh = 24;
+			ID2D1Bitmap* pBitmap = nullptr;
+			U32* src = AppInDarkMode() ? const_cast<U32*>(xbmpD) : const_cast<U32*>(xbmpL);
+			hr = m_pD2DDeviceContext3->CreateBitmap(D2D1::SizeU(wh, wh), src, (wh << 2),
+				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+				&pBitmap);
+
+			if (S_OK == hr && pBitmap)
+			{
+				const int dpiWH = ::MulDiv(wh, m_currentDpi, USER_DEFAULT_SCREEN_DPI);
+				const int offset = (m_heightTitle - dpiWH) >> 1;
+
+				m_pD2DDeviceContext3->BeginDraw();
+
+				D2D1_RECT_F area = D2D1::RectF(
+					static_cast<FLOAT>(offset),
+					static_cast<FLOAT>(offset + 1),
+					static_cast<FLOAT>(offset + dpiWH),
+					static_cast<FLOAT>(offset + 1 + dpiWH)
+				);
+				//m_pD2DDeviceContext3->SetPrimitiveBlend(D2D1_PRIMITIVE_BLEND_SOURCE_OVER);
+				m_pD2DDeviceContext3->DrawBitmap(pBitmap, &area);
+				hr = m_pD2DDeviceContext3->EndDraw();
+				hr = m_pDXGISwapChain1->Present(1, 0);
+			}
+			ReleaseUnknown(pBitmap);
+#if 0
+			D2D1_SIZE_F size = m_pD2DDeviceContext3->GetSize();
+			m_pD2DDeviceContext3->Clear(D2D1::ColorF(D2D1::ColorF::Red, 0.f));
+			m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(0.f, 1.0f, size.width, static_cast<FLOAT>(m_heightTitle)), m_pD2DBrushTitleBar);
+			m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(size.width / 2, 0.f, size.width, size.height), m_pD2DBrushWhite);
+			m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(0.f, 0.f, size.width / 6, size.height / 3), m_pD2DBrushBlue);
+			m_pD2DDeviceContext3->FillRectangle(D2D1::RectF(size.width - size.width / 6, size.height - size.height / 3, size.width, size.height), m_pD2DBrushGreen);
+#endif 
+		}
+	}
+
+	void DoSize()
+	{
+		GetClientRect(&m_rectClient);
+		if (m_rectClient.right > m_rectClient.left && m_rectClient.bottom > m_rectClient.top + m_heightTitle)
+		{
+			//CreateAllDirectCompositionResource();
+
+			ResizeDirectComposition(static_cast<UINT>(m_rectClient.right - m_rectClient.left),
+				static_cast<UINT>(m_rectClient.bottom - m_rectClient.top));
+
+			UpdateTitleBar();
+
+			if (m_view.IsWindow())
+			{
+				int top = m_rectClient.top + m_heightTitle + 1;
+				::SetWindowPos(m_view.m_hWnd, NULL,
+					m_rectClient.left, top,
+					m_rectClient.right - m_rectClient.left,
+					m_rectClient.bottom - top, SWP_NOZORDER);
+			}
+		}
+	}
+
+	LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		m_rectClient.left = m_rectClient.right = m_rectClient.top = m_rectClient.bottom = 0;
+		if (wParam != SIZE_MINIMIZED)
+		{
+			DoSize();
+		}
+		return 0L;
+	}
+
+};
+
+#if 0
 
 #define MESSAGE_HANDLEDWM(func) \
 	{ \
@@ -41,7 +775,7 @@ class CMainFrame :
 
 	int m_heightTitle = CAPTION_HEIGHT;
 
-	RECT m_rcClient = { 0 };
+	RECT m_rectClient = { 0 };
 public:
 	DECLARE_FRAME_XWND_CLASS(NULL, IDR_MAINFRAME)
 
@@ -226,8 +960,6 @@ public:
 		m_currentDpi = GetDpiForWindow(m_hWnd);
 		if (!m_currentDpi)
 			m_currentDpi = USER_DEFAULT_SCREEN_DPI;
-
-		m_heightTitle = ::MulDiv(m_currentDpi, CAPTION_HEIGHT, USER_DEFAULT_SCREEN_DPI);
 
 #if 0
 		//m_viewGPT.RefreshCurrentDPI(m_currentDpi, m_nSinglePane == SPLIT_PANE_NONE);
@@ -527,17 +1259,17 @@ public:
 
 	LRESULT OnSize(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
-		m_rcClient.left = m_rcClient.right = m_rcClient.top = m_rcClient.bottom = 0;
+		m_rectClient.left = m_rectClient.right = m_rectClient.top = m_rectClient.bottom = 0;
 		if (wParam != SIZE_MINIMIZED)
 		{
-			GetClientRect(&m_rcClient);
-			if (m_rcClient.right > m_rcClient.left && m_rcClient.bottom > m_rcClient.top + m_heightTitle)
+			GetClientRect(&m_rectClient);
+			if (m_rectClient.right > m_rectClient.left && m_rectClient.bottom > m_rectClient.top + m_heightTitle)
 			{
-				int top = m_rcClient.top + m_heightTitle;
+				int top = m_rectClient.top + m_heightTitle;
 				::SetWindowPos(m_view.m_hWnd, NULL,
-					m_rcClient.left, top,
-					m_rcClient.right - m_rcClient.left,
-					m_rcClient.bottom - top, SWP_NOZORDER);
+					m_rectClient.left, top,
+					m_rectClient.right - m_rectClient.left,
+					m_rectClient.bottom - top, SWP_NOZORDER);
 
 				m_view.UpdateLayered();
 			}
@@ -2241,4 +2973,5 @@ public:
 	}
 
 };
+#endif 
 
