@@ -1,0 +1,64 @@
+<svg version="1.1" width="600" height="240" xmlns="http://www.w3.org/2000/svg" >
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
+
+<path d="M 20 65 h 560 v -20 h -560 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 60 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 120 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 160 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 220 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 280 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 360 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 460 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 40 23 V 32" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 140 23 V 32" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 250 23 V 32" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 410 23 V 32" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+
+<path d="M 90 85 V 77" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 190 85 V 77" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 320 85 V 77" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 520 85 V 77" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+
+<text x="37" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">4</text>
+<text x="136" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">4</text>
+<text x="183" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">64</text>
+<text x="82" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">33</text>
+<text x="242" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">64</text>
+<text x="308" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">128</text>
+<text x="394" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">4096</text>
+<text x="501" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">65536</text>
+
+<text x="125" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">属性</text>
+<text x="237" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">地区</text>
+<text x="370" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">32X32小头像</text>
+<text x="480" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">128X128大头像</text>
+<text x="77" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">公钥</text>
+<text x="10" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">用户信息CRC32</text>
+<text x="177" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">姓名</text>
+<text x="300" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">座右铭</text>
+
+<path d="M 100 180 h 400 v -20 h -400 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 110 160 v 20" stroke="#0000FF" stroke-width="1" fill="none" stroke-dasharray="3,3"/>
+<path d="M 130 160 v 20" stroke="#0000FF" stroke-width="1" fill="none" stroke-dasharray="3,3"/>
+<path d="M 200 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 250 160 v 20" stroke="#0000FF" stroke-width="1" fill="none" stroke-dasharray="3,3"/>
+<path d="M 300 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 400 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 130 185 v 5 a 5 5 0 0 0 5 5 h 25 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 25 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 300 185 v 5 a 5 5 0 0 0 5 5 h 90 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 90 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 250 155 v -5 a 5 5 0 0 1 5 -5 h 15 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 15 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<text x="370" y="215" style="font-size:13px;font-family:'Microsoft Yahei'">生日的年份</text>
+<text x="140" y="215" style="font-size:13px;font-family:'Microsoft Yahei'">生日的天</text>
+<text x="242" y="135" style="font-size:13px;font-family:'Microsoft Yahei'">生日的月份</text>
+<text x="90" y="130" style="font-size:13px;font-family:'Microsoft Yahei'">性别(2-bit)</text>
+<text x="30" y="218" style="font-size:13px;font-family:'Microsoft Yahei'">是否为群(1-bit)</text>
+<text x="210" y="218" style="font-size:13px;font-family:'Microsoft Yahei'">保留未用(4-bit)</text>
+<path d="M 225 205 V 192" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 105 205 V 192" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 120 135 V 148" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+
+</svg>
+

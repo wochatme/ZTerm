@@ -1,0 +1,42 @@
+<svg version="1.1" width="600" height="120" xmlns="http://www.w3.org/2000/svg" >
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
+
+<path d="M 20 65 h 560 v -20 h -560 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 60 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 140 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 220 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 260 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 280 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 300 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 320 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 340 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<text x="267" y="60" style="font-size:13px;font-family:'Arial'">T</text>
+<text x="287" y="60" style="font-size:13px;font-family:'Arial'">X</text>
+<text x="307" y="60" style="font-size:13px;font-family:'Arial'">T</text>
+<text x="324" y="58" style="font-size:13px;font-family:'Arial'">@</text>
+
+<text x="24" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">4字节</text>
+<text x="80" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">32字节</text>
+<text x="224" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">4字节</text>
+<text x="160" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">32字节</text>
+<text x="400" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">可变长度</text>
+
+<path d="M 20 68 v 5 a 5 5 0 0 0 5 5 h 10 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 10 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 140 68 v 5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 60 42 v -5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 220 42 v -5 a 5 5 0 0 1 5 -5 h 10 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 10 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<path d="M 260 68 v 5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<path d="M 340 42 v -5 a 5 5 0 0 1 5 -5 h 110 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 110 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+
+
+<text x="10" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">1.最终文件的长度</text>
+<text x="130" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">3.原始数据的哈希值</text>
+<text x="270" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">5.文件的标志数据</text>
+<text x="35" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">2.文档的唯一性编号</text>
+<text x="180" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">4.原始文档的长度</text>
+<text x="380" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">6.压缩和加密后的文件数据</text>
+
+</svg>

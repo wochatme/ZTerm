@@ -1,0 +1,19 @@
+<svg version="1.1" width="600" height="120" xmlns="http://www.w3.org/2000/svg" >
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
+
+<text x="22" y="60" style="font-size:13px;font-family:'Arial'">02E3687B......FE8D</text>
+<text x="148" y="59" style="font-size:13px;font-family:'Arial'">-</text>
+<text x="165" y="60" style="font-size:13px;font-family:'Arial'">C8FD1229E9035D0EA4D1...9BA38E7F73D6D29FEE43C4ADF537CA</text>
+
+<path d="M 150 20 V 33" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<text x="70" y="15" style="font-size:13px;font-family:'Microsoft Yahei'">减号分隔符，一个字节</text>
+
+<path d="M 20 65 h 560 v -20 h -560 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 140 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 160 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 20 70 v 5 a 5 5 0 0 0 5 5 h 50 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 50 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<text x="54" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">66个字节</text>
+<text x="344" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">64个字节</text>
+<path d="M 160 40 v -5 a 5 5 0 0 1 5 -5 h 200 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 200 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+</svg>

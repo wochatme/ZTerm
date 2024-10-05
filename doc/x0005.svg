@@ -1,0 +1,51 @@
+<svg version="1.1" width="600" height="230" xmlns="http://www.w3.org/2000/svg" >
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
+
+<text x="30" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">发送者的公钥</text>
+<text x="130" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">接收者的公钥</text>
+<text x="300" y="60" style="font-size:13px;font-family:'Microsoft Yahei'">加密的数据包</text>
+<text x="226" y="60" style="font-size:13px;font-family:'Arial'">#</text>
+<path d="M 230 20 V 33" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<text x="210" y="15" style="font-size:13px;font-family:'Microsoft Yahei'">分隔符</text>
+
+<path d="M 20 65 h 420 v -20 h -420 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 120 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 220 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 240 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 20 70 v 5 a 5 5 0 0 0 5 5 h 40 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 40 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<text x="145" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">44个字节</text>
+<text x="45" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">44个字节</text>
+<text x="315" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">140个字节</text>
+<path d="M 120 40 v -5 a 5 5 0 0 1 5 -5 h 40 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 40 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 240 40 v -5 a 5 5 0 0 1 5 -5 h 90 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 90 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<path d="M 240 70 v 20 L 80 125 V 148" stroke="#000000" stroke-width="1"  stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 440 70 v 20 L 480 120 V 148" stroke="#000000" stroke-width="1"  stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"  />
+
+<path d="M 80 180 h 400 v -20 h -400 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 180 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 300 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 340 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 380 160 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 130 200 V 192" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 320 200 V 192" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 430 200 V 192" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+
+<path d="M 240 138 V 148" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 360 138 V 148" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
+
+<text x="122" y="175" style="font-size:13px;font-family:'Microsoft Yahei'">32</text>
+<text x="232" y="175" style="font-size:13px;font-family:'Microsoft Yahei'">33</text>
+<text x="315" y="175" style="font-size:13px;font-family:'Microsoft Yahei'">4</text>
+<text x="355" y="175" style="font-size:13px;font-family:'Microsoft Yahei'">4</text>
+<text x="420" y="175" style="font-size:13px;font-family:'Microsoft Yahei'">32</text>
+
+<text x="205" y="135" style="font-size:13px;font-family:'Microsoft Yahei'">查询的公钥</text>
+<text x="300" y="135" style="font-size:13px;font-family:'Microsoft Yahei'">最前面89字节的CRC32</text>
+<text x="105" y="215" style="font-size:13px;font-family:'Microsoft Yahei'">会话密钥</text>
+<text x="266" y="215" style="font-size:13px;font-family:'Microsoft Yahei'">用户信息的CRC32</text>
+<text x="390" y="215" style="font-size:13px;font-family:'Microsoft Yahei'">SHA256哈希值</text>
+</svg>
+

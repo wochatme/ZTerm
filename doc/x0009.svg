@@ -1,0 +1,37 @@
+<svg version="1.1" width="600" height="130" xmlns="http://www.w3.org/2000/svg" >
+<defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
+
+<path d="M 20 65 h 560 v -20 h -560 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 40 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 60 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 80 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 100 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<path d="M 180 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 260 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 320 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+
+<text x="27" y="58" style="font-size:13px;font-family:'Arial'">x</text>
+<text x="46" y="59" style="font-size:13px;font-family:'Arial'">1</text>
+<text x="66" y="59" style="font-size:13px;font-family:'Arial'">0</text>
+<text x="86" y="59" style="font-size:13px;font-family:'Arial'">0</text>
+
+<text x="120" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">66字节</text>
+<text x="200" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">66字节</text>
+<text x="270" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">14字节</text>
+<text x="480" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">可变长度</text>
+
+<path d="M 40 68 v 5 a 5 5 0 0 0 5 5 h 20 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 20 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 180 68 v 5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 100 42 v -5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 260 42 v -5 a 5 5 0 0 1 5 -5 h 20 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 20 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 320 68 v 5 a 5 5 0 0 0 5 5 h 120 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 120 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<text x="10" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">1.协议的版本信息</text>
+<text x="180" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">3.服务器的公钥</text>
+<text x="110" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">2.用户的公钥</text>
+<text x="255" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">4.该域保留</text>
+<text x="380" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">5.服务器发送给客户端的信息</text>
+<path d="M 30 20 V 33" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"/>
+<text x="10" y="15" style="font-size:13px;font-family:'Microsoft Yahei'">消息包的类型</text>
+</svg>
