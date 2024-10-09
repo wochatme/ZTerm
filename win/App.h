@@ -83,9 +83,33 @@ extern std::unique_ptr<BitmapBank> g_pBitmapBank;
 
 extern DWORD guiState;
 
-#define GUISTATE_DARKMODE	(0x00000001)
-#define GUISTATE_TOPMOST	(0x00000002)
-#define GUISTATE_DRAGFULL	(0x00000004)
+#define GUISTATE_DARKMODE		(0x00000001)
+#define GUISTATE_TOPMOST		(0x00000002)
+#define GUISTATE_DRAGFULL		(0x00000004)
+#define GUISTATE_AIISLEFT		(0x00000008)
+#define GUISTATE_SHOWAIWIN		(0x00000010)
+
+
+inline bool AppIsAIWindowShowing()
+{
+	return static_cast<bool>(guiState & GUISTATE_SHOWAIWIN);
+}
+
+inline void AppSetAIShowMode(bool show = true)
+{
+	guiState = show ? (guiState | GUISTATE_SHOWAIWIN) : (guiState & ~GUISTATE_SHOWAIWIN);
+}
+
+inline bool AppLeftAIMode()
+{
+	return static_cast<bool>(guiState & GUISTATE_AIISLEFT);
+}
+
+inline void AppSetLeftAIMode(bool left = true)
+{
+	guiState = left ? (guiState | GUISTATE_AIISLEFT) : (guiState & ~GUISTATE_AIISLEFT);
+}
+
 
 inline bool AppInDarkMode()
 {

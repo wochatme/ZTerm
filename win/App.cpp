@@ -124,8 +124,8 @@ static void GetMainWindowPosition(UINT dpi, RECT& position)
 
 	position.left = left;
 	position.top = top;
-	position.right = left + 1200;
-	position.bottom = top + 1024;
+	position.right = left + 1204;
+	position.bottom = top + 600;
 
 }
 
@@ -195,7 +195,7 @@ static int AppInit(HINSTANCE hInstance)
 
 	ztInitConfig(&ZTCONFIGURATION);
 
-	AppSetDarkMode();
+	//AppSetDarkMode();
 
 	{
 		BOOL bFullDrag = TRUE;

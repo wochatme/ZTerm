@@ -382,6 +382,7 @@ public:
 		MESSAGE_HANDLER(WM_DPICHANGED, OnDPIChanged)
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
+		COMMAND_ID_HANDLER(IDM_AIASSISTANT, OnAIAssistant)
 #if 0
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 #endif 
@@ -389,13 +390,18 @@ public:
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
 
+	LRESULT OnAIAssistant(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return m_view.DoAIAssistant();
+	}
+
 #if 0
 	LRESULT OnAppAbout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		CAboutDlg dlg;
 		dlg.DoModal();
 		return 0;
-}
+	}
 #endif 
 
 	LRESULT OnNCCreate(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
@@ -424,8 +430,7 @@ public:
 		DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
 		DWORD dwExStyle =  WS_EX_LAYERED;
 
-		m_view.Create(m_hWnd, rcDefault, NULL,
-			WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE, dwExStyle);
+		m_view.Create(m_hWnd, rcDefault, NULL, dwStyle, dwExStyle);
 #if 10
 		if (m_view.IsWindow())
 		{
