@@ -357,6 +357,8 @@ public:
 };
 #endif 
 
+static char screenbuff[1 << 20] = { 0 };
+
 class CTTYView
 {
 public:
@@ -477,6 +479,25 @@ public:
 			::SendMessage(m_hWnd, SCI_SETTEXT, 0, (LPARAM)text);
 		}
 		return 0;
+	}
+
+	const char* GetScreenData(U32& size)
+	{
+		char* data = nullptr;
+
+		U32 len = static_cast<U32>(::SendMessage(m_hWnd, SCI_GETTEXTLENGTH, 0, 0));
+		
+		size = 0;
+		if (IsWindow())
+		{
+			if (len > 0 && len < (1 << 20))
+			{
+				::SendMessage(m_hWnd, SCI_GETTEXT, len, (LPARAM)screenbuff);
+				size = len;
+				data = screenbuff;
+			}
+		}
+		return static_cast<const char*>(data);
 	}
 
 };

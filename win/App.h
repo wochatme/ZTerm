@@ -70,16 +70,18 @@ extern volatile LONG g_threadPingNow;
 extern MessageTask* g_sendQueue;
 extern MessageTask* g_receQueue;
 
+extern MemPoolContext g_sendMemPool;
+extern MemPoolContext g_receMemPool;
+extern MemPoolContext g_regxMemPool;
+
 /* used to sync different threads */
 extern CRITICAL_SECTION  g_csSendMsg;
 extern CRITICAL_SECTION  g_csReceMsg;
 
 extern ZTConfig ZTCONFIGURATION;
-extern std::unique_ptr<BitmapBank> g_pBitmapBank;
-
+extern std::unique_ptr<BitmapBank> g_bitmapBank;
 
 #define TITLEBAR_DARK_BACKGROUND_COLOR	(0xffffff)
-
 
 extern DWORD guiState;
 

@@ -470,11 +470,8 @@ public:
 
 	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM, BOOL& bHandled)
 	{
-		if (m_view.IsWindow())
-		{
-			m_view.DoSetFocus();
-		}
-		//bHandled = FALSE;
+		m_view.DoSetFocus();
+		bHandled = FALSE;
 		return 0;
 	}
 
@@ -524,14 +521,13 @@ public:
 	LRESULT OnNCHitTest(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		const int offset = 10;
-		RECT rw = { 0 };
-		GetWindowRect(&rw);
-
 		POINT cursor_position
 		{
 			GET_X_LPARAM(lParam),
 			GET_Y_LPARAM(lParam)
 		};
+		RECT rw = { 0 };
+		GetWindowRect(&rw);
 
 		if (cursor_position.y < rw.top + offset && cursor_position.x < rw.left + offset)
 			return HTTOPLEFT;
@@ -611,13 +607,8 @@ public:
 		SetWindowText(title);
 #endif 
 		m_inDpiChange = false;
-
-		//m_viewTTY.ShowInfo(m_currentDpi);
-
 		return 0L;
 	}
-
-
 
 	LRESULT OnActivate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
@@ -638,7 +629,7 @@ public:
 			BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
 			::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
 		}
-
+#if 0
 		if (m_view.IsWindow())
 		{
 			//SetLayeredWindowAttributes(m_view.m_hWnd, RGB(0,0,0), 0, LWA_COLORKEY);
@@ -654,7 +645,7 @@ public:
 			m_view.UpdateView();
 #endif 
 		}
-
+#endif 
 #if 0
 		_client_area_offset_dip = static_cast<float>(margins.cyTopHeight) / _user_scaling;
 

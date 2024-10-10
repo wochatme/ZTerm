@@ -1,66 +1,108 @@
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-/*
- * Pointer
- *		Variable holding address of any memory resident object.
- *
- *		XXX Pointer arithmetic is done with this, so it can't be void *
- *		under "true" ANSI compilers.
- */
-typedef char* Pointer;
-
-/*
- * Size
- *		Size of any memory resident object, as returned by sizeof.
- */
-typedef size_t Size;
-
-/*
- * intN
- *		Signed integer, EXACTLY N BITS IN SIZE,
- *		used for numerical computations and the
- *		frontend/backend protocol.
- */
-#ifndef HAVE_INT8
-typedef signed char int8;		/* == 8 bits */
-typedef signed short int16;		/* == 16 bits */
-typedef signed int int32;		/* == 32 bits */
-#endif							/* not HAVE_INT8 */
-
-/*
- * uintN
- *		Unsigned integer, EXACTLY N BITS IN SIZE,
- *		used for numerical computations and the
- *		frontend/backend protocol.
- */
-#ifndef HAVE_UINT8
-typedef unsigned char uint8;	/* == 8 bits */
-typedef unsigned short uint16;	/* == 16 bits */
-typedef unsigned int uint32;	/* == 32 bits */
-#endif							/* not HAVE_UINT8 */
-
-/*
- * bitsN
- *		Unit of bitwise operation, AT LEAST N BITS IN SIZE.
- */
-typedef uint8 bits8;			/* >= 8 bits */
-typedef uint16 bits16;			/* >= 16 bits */
-typedef uint32 bits32;			/* >= 32 bits */
-
-/*
- * 64-bit integers
- */
-#ifndef HAVE_INT64
-typedef long long int int64;
-#endif
-
-#ifndef HAVE_UINT64
-typedef unsigned long long int uint64;
-#endif
+#include "ztlib.h"
 
 #define INT64CONST(x)  (x##LL)
 #define UINT64CONST(x) (x##ULL)
+
+/*
+ * Flags for pg_malloc_extended and palloc_extended, deliberately named
+ * the same as the backend flags.
+ */
+#define MCXT_ALLOC_HUGE			0x01	/* allow huge allocation (> 1 GB) not
+										 * actually used for frontends */
+#define MCXT_ALLOC_NO_OOM		0x02	/* no failure if out-of-memory */
+#define MCXT_ALLOC_ZERO			0x04	/* zero allocated memory */
+
+/*
+ * MaxAllocSize, MaxAllocHugeSize
+ *		Quasi-arbitrary limits on size of allocations.
+ *
+ * Note:
+ *		There is no guarantee that smaller allocations will succeed, but
+ *		larger requests will be summarily denied.
+ *
+ * palloc() enforces MaxAllocSize, chosen to correspond to the limiting size
+ * of varlena objects under TOAST.  See VARSIZE_4B() and related macros in
+ * postgres.h.  Many datatypes assume that any allocatable size can be
+ * represented in a varlena header.  This limit also permits a caller to use
+ * an "int" variable for an index into or length of an allocation.  Callers
+ * careful to avoid these hazards can access the higher limit with
+ * MemoryContextAllocHuge().  Both limits permit code to assume that it may
+ * compute twice an allocation's size without overflow.
+ */
+#define MaxAllocSize	((Size) 0x3fffffff) /* 1 gigabyte - 1 */
+
+#define AllocSizeIsValid(size)	((Size) (size) <= MaxAllocSize)
+
+										  /* Must be less than SIZE_MAX */
+#define MaxAllocHugeSize	(SIZE_MAX / 2)
+
+#define InvalidAllocSize	SIZE_MAX
+
+#define AllocHugeSizeIsValid(size)	((Size) (size) <= MaxAllocHugeSize)
+
+/*
+ * PointerIsValid
+ *		True iff pointer is valid.
+ */
+#define PointerIsValid(pointer) ((const void*)(pointer) != NULL)
+
+/*
+ * Max
+ *		Return the maximum of two numbers.
+ */
+#define MaxPG(x, y)		((x) > (y) ? (x) : (y))
+
+ /*
+  * Min
+  *		Return the minimum of two numbers.
+  */
+#define MinPG(x, y)		((x) < (y) ? (x) : (y))
+
+/* Get a bit mask of the bits set in non-long aligned addresses */
+#define LONG_ALIGN_MASK (sizeof(long) - 1)
+
+#define MEMSET_LOOP_LIMIT 1024
+
+/*
+ * MemSetAligned is the same as MemSet except it omits the test to see if
+ * "start" is word-aligned.  This is okay to use if the caller knows a-priori
+ * that the pointer is suitably aligned (typically, because he just got it
+ * from palloc(), which always delivers a max-aligned pointer).
+ */
+#define MemSetAligned(start, val, len) \
+	do \
+	{ \
+		long   *_start = (long *) (start); \
+		int		_val = (val); \
+		Size	_len = (len); \
+\
+		if ((_len & LONG_ALIGN_MASK) == 0 && \
+			_val == 0 && \
+			_len <= MEMSET_LOOP_LIMIT && \
+			MEMSET_LOOP_LIMIT != 0) \
+		{ \
+			long *_stop = (long *) ((char *) _start + _len); \
+			while (_start < _stop) \
+				*_start++ = 0; \
+		} \
+		else \
+			memset(_start, _val, _len); \
+	} while (0)
+
+/*
+ * Hints to the compiler about the likelihood of a branch. Both likely() and
+ * unlikely() return the boolean value of the contained expression.
+ *
+ * These should only be used sparingly, in very hot code paths. It's very easy
+ * to mis-estimate likelihoods.
+ */
+#if __GNUC__ >= 3
+#define likely(x)	__builtin_expect((x) != 0, 1)
+#define unlikely(x) __builtin_expect((x) != 0, 0)
+#else
+#define likely(x)	((x) != 0)
+#define unlikely(x) ((x) != 0)
+#endif
 
 /* ----------------
  * Alignment macros: align a length or address appropriately for a given type.
@@ -569,6 +611,44 @@ MemoryChunkGetBlock(MemoryChunk* chunk)
 #endif 
 	return (void*)((char*)chunk - HdrMaskBlockOffset(chunk->hdrmask));
 }
+
+
+ /*
+  * GetMemoryChunkMethodID
+  *		Return the MemoryContextMethodID from the uint64 chunk header which
+  *		directly precedes 'pointer'.
+  */
+static inline MemoryContextMethodID
+GetMemoryChunkMethodID(const void* pointer)
+{
+	uint64		header;
+
+	/*
+	 * Try to detect bogus pointers handed to us, poorly though we can.
+	 * Presumably, a pointer that isn't MAXALIGNED isn't pointing at an
+	 * allocated chunk.
+	 */
+#if 0
+	Assert(pointer == (const void*)MAXALIGN(pointer));
+
+	/* Allow access to the uint64 header */
+	VALGRIND_MAKE_MEM_DEFINED((char*)pointer - sizeof(uint64), sizeof(uint64));
+#endif 
+	header = *((const uint64*)((const char*)pointer - sizeof(uint64)));
+#if 0
+	/* Disallow access to the uint64 header */
+	VALGRIND_MAKE_MEM_NOACCESS((char*)pointer - sizeof(uint64), sizeof(uint64));
+#endif 
+	return (MemoryContextMethodID)(header & MEMORY_CONTEXT_METHODID_MASK);
+}
+
+/*
+ * Call the given function in the MemoryContextMethods for the memory context
+ * type that 'pointer' belongs to.
+ */
+#define MCXT_METHOD(pointer, method) \
+	mcxt_methods[GetMemoryChunkMethodID(pointer)].method
+
 
 /* cleanup all internal definitions */
 #undef MEMORYCHUNK_BLOCKOFFSET_MASK
@@ -1187,11 +1267,11 @@ AllocSetFreeIndex(Size size)
 #else
 		uint32		t,
 					tsize;
-
+#if 0
 		/* Statically assert that we only have a 16-bit input value. */
 		StaticAssertDecl(ALLOC_CHUNK_LIMIT < (1 << 16),
 						 "ALLOC_CHUNK_LIMIT must be less than 64kB");
-
+#endif 
 		tsize = size - 1;
 		t = tsize >> 8;
 		idx = t ? pg_leftmost_one_pos[t] + 8 : pg_leftmost_one_pos[tsize];
@@ -1207,11 +1287,99 @@ AllocSetFreeIndex(Size size)
 	return idx;
 }
 
+static inline bool
+MemoryContextCheckSize(MemoryContext context, Size size, int flags)
+{
+	bool ret = true;
+	if (unlikely(!AllocSizeIsValid(size)))
+	{
+		if (!(flags & MCXT_ALLOC_HUGE) || !AllocHugeSizeIsValid(size))
+		{
+			//MemoryContextSizeFailure(context, size, flags);
+			ret = false;
+		}
+	}
+	return ret;
+}
 
 /*
  * Public routines
  */
 
+ /*
+  * MemoryContextCreate
+  *		Context-type-independent part of context creation.
+  *
+  * This is only intended to be called by context-type-specific
+  * context creation routines, not by the unwashed masses.
+  *
+  * The memory context creation procedure goes like this:
+  *	1.  Context-type-specific routine makes some initial space allocation,
+  *		including enough space for the context header.  If it fails,
+  *		it can ereport() with no damage done.
+  *	2.	Context-type-specific routine sets up all type-specific fields of
+  *		the header (those beyond MemoryContextData proper), as well as any
+  *		other management fields it needs to have a fully valid context.
+  *		Usually, failure in this step is impossible, but if it's possible
+  *		the initial space allocation should be freed before ereport'ing.
+  *	3.	Context-type-specific routine calls MemoryContextCreate() to fill in
+  *		the generic header fields and link the context into the context tree.
+  *	4.  We return to the context-type-specific routine, which finishes
+  *		up type-specific initialization.  This routine can now do things
+  *		that might fail (like allocate more memory), so long as it's
+  *		sure the node is left in a state that delete will handle.
+  *
+  * node: the as-yet-uninitialized common part of the context header node.
+  * tag: NodeTag code identifying the memory context type.
+  * method_id: MemoryContextMethodID of the context-type being created.
+  * parent: parent context, or NULL if this will be a top-level context.
+  * name: name of context (must be statically allocated).
+  *
+  * Context routines generally assume that MemoryContextCreate can't fail,
+  * so this can contain Assert but not elog/ereport.
+  */
+static void
+MemoryContextCreate(MemoryContext node,
+	NodeTag tag,
+	MemoryContextMethodID method_id,
+	MemoryContext parent,
+	const char* name)
+{
+#if 0
+	/* Creating new memory contexts is not allowed in a critical section */
+	Assert(CritSectionCount == 0);
+#endif 
+	/* Initialize all standard fields of memory context header */
+	node->type = tag;
+	node->isReset = true;
+	node->methods = &mcxt_methods[method_id];
+	node->parent = parent;
+	node->firstchild = NULL;
+	node->mem_allocated = 0;
+	node->prevchild = NULL;
+	node->name = name;
+	node->ident = NULL;
+	node->reset_cbs = NULL;
+
+	/* OK to link node into context tree */
+	if (parent)
+	{
+		node->nextchild = parent->firstchild;
+		if (parent->firstchild != NULL)
+			parent->firstchild->prevchild = node;
+		parent->firstchild = node;
+		/* inherit allowInCritSection flag from parent */
+		node->allowInCritSection = parent->allowInCritSection;
+	}
+	else
+	{
+		node->nextchild = NULL;
+		node->allowInCritSection = false;
+	}
+#if 0
+	VALGRIND_CREATE_MEMPOOL(node, 0, false);
+#endif 
+}
 
 /*
  * AllocSetContextCreateInternal
@@ -1229,7 +1397,7 @@ AllocSetFreeIndex(Size size)
  * Note: don't call this directly; go through the wrapper macro
  * AllocSetContextCreate.
  */
-MemoryContext
+static MemoryContext
 AllocSetContextCreateInternal(MemoryContext parent,
 							  const char *name,
 							  Size minContextSize,
@@ -1289,6 +1457,7 @@ AllocSetContextCreateInternal(MemoryContext parent,
 	/*
 	 * If a suitable freelist entry exists, just recycle that context.
 	 */
+#if 0
 	if (freeListIndex >= 0)
 	{
 		AllocSetFreeList *freelist = &context_freelists[freeListIndex];
@@ -1316,14 +1485,14 @@ AllocSetContextCreateInternal(MemoryContext parent,
 			return (MemoryContext) set;
 		}
 	}
-
+#endif 
 	/* Determine size of initial block */
 	firstBlockSize = MAXALIGN(sizeof(AllocSetContext)) +
 		ALLOC_BLOCKHDRSZ + ALLOC_CHUNKHDRSZ;
 	if (minContextSize != 0)
-		firstBlockSize = Max(firstBlockSize, minContextSize);
+		firstBlockSize = MaxPG(firstBlockSize, minContextSize);
 	else
-		firstBlockSize = Max(firstBlockSize, initBlockSize);
+		firstBlockSize = MaxPG(firstBlockSize, initBlockSize);
 
 	/*
 	 * Allocate the initial block.  Unlike other aset.c blocks, it starts with
@@ -1425,14 +1594,15 @@ AllocSetContextCreateInternal(MemoryContext parent,
  * thrash malloc() when a context is repeatedly reset after small allocations,
  * which is typical behavior for per-tuple contexts.
  */
-void
+static void
 AllocSetReset(MemoryContext context)
 {
 	AllocSet	set = (AllocSet) context;
 	AllocBlock	block;
 	Size		keepersize PG_USED_FOR_ASSERTS_ONLY;
-
+#if 0
 	Assert(AllocSetIsValid(set));
+#endif 
 
 #ifdef MEMORY_CONTEXT_CHECKING
 	/* Check for corruption and leaks before freeing */
@@ -1491,6 +1661,40 @@ AllocSetReset(MemoryContext context)
 	set->nextBlockSize = set->initBlockSize;
 }
 
+#if 0
+/*
+ * MemoryContextResetOnly
+ *		Release all space allocated within a context.
+ *		Nothing is done to the context's descendant contexts.
+ */
+void
+MemoryContextResetOnly(MemoryContext context)
+{
+#if 0
+	Assert(MemoryContextIsValid(context));
+#endif 
+	/* Nothing to do if no pallocs since startup or last reset */
+	if (!context->isReset)
+	{
+		MemoryContextCallResetCallbacks(context);
+
+		/*
+		 * If context->ident points into the context's memory, it will become
+		 * a dangling pointer.  We could prevent that by setting it to NULL
+		 * here, but that would break valid coding patterns that keep the
+		 * ident elsewhere, e.g. in a parent context.  So for now we assume
+		 * the programmer got it right.
+		 */
+
+		context->methods->reset(context);
+		context->isReset = true;
+#if 0
+		VALGRIND_DESTROY_MEMPOOL(context);
+		VALGRIND_CREATE_MEMPOOL(context, 0, false);
+#endif 
+	}
+}
+#endif 
 /*
  * AllocSetDelete
  *		Frees all memory which is allocated in the given set,
@@ -1498,7 +1702,7 @@ AllocSetReset(MemoryContext context)
  *
  * Unlike AllocSetReset, this *must* free all resources of the set.
  */
-void
+static void
 AllocSetDelete(MemoryContext context)
 {
 	AllocSet	set = (AllocSet) context;
@@ -1515,6 +1719,7 @@ AllocSetDelete(MemoryContext context)
 	/* Remember keeper block size for Assert below */
 	keepersize = KeeperBlock(set)->endptr - ((char *) set);
 
+#if 0
 	/*
 	 * If the context is a candidate for a freelist, put it into that freelist
 	 * instead of destroying it.
@@ -1558,7 +1763,7 @@ AllocSetDelete(MemoryContext context)
 
 		return;
 	}
-
+#endif 
 	/* Free all blocks, except the keeper which is part of context header */
 	while (block != NULL)
 	{
@@ -1597,9 +1802,12 @@ AllocSetAllocLarge(MemoryContext context, Size size, int flags)
 	MemoryChunk *chunk;
 	Size		chunk_size;
 	Size		blksize;
-
+	bool        size_is_good;
 	/* validate 'size' is within the limits for the given 'flags' */
-	MemoryContextCheckSize(context, size, flags);
+	size_is_good = MemoryContextCheckSize(context, size, flags);
+
+	if (!size_is_good)
+		return NULL;
 
 #ifdef MEMORY_CONTEXT_CHECKING
 	/* ensure there's always space for the sentinel byte */
@@ -1757,7 +1965,9 @@ AllocSetAllocFromNewBlock(MemoryContext context, Size size, int flags,
 		if (availchunk != GetChunkSizeFromFreeListIdx(a_fidx))
 		{
 			a_fidx--;
+#if 0
 			Assert(a_fidx >= 0);
+#endif 
 			availchunk = GetChunkSizeFromFreeListIdx(a_fidx);
 		}
 
@@ -2080,6 +2290,7 @@ AllocSetFree(void *pointer)
 void *
 AllocSetRealloc(void *pointer, Size size, int flags)
 {
+#if 0
 	AllocBlock	block;
 	AllocSet	set;
 	MemoryChunk *chunk = PointerGetMemoryChunk(pointer);
@@ -2341,6 +2552,8 @@ AllocSetRealloc(void *pointer, Size size, int flags)
 
 		return newPointer;
 	}
+#endif
+	return NULL;
 }
 
 /*
@@ -2643,3 +2856,94 @@ AllocSetCheck(MemoryContext context)
 }
 
 #endif							/* MEMORY_CONTEXT_CHECKING */
+
+
+MemPoolContext zt_mempool_create(const char* mempool_name, U32 minContextSize, U32 initBlockSize, U32 maxBlockSize)
+{
+	MemoryContext cxt;
+
+	if (0 == initBlockSize)
+		initBlockSize = ALLOCSET_DEFAULT_INITSIZE;
+	if (0 == maxBlockSize)
+		maxBlockSize = ALLOCSET_DEFAULT_MAXSIZE;
+
+	cxt = AllocSetContextCreateInternal(NULL, mempool_name, minContextSize, initBlockSize, maxBlockSize);
+
+	return (MemPoolContext)cxt;
+}
+
+void zt_mempool_destroy(MemPoolContext cxt)
+{
+	if (cxt)
+	{
+		MemoryContext context = (MemoryContext)cxt;
+		context->methods->delete_context(context);
+	}
+}
+
+void* zt_palloc(MemPoolContext cxt, size_t size)
+{
+	/* duplicates MemoryContextAlloc to avoid increased overhead */
+	void* ret = NULL;
+
+	if (cxt)
+	{
+		MemoryContext context = (MemoryContext)cxt;
+
+		context->isReset = false;
+
+		/*
+		 * For efficiency reasons, we purposefully offload the handling of
+		 * allocation failures to the MemoryContextMethods implementation as this
+		 * allows these checks to be performed only when an actual malloc needs to
+		 * be done to request more memory from the OS.  Additionally, not having
+		 * to execute any instructions after this call allows the compiler to use
+		 * the sibling call optimization.  If you're considering adding code after
+		 * this call, consider making it the responsibility of the 'alloc'
+		 * function instead.
+		 */
+		ret = context->methods->alloc(context, size, 0);
+	}
+
+	return ret;
+}
+
+void* zt_palloc0(MemPoolContext cxt, size_t size)
+{
+	/* duplicates MemoryContextAlloc to avoid increased overhead */
+	void* ret = NULL;
+
+	if (cxt)
+	{
+		MemoryContext context = (MemoryContext)cxt;
+
+		context->isReset = false;
+
+		/*
+		 * For efficiency reasons, we purposefully offload the handling of
+		 * allocation failures to the MemoryContextMethods implementation as this
+		 * allows these checks to be performed only when an actual malloc needs to
+		 * be done to request more memory from the OS.  Additionally, not having
+		 * to execute any instructions after this call allows the compiler to use
+		 * the sibling call optimization.  If you're considering adding code after
+		 * this call, consider making it the responsibility of the 'alloc'
+		 * function instead.
+		 */
+		ret = context->methods->alloc(context, size, 0);
+
+		if (ret)
+		{
+			MemSetAligned(ret, 0, size);
+		}
+	}
+
+	return ret;
+}
+
+void zt_pfree(void* pointer)
+{
+	if (pointer)
+	{
+		MCXT_METHOD(pointer, free_p) (pointer);
+	}
+}

@@ -31,9 +31,13 @@ volatile LONG  g_threadPingNow = 1;
 
 DWORD guiState = 0;
 
-std::unique_ptr<BitmapBank> g_pBitmapBank = nullptr;
+std::unique_ptr<BitmapBank> g_bitmapBank = nullptr;
 
 ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
+
+MemPoolContext g_sendMemPool = nullptr;
+MemPoolContext g_receMemPool = nullptr;
+MemPoolContext g_regxMemPool = nullptr;
 
 /* the message queue from the remote server */
 MessageTask* g_sendQueue = nullptr;
@@ -116,12 +120,12 @@ static bool LoadD2D() noexcept
 static void GetMainWindowPosition(UINT dpi, RECT& position)
 {
 	int left, top;
-	DWORD tc;
+	ULONGLONG tc;
 
-	tc = GetTickCount();
-	left = (tc % 100) + 100;
-	tc = GetTickCount();
-	top = (tc % 100) + 100;
+	tc = GetTickCount64();
+	left = static_cast<int>((tc % 193)) + 100;
+	tc = GetTickCount64();
+	top = static_cast<int>((tc % 191)) + 100;
 
 	position.left = left;
 	position.top = top;
@@ -160,10 +164,10 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 		wndMain->ShowWindow(SW_SHOWMAXIMIZED);
 		wndMain->UpdateMainView();
 		wndMain->UpdateMainView();
-		g_pBitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
 		COLORREF borderColor = RGB(0, 128, 128); // Custom border color
 		HRESULT hr = DwmSetWindowAttribute(wndMain->m_hWnd, DWMWA_BORDER_COLOR, &borderColor, sizeof(borderColor));
 #endif 
+		g_bitmapBank = std::make_unique<BitmapBank>(wndMain->GetCurrentDpi(), AppInDarkMode());
 
 		wndMain->ShowWindow(nCmdShow);
 #if 10
@@ -185,6 +189,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 }
 
 void PCRE2Test();
+
 static int AppInit(HINSTANCE hInstance)
 {
 	g_Quit = 0;
@@ -198,8 +203,7 @@ static int AppInit(HINSTANCE hInstance)
 	ztInitConfig(&ZTCONFIGURATION);
 
 	//AppSetDarkMode();
-	PCRE2Test();
-
+	//PCRE2Test();
 	{
 		BOOL bFullDrag = TRUE;
 		::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
@@ -222,21 +226,19 @@ static int AppInit(HINSTANCE hInstance)
 	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
 		return 3;
 
-	return 0;
-}
+	g_sendMemPool = zt_mempool_create("SendMsgPool", ALLOCSET_DEFAULT_SIZES);
+	if (g_sendMemPool == nullptr)
+		return 5;
 
-static void ReleaseQueueMemory()
-{
-	MessageTask* mp;
-	MessageTask* mq;
-	mp = g_sendQueue;
-	while (mp) // scan the link to find the message that has been processed
-	{
-		mq = mp->next;
-		free(mp);
-		mp = mq;
-	}
-	g_sendQueue = nullptr;
+	g_receMemPool = zt_mempool_create("ReceMsgPool", ALLOCSET_DEFAULT_SIZES);
+	if (g_receMemPool == nullptr)
+		return 6;
+
+	g_regxMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
+	if (g_regxMemPool == nullptr)
+		return 7;
+
+	return 0;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
@@ -275,9 +277,11 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 	ATLASSERT(g_threadCount == 0);
 	ATLASSERT(g_threadCountBKG == 0);
 
-	ReleaseQueueMemory();
+	zt_mempool_destroy(g_sendMemPool);
+	zt_mempool_destroy(g_receMemPool);
+	zt_mempool_destroy(g_regxMemPool);
 
-	g_pBitmapBank.reset();
+	g_bitmapBank.reset();
 
 	curl_global_cleanup();
 	Scintilla_ReleaseResources();

@@ -1,8 +1,5 @@
 #pragma once
 
-#define ZT_OK       0
-#define ZT_FAIL     1
-
 #define INPUT_BUF_INPUT_MAX     (1<<16)
 #define EDITW_DEFAULT_BLOCK     (1<<16)
 

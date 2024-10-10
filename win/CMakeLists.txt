@@ -28,6 +28,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 	${CMAKE_SOURCE_DIR}/inc
 	)
 
+target_link_libraries(${PROJECT_NAME} libzt)
 target_link_libraries(${PROJECT_NAME} scintilla)
 target_link_libraries(${PROJECT_NAME} zlibstatic)
 target_link_libraries(${PROJECT_NAME} libcurl_static)

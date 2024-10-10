@@ -2,8 +2,10 @@ project(libzt)
 
 file(GLOB LIBZT_SRC 
 	"zt_mempool.c"
-	"zt_sha256.c"
+	"zt_hash.c"
 	"zt_unicode.c"
+	"zt_utils.c"
+	"zt_aes256.c"
 	)
 
 add_library(${PROJECT_NAME} ${LIBZT_SRC})
