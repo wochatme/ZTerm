@@ -1,5 +1,7 @@
 #pragma once
 
+extern const unsigned int xbmpLGreenLED[16 * 16];
+
 //////////////////////////////////
 #define BITMAP_QUICKASK_N       0
 #define BITMAP_QUICKASK_P       1

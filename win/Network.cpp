@@ -482,4 +482,27 @@ void ztPushIntoSendQueue(MessageTask* task)
     LeaveCriticalSection(&g_csSendMsg);
 }
 
+void PCRE2Test()
+{
+    int errornumber;
+    pcre2_code* re;
+    PCRE2_SPTR pattern;     /* PCRE2_SPTR is a pointer to unsigned code units of */
+    PCRE2_SPTR subject;     /* the appropriate width (in this case, 8 bits). */
+    PCRE2_SPTR name_table;
+    PCRE2_SIZE erroroffset;
 
+    pattern = (PCRE2_SPTR)"[0-9]+";
+
+    re = pcre2_compile(
+        pattern,               /* the pattern */
+        PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
+        0,                     /* default options */
+        &errornumber,          /* for error number */
+        &erroroffset,          /* for error offset */
+        NULL);                 /* use default compile context */
+
+    if (re != NULL)
+    {
+        pcre2_code_free(re);
+    }
+}

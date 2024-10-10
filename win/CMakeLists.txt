@@ -31,4 +31,4 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} scintilla)
 target_link_libraries(${PROJECT_NAME} zlibstatic)
 target_link_libraries(${PROJECT_NAME} libcurl_static)
-
+target_link_libraries(${PROJECT_NAME} pcre2-8-static)

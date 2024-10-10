@@ -13,6 +13,7 @@
 #include "App.h"
 #include "Settings.h"
 #include "Network.h"
+#include "Render.h"
 
 #include "ViewGPT.h"
 #include "ViewTTY.h"
@@ -183,6 +184,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	return nRet;
 }
 
+void PCRE2Test();
 static int AppInit(HINSTANCE hInstance)
 {
 	g_Quit = 0;
@@ -196,6 +198,7 @@ static int AppInit(HINSTANCE hInstance)
 	ztInitConfig(&ZTCONFIGURATION);
 
 	//AppSetDarkMode();
+	PCRE2Test();
 
 	{
 		BOOL bFullDrag = TRUE;

@@ -23,8 +23,42 @@
 #define GAP_WIN_HEIGHT		32
 #define LED_WIN_HEIGHT		32
 
+#define RECT_QASK	0
+#define RECT_HIDE	1
+#define RECT_STAT	2
+#define RECT_CHAT	3
+#define RECT_VIDEO	4
+#define RECT_LAST	(RECT_VIDEO + 1)
+
+#define WINGAPDRAW	(0x01)
+#define WINLEDDRAW	(0x02)
+
+#define NeedDrawGAPWin()			(m_winPaintStatus & WINGAPDRAW)
+#define NeedDrawLEDWin()			(m_winPaintStatus & WINLEDDRAW)
+
+#define InvalidateGAPWin()	do { m_winPaintStatus |= WINGAPDRAW; } while(0)
+#define InvalidateLEDWin()	do { m_winPaintStatus |= WINLEDDRAW; } while(0)
+#define InvalidateALLWin()	do { m_winPaintStatus |= (WINLEDDRAW|WINGAPDRAW); } while(0)
+
+#define ClearGAPWinDraw()	do { m_winPaintStatus &= ~WINGAPDRAW; } while(0)
+#define ClearLEDWinDraw()	do { m_winPaintStatus &= ~WINLEDDRAW; } while(0)
+#define ClearALLWinDraw()	do { m_winPaintStatus &= ~(WINLEDDRAW|WINGAPDRAW); } while(0)
+
+#define BACKGROUND_BLACK	0xFF000000
+#define BACKGROUND_WHITE	0xFFFFFFFF
+#define BACKGROUND_DGRAY	0xFFF0F0F0
+//#define BACKGROUND_DGRAY	0xFF171717
+
 class CView : public CWindowImpl<CView>
 {
+	U8 m_winPaintStatus = (WINGAPDRAW | WINLEDDRAW);
+
+	U32* m_screenBuff = nullptr;
+	U32* m_winGapBuff = nullptr;
+	U32* m_winLEDBuff = nullptr;
+
+	RECT m_rectButtons[RECT_LAST] = { 0 };
+
 	UINT32 m_crBackGround = BACKGROUND_COLOR_LIGHT;
 
 	int m_nAIWindowWidth = -1; // in pixel
@@ -39,7 +73,7 @@ class CView : public CWindowImpl<CView>
 	float m_deviceScaleFactor = 1.f;
 	ID2D1HwndRenderTarget* m_pD2DRenderTarget = nullptr;
 
-	ID2D1Bitmap* m_pBitmapPixel = nullptr;
+	ID2D1Bitmap* m_pBitmapSplit = nullptr;
 	ID2D1Bitmap* m_pBitmap0 = nullptr;
 	ID2D1Bitmap* m_pBitmap1 = nullptr;
 	ID2D1Bitmap* m_pBitmap2 = nullptr;
@@ -163,7 +197,17 @@ public:
 
 	LRESULT OnDestroy(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
+		ReleaseUnknown(m_pBitmapSplit);
 		ReleaseUnknown(m_pD2DRenderTarget);
+
+		if (nullptr != m_screenBuff)
+		{
+			VirtualFree(m_screenBuff, 0, MEM_RELEASE);
+		}
+		m_screenBuff = nullptr;
+		m_winGapBuff = nullptr;
+		m_winLEDBuff = nullptr;
+
 		return 0L;
 	}
 
@@ -204,34 +248,128 @@ public:
 			dhrtp.presentOptions = D2D1_PRESENT_OPTIONS_NONE;
 
 			ATLASSERT(nullptr != g_pD2DFactory);
-#if 0
-			ReleaseUnknown(m_pixelBitmap0);
-			ReleaseUnknown(m_pixelBitmap1);
-#endif 
+
+			ReleaseUnknown(m_pBitmapSplit);
+
 			//hr = g_pD2DFactory->CreateHwndRenderTarget(renderTargetProperties, 
 			// hwndRenderTragetproperties, &m_pD2DRenderTarget);
 			hr = g_pD2DFactory->CreateHwndRenderTarget(drtp, dhrtp, &m_pD2DRenderTarget);
-#if 0
 			if (hr == S_OK && m_pD2DRenderTarget)
 			{
 				U8 result = 0;
-				U32 pixel[4] = { 0xFFAAAAAA, 0xFFEEEEEE,0xFFEEEEEE,0xFFEEEEEE };
+				//U32 pixel[4] = { 0xFFAAAAAA, 0xFFEEEEEE,0xFFEEEEEE,0xFFEEEEEE };
+				U32 pixel[4] = { 0xFF0000FF, 0xFF0000FF, 0xFF0000FF, 0xFF0000FF };
 				hr = m_pD2DRenderTarget->CreateBitmap(
 					D2D1::SizeU(4, 1), pixel, 4 << 2,
 					D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
-					&m_pixelBitmap0);
-				if (hr == S_OK && m_pixelBitmap0)
-				{
-					pixel[0] = 0xFF056608;
-					hr = m_pD2DRenderTarget->CreateBitmap(
-						D2D1::SizeU(1, 1), pixel, 4,
-						D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
-						&m_pixelBitmap1);
-				}
+					&m_pBitmapSplit);
 			}
-#endif 
 		}
 		return hr;
+	}
+
+	void UpdateGAPWin(U32* dst, int width, int height)
+	{
+		ScreenFillColor(dst, static_cast<U32>(width * height), BACKGROUND_DGRAY);
+	}
+
+	void DrawGAPWin()
+	{
+		if (m_winGapBuff)
+		{
+			ID2D1Bitmap* pBitmap = nullptr;
+			int w = m_nAIWindowWidth;
+			int h = m_nGAPWindowHeight;
+			UpdateGAPWin(m_winGapBuff, w, h);
+
+			HRESULT hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_winGapBuff, (w << 2),
+				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+				&pBitmap);
+
+			if (S_OK == hr && pBitmap)
+			{
+				int L, T, R, B;
+				B = m_rcSplitter.bottom - m_nASKWindowHeight;
+				T = B - m_nGAPWindowHeight;
+				L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
+				R = m_rcSplitter.right;
+				D2D1_RECT_F area = D2D1::RectF(
+					static_cast<FLOAT>(L),
+					static_cast<FLOAT>(T),
+					static_cast<FLOAT>(R),
+					static_cast<FLOAT>(B)
+				);
+				m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+			}
+			ReleaseUnknown(pBitmap);
+		}
+	}
+
+	void UpdateLEDWin(U32* dst,int width, int height)
+	{
+		int dx, dy;
+		int sw = 16;
+		int sh = 16;
+		U32* src;
+		ScreenFillColor(dst, static_cast<U32>(width * height), BACKGROUND_DGRAY);
+
+		src = const_cast<U32*>(xbmpLGreenLED);
+
+		dy = (height - sh) >> 1;
+		dx = width - sw - dy;
+		ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
+	}
+
+	void DrawLEDWin()
+	{
+		if (m_winLEDBuff)
+		{
+			ID2D1Bitmap* pBitmap = nullptr;
+			int w = m_nAIWindowWidth;
+			int h = m_nLEDWindowHeight;
+
+			UpdateLEDWin(m_winLEDBuff, w, h);
+
+			HRESULT hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_winLEDBuff, (w << 2),
+				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
+				&pBitmap);
+
+			if (S_OK == hr && pBitmap)
+			{
+				int L, T, R, B;
+				T = m_rcSplitter.top;
+				B = T + m_nLEDWindowHeight;
+				L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
+				R = m_rcSplitter.right;
+				D2D1_RECT_F area = D2D1::RectF(
+					static_cast<FLOAT>(L),
+					static_cast<FLOAT>(T),
+					static_cast<FLOAT>(R),
+					static_cast<FLOAT>(B)
+				);
+				m_pD2DRenderTarget->DrawBitmap(pBitmap, &area);
+			}
+			ReleaseUnknown(pBitmap);
+		}
+	}
+
+	void DrawSplitLine()
+	{
+		if (m_pBitmapSplit)
+		{
+			int L, T, R, B;
+			T = m_rcSplitter.top;
+			B = m_rcSplitter.bottom;
+			L = m_xySplitterPos;
+			R = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
+			D2D1_RECT_F area = D2D1::RectF(
+				static_cast<FLOAT>(L),
+				static_cast<FLOAT>(T),
+				static_cast<FLOAT>(R),
+				static_cast<FLOAT>(B)
+			);
+			m_pD2DRenderTarget->DrawBitmap(m_pBitmapSplit, &area);
+		}
 	}
 
 	void DoPaint()
@@ -243,7 +381,17 @@ public:
 			m_pD2DRenderTarget->BeginDraw();
 			////////////////////////////////////////////////////////////////////////////////////////////////////
 			m_pD2DRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
-			m_pD2DRenderTarget->Clear(D2D1::ColorF(m_crBackGround));
+			//m_pD2DRenderTarget->Clear(D2D1::ColorF(m_crBackGround));
+
+			DrawSplitLine();
+
+			//if (NeedDrawGAPWin())
+				DrawGAPWin();
+
+			//if (NeedDrawLEDWin())
+				DrawLEDWin();
+
+			//ClearALLWinDraw(); //prevent unnecessary drawing
 
 			hr = m_pD2DRenderTarget->EndDraw();
 			////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -301,21 +449,11 @@ public:
 
 			if (m_xySplitterPos != xyNewSplitPos)
 			{
-#if 0
-				if (m_bFullDrag)
-				{
-					if (SetSplitterPos(xyNewSplitPos, true))
-						UpdateWindow();
-				}
-				else
-#endif 
-				{
-					DrawGhostBar();
-					SetSplitterPos(xyNewSplitPos, false);
-					DrawGhostBar();
-				}
+				DrawGhostBar();
+				SetSplitterPos(xyNewSplitPos, false);
+				DrawGhostBar();
 			}
-	}
+		}
 		else		// not dragging, just set cursor
 		{
 			if (IsOverSplitterBar(xPos, yPos))
@@ -371,6 +509,8 @@ public:
 			{
 				m_nAIWindowWidth = m_rcSplitter.right - m_rcSplitter.left - m_xySplitterPos - m_cxySplitBar - m_cxyBarEdge;
 			}
+			InvalidateALLWin();
+			Invalidate();
 		}
 
 		bHandled = FALSE;
@@ -520,13 +660,36 @@ public:
 
 	void DoSize()
 	{
+		m_winGapBuff = nullptr;
+		m_winLEDBuff = nullptr;
+
 		SetSplitterRect();
+
 		if (m_rcSplitter.right > 0 && m_rcSplitter.bottom > 0)
 		{
+			U32 bytes, w, h;
 			if (m_nAIWindowWidth <= 0)
 			{
 				m_nAIWindowWidth = ::MulDiv(30, m_rcSplitter.right - m_rcSplitter.left, 100);
 			}
+
+			if (nullptr != m_screenBuff)
+			{
+				VirtualFree(m_screenBuff, 0, MEM_RELEASE);
+			}
+			m_screenBuff = nullptr;
+			w = static_cast<U32>(m_rcSplitter.right - m_rcSplitter.left);
+			h = static_cast<U32>(m_nGAPWindowHeight + m_nLEDWindowHeight);
+			bytes = ZT_ALIGN_PAGE64K(w * h * sizeof(U32));
+			m_screenBuff = (U32*)VirtualAlloc(NULL, bytes, MEM_COMMIT, PAGE_READWRITE);
+			if (nullptr != m_screenBuff)
+			{
+				m_winGapBuff = m_screenBuff;
+                m_winLEDBuff = m_screenBuff + (w * m_nGAPWindowHeight);
+
+			}
+			InvalidateALLWin();
+			Invalidate();
 		}
 	}
 

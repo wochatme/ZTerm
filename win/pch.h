@@ -155,6 +155,21 @@ extern CAppModule _Module;
 #pragma comment(lib, "Dwmapi.lib")
 #pragma comment(lib, "Bcrypt.lib")
 
+#ifndef PCRE2_STATIC 
+#define PCRE2_STATIC 
+#endif 
+/* The PCRE2_CODE_UNIT_WIDTH macro must be defined before including pcre2.h.
+For a program that uses only one code unit width, setting it to 8, 16, or 32
+makes it possible to use generic function names such as pcre2_compile(). Note
+that just changing 8 to 16 (for example) is not sufficient to convert this
+program to process 16-bit characters. Even in a fully 16-bit environment, where
+string-handling functions such as strcmp() and printf() work with 16-bit
+characters, the code for handling the table of named substrings will still need
+to be modified. */
+#define PCRE2_CODE_UNIT_WIDTH 8
+
+#include "pcre2/src/pcre2.h"
+
 #if 0
 #if defined _M_IX86
   #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")

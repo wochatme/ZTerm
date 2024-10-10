@@ -432,13 +432,13 @@ public:
 		DWORD dwExStyle =  WS_EX_LAYERED;
 
 		m_view.Create(m_hWnd, rcDefault, NULL, dwStyle, dwExStyle);
-#if 10
+
 		if (m_view.IsWindow())
 		{
 			SetLayeredWindowAttributes(m_view.m_hWnd, 0, 255, LWA_ALPHA);
 			//SetLayeredWindowAttributes(m_view.m_hWnd, NULL, NULL, NULL);
 		}
-#endif 
+
 		// register object for message filtering and idle updates
 		CMessageLoop* pLoop = _Module.GetMessageLoop();
 		ATLASSERT(pLoop != NULL);
