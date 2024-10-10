@@ -377,6 +377,7 @@ public:
 		MESSAGE_HANDLER(WM_ACTIVATE, OnActivate)
 		MESSAGE_HANDLER(WM_NCCALCSIZE, OnNCCalcSize)
 		MESSAGE_HANDLER(WM_NCHITTEST, OnNCHitTest)
+		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
 		MESSAGE_HANDLER(WM_SIZE, OnSize)
 		MESSAGE_HANDLER(WM_NCCREATE, OnNCCreate)
 		MESSAGE_HANDLER(WM_DPICHANGED, OnDPIChanged)
@@ -465,6 +466,16 @@ public:
 	LRESULT OnEraseBackground(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& bHandled)
 	{
 		return 1L;
+	}
+
+	LRESULT OnSetFocus(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM, BOOL& bHandled)
+	{
+		if (m_view.IsWindow())
+		{
+			m_view.DoSetFocus();
+		}
+		//bHandled = FALSE;
+		return 0;
 	}
 
 	LRESULT OnPaint(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)

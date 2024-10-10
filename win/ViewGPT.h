@@ -136,7 +136,7 @@ public:
 };
 
 #define INPUT_BUF_INPUT_MAX		(1<<16)
-class CAskView
+class CASKView
 {
 	U8* m_inputBuf = nullptr;
 	U32 m_inputMax = INPUT_BUF_INPUT_MAX;
@@ -145,7 +145,7 @@ class CAskView
 public:
 	HWND m_hWnd = NULL;
 
-	CAskView()
+	CASKView()
 	{
 		m_inputMax = INPUT_BUF_INPUT_MAX;
 		m_inputLen = 0;
@@ -153,7 +153,7 @@ public:
 		ATLASSERT(m_inputBuf);
 	}
 
-	~CAskView()
+	~CASKView()
 	{
 		if (nullptr != m_inputBuf)
 		{
@@ -191,7 +191,7 @@ public:
 			::SendMessage(m_hWnd, SCI_SETMARGINWIDTHN, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINS, 0, 0);
 			::SendMessage(m_hWnd, SCI_SETMARGINLEFT, 0, 0);
-#if 10
+#if 0
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_LINENUMBER, RGB(0, 0, 0));
 			::SendMessage(m_hWnd, SCI_STYLESETBACK, STYLE_DEFAULT, RGB(13, 13, 13));
 			::SendMessage(m_hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));
@@ -361,9 +361,6 @@ public:
 #if 0
 #include "ViewChat.h"
 
-#define ASK_WIN_HEIGHT		88
-#define GAP_WIN_HEIGHT		32
-#define LED_WIN_HEIGHT		24
 
 #define LEFT_MARGIN			4
 
@@ -414,7 +411,7 @@ class CGPTView : public CWindowImpl<CGPTView>
 	ID2D1Bitmap* m_pBitmapPixel = nullptr;
 
 	ChatView m_viewChat;
-	CAskView m_viewAskQ;
+	CASKView m_viewAskQ;
 public:
 	DECLARE_WND_CLASS(NULL)
 	BOOL PreTranslateMessage(MSG* pMsg)
