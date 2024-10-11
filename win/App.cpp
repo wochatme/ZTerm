@@ -35,10 +35,6 @@ std::unique_ptr<BitmapBank> g_bitmapBank = nullptr;
 
 ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
 
-MemPoolContext g_sendMemPool = nullptr;
-MemPoolContext g_receMemPool = nullptr;
-MemPoolContext g_regxMemPool = nullptr;
-
 /* the message queue from the remote server */
 MessageTask* g_sendQueue = nullptr;
 MessageTask* g_receQueue = nullptr;
@@ -46,6 +42,13 @@ MessageTask* g_receQueue = nullptr;
 /* used to sync different threads */
 CRITICAL_SECTION     g_csSendMsg;
 CRITICAL_SECTION     g_csReceMsg;
+CRITICAL_SECTION     g_csRegxMsg;
+
+MemPoolContext g_sendMemPool = nullptr;
+MemPoolContext g_receMemPool = nullptr;
+MemPoolContext g_regxMemPool = nullptr;
+
+RegexList* g_regexList = nullptr;
 
 IDWriteFactory* g_pIDWriteFactory = nullptr;
 ID2D1Factory1* g_pD2DFactory = nullptr;
@@ -180,7 +183,7 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 				rw.bottom - rw.top, SWP_NOZORDER);
 		}
 #endif 
-		//ztStartupNetworkThread(wndMain->m_hWnd);
+		ztStartupNetworkThread(wndMain->m_view);
 		nRet = theLoop.Run();
 	}
 
@@ -213,6 +216,7 @@ static int AppInit(HINSTANCE hInstance)
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);
 	InitializeCriticalSection(&g_csReceMsg);
+	InitializeCriticalSection(&g_csRegxMsg);
 
 	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
@@ -288,6 +292,7 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 
 	DeleteCriticalSection(&g_csSendMsg);
 	DeleteCriticalSection(&g_csReceMsg);
+	DeleteCriticalSection(&g_csRegxMsg);
 
 	return 0;
 }

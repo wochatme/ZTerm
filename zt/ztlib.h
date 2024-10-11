@@ -103,7 +103,7 @@ typedef unsigned long long int uint64;
 extern "C" {
 #endif
 
-	int zt_siphash(const void*, const size_t, const void*, uint8_t*, const size_t);
+	int zt_siphash(const void*, const size_t, uint8_t*, const size_t);
 
 	U32	zt_UTF8ToUTF16(U8* input, U32 input_len, U16* output, U32* output_len);
 	U32	zt_UTF16ToUTF8(U16* input, U32 input_len, U8* output, U32* output_len);
@@ -119,6 +119,8 @@ extern "C" {
 	void* zt_palloc0(MemPoolContext cxt, size_t size);
 
 	void zt_pfree(void* pointer);
+
+	int zt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen);
 
 #ifdef __cplusplus
 }

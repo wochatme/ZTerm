@@ -2,6 +2,9 @@
 
 #define WM_VIEW_BTNEVENT		(WM_USER + 100)
 
+#define TIMER_CHKGPT	125
+#define TIMER_WAITAI	666
+
 // Splitter panes constants
 #define SPLIT_PANE_LEFT			 0
 #define SPLIT_PANE_RIGHT		 1
@@ -57,6 +60,8 @@ class CView : public CWindowImpl<CView>
 	U8 m_winPaintStatus = (WINGAPDRAW | WINLEDDRAW);
 
 	DWORD m_dwState = 0;
+
+	int m_nWaitCount = 0;
 
 	U32* m_screenBuff = nullptr;
 	U32* m_winGapBuff = nullptr;
@@ -122,12 +127,14 @@ public:
 		MESSAGE_HANDLER(WM_ERASEBKGND, OnEraseBackground)
 		MESSAGE_HANDLER(WM_PAINT, OnPaint)
 		MESSAGE_HANDLER(WM_PRINTCLIENT, OnPaint)
-		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
+		MESSAGE_HANDLER(WM_TIMER, OnTimer)
 		MESSAGE_HANDLER(WM_MOUSEMOVE, OnMouseMove)
+		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
 		MESSAGE_HANDLER(WM_LBUTTONUP, OnLButtonUp)
 		MESSAGE_HANDLER(WM_LBUTTONDBLCLK, OnLButtonDoubleClick)
 		MESSAGE_HANDLER(WM_CAPTURECHANGED, OnCaptureChanged)
+		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
 		MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
 		MESSAGE_HANDLER(WM_SETFOCUS, OnSetFocus)
 		MESSAGE_HANDLER(WM_MOUSEACTIVATE, OnMouseActivate)
@@ -196,6 +203,8 @@ public:
 			//SetSplitterPosPct(70, false);
 			SetSplitterPanes(m_viewTTY.m_hWnd, m_viewGPT.m_hWnd, false);
 		}
+
+		SetTimer(TIMER_CHKGPT, TIMER_CHKGPT);
 		return 0L;
 	}
 
@@ -291,7 +300,21 @@ public:
 		dy = (height - wh) >> 1;
 		dx = dy;
 		ScreenDrawRect(dst, width, height, src, wh, wh, dx, dy);
-		
+
+		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + wh;
+		lpRect->top = offsetY + dy;  lpRect->bottom = lpRect->top + wh;
+
+		idx = RECT_HIDE;
+		lpRect = &m_rectButtons[idx];
+
+		src = const_cast<U32*>(xbmpLHideRN);
+		if (m_lpRectPress == lpRect)
+			src = const_cast<U32*>(xbmpLHideRP);
+
+		//dy = (height - wh) >> 1;
+		dx = width - wh;
+		ScreenDrawRect(dst, width, height, src, wh, wh, dx, dy);
+
 		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + wh;
 		lpRect->top = offsetY + dy;  lpRect->bottom = lpRect->top + wh;
 	}
@@ -733,6 +756,88 @@ public:
 		return 1;
 	}
 
+	void DoAskNotification(U32 code)
+	{
+		/* does the user hold Ctrl key? */
+		bool heldControl = (GetKeyState(VK_CONTROL) & 0x80) != 0;
+
+		char ch = m_viewASK.GetLastChar();
+		if (ch == '\n' && heldControl == false) /* the user hit the ENTER key */
+		{
+			bool share_screen = false;
+			U8 offset = 0;
+			U32 length = 0;
+			U8* p = m_viewASK.GetInputData(length, offset, share_screen);
+			m_viewASK.SetText("");
+			if (p)
+			{
+				U32 mt_len, screen_len;
+				const char* screen_data;
+				MessageTask* mt = nullptr;
+				m_viewGPT.AppendText((const char*)p, length);
+
+				ATLASSERT(length > offset);
+				U8* q = p + offset;
+				length -= offset;
+
+				screen_len = 0;
+				if (share_screen)
+				{
+					screen_data = m_viewTTY.GetScreenData(screen_len);
+				}
+
+				if (screen_len)
+					screen_len += 8;
+
+				mt_len = sizeof(MessageTask) + length + screen_len + 1;
+
+				mt = (MessageTask*)zt_palloc0(g_sendMemPool, mt_len);
+				if (mt)
+				{
+					U8* s = (U8*)mt;
+					mt->next = NULL;
+					mt->msg_state = 0;
+					mt->msg_length = length + screen_len;
+					mt->msg_body = s + sizeof(MessageTask);
+					s = mt->msg_body;
+					memcpy_s(s, length, q, length);
+					if (screen_len)
+					{
+						ATLASSERT(screen_len > 8);
+						s += length;
+						*s++ = '"'; *s++ = '"'; *s++ = '"'; *s++ = '\n';
+						memcpy_s(s, screen_len - 8, screen_data, screen_len - 8);
+						s += screen_len - 8;
+						*s++ = '\n'; *s++ = '"'; *s++ = '"'; *s++ = '"';
+						*s = '\0';
+					}
+
+					ztPushIntoSendQueue(mt);
+					
+					m_nWaitCount = 0;
+					SetTimer(TIMER_WAITAI, TIMER_WAITAI);
+				}
+			}
+		}
+	}
+
+	LRESULT OnNotify(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			NMHDR* pNMHDR = (NMHDR*)lParam;
+			if (pNMHDR)
+			{
+				if (pNMHDR->hwndFrom == m_viewASK.m_hWnd
+					&& pNMHDR->code == SCN_CHARADDED)
+				{
+					DoAskNotification(pNMHDR->code);
+				}
+			}
+		}
+		return 0;
+	}
+
 	LRESULT OnMouseActivate(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& /*bHandled*/)
 	{
 		LRESULT lRet = DefWindowProc(uMsg, wParam, lParam);
@@ -798,16 +903,13 @@ public:
 			q[21] = '\0';
 
 			m_viewGPT.AppendText(reinterpret_cast<const char*>(q), 21);
-#if 0
-			//AppendTextToGPTWindow((const char*)q, 21);
 
 			q = ask + 6;
 			mt_len = sizeof(MessageTask) + quesion_length + utf8len + 8 + 1;
-			mt = (MessageTask*)malloc(mt_len);
+			mt = (MessageTask*)zt_palloc0(g_sendMemPool, mt_len);
 			if (mt)
 			{
 				U8* s = (U8*)mt;
-				//ZeroMemory(mt, mt_len);
 				mt->next = NULL;
 				mt->msg_state = 0;
 				mt->msg_length = gsl::narrow_cast<uint32_t>(quesion_length + utf8len + 8);
@@ -830,9 +932,103 @@ public:
 				ztPushIntoSendQueue(mt);
 
 				m_nWaitCount = 0;
-				SetTimer(m_paneWindow.get(), TIMER_WAIT, 666, nullptr);
+				SetTimer(TIMER_WAITAI, TIMER_WAITAI);
 			}
-#endif 
+		}
+	}
+
+	LRESULT OnTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
+	{
+		static int nCount = 0;
+		bHandled = FALSE;
+
+		if (wParam == TIMER_CHKGPT)
+		{
+			nCount++;
+			if (nCount >= 4)
+			{
+				BOOL found = FALSE;
+				MessageTask* p;
+
+				nCount = 0;
+
+				EnterCriticalSection(&g_csReceMsg);
+				//////////////////////////////////////////
+				p = g_receQueue;
+				while (p)
+				{
+					if (p->msg_state == 0) /* this message is new message */
+					{
+						p->msg_state = 1;
+						if (p->msg_body && p->msg_length)
+						{
+							m_viewGPT.AppendText((const char*)p->msg_body, p->msg_length);
+							found = TRUE;
+						}
+						break;
+					}
+					p = p->next;
+				}
+				//////////////////////////////////////////
+				LeaveCriticalSection(&g_csReceMsg);
+
+				if (found)
+				{
+					KillTimer(TIMER_WAITAI);
+					m_nWaitCount = 0;
+					ztCheckMatchedPattern();
+				}
+				ztPushIntoSendQueue(NULL); // clean up the last processed message task
+			}
+		}
+		else if (wParam == TIMER_WAITAI)
+		{
+			char txt[32] = { 0 };
+			char* p = txt;
+
+			if (m_nWaitCount == 0)
+			{
+				*p++ = '\n';
+				*p++ = gsl::narrow_cast<uint8_t>(0xF0);
+				*p++ = gsl::narrow_cast<uint8_t>(0x9F);
+				*p++ = gsl::narrow_cast<uint8_t>(0x98);
+				*p++ = gsl::narrow_cast<uint8_t>(0x8E);
+				*p++ = '\n';
+				*p++ = 'T';
+				*p++ = 'h';
+				*p++ = 'i';
+				*p++ = 'n';
+				*p++ = 'k';
+				*p++ = 'i';
+				*p++ = 'n';
+				*p++ = 'g';
+				*p++ = ' ';
+				*p++ = '.';
+				m_viewGPT.AppendText((const char*)txt, strlen(txt));
+			}
+			else
+			{
+				txt[0] = '.'; txt[1] = '\0';
+				m_viewGPT.AppendText((const char*)txt, 1);
+			}
+			m_nWaitCount++;
+
+			if (m_nWaitCount > 100)
+			{
+				KillTimer(TIMER_WAITAI);
+				m_nWaitCount = 0;
+				ztCheckMatchedPattern();
+			}
+		}
+
+		return 0L;
+	}
+
+	void DoHideAIWindow()
+	{
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			SetSinglePaneMode(AppLeftAIMode() ? SPLIT_PANE_RIGHT : SPLIT_PANE_LEFT);
 		}
 	}
 
@@ -843,6 +1039,9 @@ public:
 		{
 		case RECT_QASK:
 			DoQuickAsk();
+			break;
+		case RECT_HIDE:
+			DoHideAIWindow();
 			break;
 		default:
 			break;
@@ -975,7 +1174,7 @@ public:
 			int xySplitterPos;
 			if (m_nAIWindowWidth <= 0)
 			{
-				m_nAIWindowWidth = ::MulDiv(30, m_rcSplitter.right - m_rcSplitter.left, 100);
+				m_nAIWindowWidth = ::MulDiv(33, m_rcSplitter.right - m_rcSplitter.left, 100);
 			}
 			
 			xySplitterPos = m_nAIWindowWidth;

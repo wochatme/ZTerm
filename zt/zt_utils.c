@@ -74,7 +74,7 @@ bool zt_IsHexString(U8* str, U8 len)
 int zt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen)
 {
 	U8 idx, i;
-	const U8* hex_chars = (const U8*)"0123456789ABCDEF";
+	const U8* hex_chars = (const U8*)"0123456789abcdef";
 
 	for (i = 0; i < len; i++)
 	{

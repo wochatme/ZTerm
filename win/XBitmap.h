@@ -3,6 +3,8 @@
 extern const unsigned int xbmpLGreenLED[16 * 16];
 extern const unsigned int xbmpLQAskN[24 * 24];
 extern const unsigned int xbmpLQAskP[24 * 24];
+extern const unsigned int xbmpLHideRN[24 * 24];
+extern const unsigned int xbmpLHideRP[24 * 24];
 
 //////////////////////////////////
 #define BITMAP_QUICKASK_N       0

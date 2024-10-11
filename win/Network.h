@@ -9,4 +9,4 @@
 U32 ztStartupNetworkThread(HWND hWnd);
 void ztPushIntoSendQueue(MessageTask* task);
 void ztBounceNetworkThread(void);
-
+void ztCheckMatchedPattern();

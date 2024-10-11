@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "App.h"
+#include "Network.h"
 
 #define DEFAULT_POST_BUF_SIZE   (1<<18)
 
@@ -14,6 +15,9 @@ typedef struct
 
 static const char* version__ = "100";
 
+static MatchEntry matchTable[8] = { 0 };
+static U8 matchNumber = 0;
+
 static void PushIntoReceQueue(U8* data, U32 length)
 {
     MessageTask* mt = nullptr;
@@ -23,7 +27,7 @@ static void PushIntoReceQueue(U8* data, U32 length)
 
     EnterCriticalSection(&g_csReceMsg);
     /////////////////////////////////////////////////
-    mt = (MessageTask*)HeapAlloc(GetProcessHeap(), HEAP_NO_SERIALIZE | HEAP_ZERO_MEMORY, sizeof(MessageTask) + data_len + 6 + 1);
+    mt = (MessageTask*)zt_palloc0(g_receMemPool, sizeof(MessageTask) + data_len + 6 + 1);
     if (mt)
     {
         MessageTask* mp;
@@ -48,7 +52,7 @@ static void PushIntoReceQueue(U8* data, U32 length)
             mq = mp->next;
             if (mp->msg_state == 0) // this task is not processed yet.
                 break;
-            HeapFree(GetProcessHeap(), HEAP_NO_SERIALIZE, mp);
+            zt_pfree(mp);
             mp = mq;
         }
         g_receQueue = mp;
@@ -113,6 +117,101 @@ static size_t CurlCallback(char* message, size_t size, size_t nmemb, void* userd
     return realsize;
 }
 
+static DWORD WINAPI lvm_threadfunc(void* param)
+{
+    U8* message = static_cast<U8*>(param);
+
+    matchNumber = 0;
+
+    if (message)
+    {
+        pcre2_code* re;
+        PCRE2_SPTR pattern;     /* PCRE2_SPTR is a pointer to unsigned code units of */
+        PCRE2_SPTR subject;     /* the appropriate width (in this case, 8 bits). */
+        PCRE2_SPTR name_table;
+        PCRE2_SIZE subject_length;
+        PCRE2_SIZE erroroffset = 0;
+        PCRE2_SIZE* ovector;
+        pcre2_match_data* match_data;
+        PCRE2_SPTR substring_start;
+        PCRE2_SIZE substring_length;
+
+        int errornumber = 0;
+        int rc;
+
+        subject = (PCRE2_SPTR)message;
+        subject_length = (PCRE2_SIZE)strlen((char*)subject);
+
+        RegexList* list = g_regexList;
+        while (list && matchNumber < 8)
+        {
+            pattern = (PCRE2_SPTR)list->pattern;
+
+            re = pcre2_compile(
+                pattern,               /* the pattern */
+                PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
+                0,                     /* default options */
+                &errornumber,          /* for error number */
+                &erroroffset,          /* for error offset */
+                NULL);                 /* use default compile context */
+            if (re)
+            {
+                match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+                rc = pcre2_match(
+                    re,                   /* the compiled pattern */
+                    subject,              /* the subject string */
+                    subject_length,       /* the length of the subject */
+                    0,                    /* start at offset 0 in the subject */
+                    0,                    /* default options */
+                    match_data,           /* block for storing the result */
+                    NULL);                /* use default match context */
+
+                if (rc < 0)
+                {
+                    pcre2_match_data_free(match_data);   /* Release memory used for the match */
+                    pcre2_code_free(re);                 /*   data and the compiled pattern. */
+                    goto _ScanNext_;
+                }
+
+                ovector = pcre2_get_ovector_pointer(match_data);
+                if (ovector[0] > ovector[1])
+                {
+                    pcre2_match_data_free(match_data);
+                    pcre2_code_free(re);
+                    goto _ScanNext_;
+                }
+                substring_start = subject + ovector[0];
+                substring_length = ovector[1] - ovector[0];
+
+                if (substring_length)
+                {
+                    matchTable[matchNumber].match = static_cast<U8*>(zt_palloc0(g_regxMemPool, substring_length+1));
+                    if(matchTable[matchNumber].match)
+                    {
+                        memcpy_s(matchTable[matchNumber].match, substring_length, substring_start, substring_length);
+                        matchTable[matchNumber].group = list->group;
+                        zt_Raw2HexString(list->docId, 8, matchTable[matchNumber].docId, NULL);
+                        matchNumber++;
+                    }
+                }
+
+                pcre2_match_data_free(match_data);  /* Release the memory that was used */
+                pcre2_code_free(re);                /* for the match data and the pattern. */
+            }
+
+_ScanNext_:
+            list = list->next;
+        }
+
+        //EnterCriticalSection(&g_csRegxMsg);
+            zt_pfree(message);
+        //LeaveCriticalSection(&g_csRegxMsg);
+    }
+
+    return 0;
+}
+
 typedef struct
 {
     HWND hWndUI;
@@ -168,6 +267,8 @@ static DWORD WINAPI network_threadfunc(void* param)
         bool found;
         LONG shouldQuit;
         MessageTask* mt;
+        U8* msg_body;
+        U32 msg_length;
         curl_easy_setopt(curl, CURLOPT_URL, cf->serverURL);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, cf->networkTimout);
@@ -221,6 +322,9 @@ static DWORD WINAPI network_threadfunc(void* param)
             ms_ping += ms;
             found = false;
             postLen = 0;
+            msg_body = nullptr;
+            msg_length = 0;
+
             EnterCriticalSection(&g_csSendMsg);
             /////////////////////////////////////////////////
             mt = g_sendQueue;
@@ -273,6 +377,9 @@ static DWORD WINAPI network_threadfunc(void* param)
                             *p++ = '0';
                         }
                         memcpy_s(p, postMax - ZX_MESSAGE_HEAD_SIZE, mt->msg_body, mt->msg_length);
+                        msg_length = mt->msg_length;
+                        msg_body = p;
+
                         postLen = ZX_MESSAGE_HEAD_SIZE + mt->msg_length;
                         p += mt->msg_length;
                         *p = '\0';
@@ -293,6 +400,28 @@ static DWORD WINAPI network_threadfunc(void* param)
             if (found)
             {
                 network_status = 0;
+
+                if (msg_body && msg_length)
+                {
+                    U8* message = nullptr;
+                    EnterCriticalSection(&g_csRegxMsg);
+                        message = static_cast<U8*>(zt_palloc(g_regxMemPool, msg_length + 1));
+                    LeaveCriticalSection(&g_csRegxMsg);
+
+                    if (message)
+                    {
+                        DWORD threadid = 0; /* required for Win9x */
+                        HANDLE hThread;
+
+                        memcpy_s(message, msg_length, msg_body, msg_length);
+                        message[msg_length] = '\0';
+
+                        hThread = CreateThread(NULL, 0, lvm_threadfunc, message, 0, &threadid);
+                        if (hThread) /* we don't need the thread handle */
+                            CloseHandle(hThread);
+                    }
+                }
+                
                 curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postBuf);
                 rc = curl_easy_perform(curl);
                 if (rc == CURLE_OK)
@@ -344,26 +473,28 @@ static DWORD WINAPI network_threadfunc(void* param)
         VirtualFree(postBuf, 0, MEM_RELEASE);
     }
 
-    EnterCriticalSection(&g_csReceMsg);
-    {
-        MessageTask* mp;
-        MessageTask* mq;
-
-        mp = g_receQueue;
-        while (mp) // scan the link to find the message that has been processed
-        {
-            mq = mp->next;
-            HeapFree(GetProcessHeap(), HEAP_NO_SERIALIZE, mp);
-            mp = mq;
-        }
-        g_receQueue = nullptr;
-    }
-    LeaveCriticalSection(&g_csReceMsg);
-
     InterlockedDecrement(&g_threadCount);
     InterlockedDecrement(&g_threadCountBKG);
 
     return 0;
+}
+
+static void startupRegexThread()
+{
+#if 0
+    DWORD in_threadid = 0; /* required for Win9x */
+    HANDLE hThread;
+#endif 
+
+    g_regexList = static_cast<RegexList*>(zt_palloc0(g_regxMemPool, sizeof(RegexList)));
+    if (g_regexList)
+    {
+        g_regexList->group = (U8*)"PostgreSQL";
+        g_regexList->pattern = (U8*)"PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+";
+        zt_siphash(g_regexList->pattern,
+            strlen(reinterpret_cast<const char*>(g_regexList->pattern)),
+            g_regexList->docId, 8);
+    }
 }
 
 U32 ztStartupNetworkThread(HWND hWnd)
@@ -373,6 +504,8 @@ U32 ztStartupNetworkThread(HWND hWnd)
     HANDLE hThread;
     ZTConfig* cf = &ZTCONFIGURATION;
     U8 num = cf->thread_num;
+
+    startupRegexThread();
 
     if (num < AI_NETWORK_THREAD_MIN)
         num = AI_NETWORK_THREAD_MIN;
@@ -460,7 +593,7 @@ void ztPushIntoSendQueue(MessageTask* task)
         mq = mp->next;
         if (mp->msg_state) // this task has been processed.
         {
-            free(mp);
+            zt_pfree(mp);
         }
         else
         {
@@ -505,4 +638,113 @@ void PCRE2Test()
     {
         pcre2_code_free(re);
     }
+}
+
+static DWORD WINAPI checkpattern_threadfunc(void* param)
+{
+    if (matchNumber)
+    {
+        MessageTask* mt = nullptr;
+        U32 size = 0;
+        U8 idx;
+        for (idx = 0; idx < matchNumber; idx++)
+        {
+            size += strlen(reinterpret_cast<const char*>(matchTable[idx].group));
+            size += strlen(reinterpret_cast<const char*>(matchTable[idx].match));
+            size += 4;
+            size += 17;
+            size += 17;
+        }
+        size += 16;
+        EnterCriticalSection(&g_csReceMsg);
+        mt = (MessageTask*)zt_palloc0(g_receMemPool, sizeof(MessageTask) + size);
+        if (mt)
+        {
+            MessageTask* mp;
+            MessageTask* mq;
+            U8* p;
+            size_t length;
+
+            mt->msg_body = reinterpret_cast<U8*>(mt) + sizeof(MessageTask);
+            p = p = mt->msg_body;
+            *p++ = '\n';
+            *p++ = 0xF0;
+            *p++ = 0x9F;
+            *p++ = 0x91;
+            *p++ = 0x87;
+            *p++ = '\n';
+            mt->msg_length = 6;
+            for (idx = 0; idx < matchNumber; idx++)
+            {
+                length = strlen(reinterpret_cast<const char*>(matchTable[idx].group));
+                *p++ = '[';
+                for (size_t i = 0; i < length; i++)
+                {
+                    *p++ = matchTable[idx].group[i];
+                    mt->msg_length++;
+                }
+                matchTable[idx].group = NULL;
+
+                *p++ = ']'; *p++ = ':'; 
+                mt->msg_length += 2;
+                length = strlen(reinterpret_cast<const char*>(matchTable[idx].match));
+
+                for (size_t i = 0; i < length; i++)
+                {
+                    *p++ = matchTable[idx].match[i];
+                    mt->msg_length++;
+                }
+                zt_pfree(matchTable[idx].match);
+                matchTable[idx].match = NULL;
+
+                *p++ = '\n';
+                *p++ = 'h'; *p++ = 't'; *p++ = 't'; *p++ = 'p'; *p++ = 's';
+                *p++ = '/'; *p++ = '/'; *p++ = 'z'; *p++ = 't'; *p++ = 'e';
+                *p++ = 'r'; *p++ = 'm'; *p++ = '.'; *p++ = 'a'; *p++ = 'i';
+                *p++ = '/';
+                for (size_t i = 0; i < 16; i++)
+                {
+                    *p++ = matchTable[idx].docId[i];
+                }
+                *p++ = '\n';
+                mt->msg_length += 35;
+            }
+            *p++ = '\n';
+            mt->msg_length ++;
+
+            mp = g_receQueue;
+            while (mp) // scan the link to find the message that has been processed
+            {
+                mq = mp->next;
+                if (mp->msg_state == 0) // this task is not processed yet.
+                    break;
+                zt_pfree(mp);
+                mp = mq;
+            }
+            g_receQueue = mp;
+            if (g_receQueue == nullptr)
+            {
+                g_receQueue = mt;
+            }
+            else
+            {
+                while (mp->next) mp = mp->next;
+                mp->next = mt;  // put task as the last node
+            }
+        }
+        LeaveCriticalSection(&g_csReceMsg);
+    }
+    matchNumber = 0;
+    return 0;
+}
+
+void ztCheckMatchedPattern()
+{
+    DWORD in_threadid = 0; /* required for Win9x */
+    HANDLE hThread;
+
+    hThread = CreateThread(NULL, 0, checkpattern_threadfunc, NULL, 0, &in_threadid);
+    if (hThread) /* we don't need the thread handle */
+        CloseHandle(hThread);
+
 }

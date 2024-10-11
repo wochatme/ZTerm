@@ -77,6 +77,9 @@ extern MemPoolContext g_regxMemPool;
 /* used to sync different threads */
 extern CRITICAL_SECTION  g_csSendMsg;
 extern CRITICAL_SECTION  g_csReceMsg;
+extern CRITICAL_SECTION  g_csRegxMsg;
+
+extern RegexList* g_regexList;
 
 extern ZTConfig ZTCONFIGURATION;
 extern std::unique_ptr<BitmapBank> g_bitmapBank;

@@ -88,10 +88,17 @@
     *out: pointer to output data (write-only), outlen bytes must be allocated
     outlen: length of the output in bytes, must be 8 or 16
 */
-int zt_siphash(const void* in, const size_t inlen, const void* k, uint8_t* out, const size_t outlen)
+#pragma warning(disable: 4838)
+static U8 sipkey[16] =
+{
+	0xF0,0x9F,0x99,0x82,0x0A,0x48,0x65,0x6C,
+	0x6C,0x6F,0x2C,0x20,0x69,0x66,0x20,0x79
+};
+
+int zt_siphash(const void* in, const size_t inlen, uint8_t* out, const size_t outlen)
 {
     const unsigned char* ni = (const unsigned char*)in;
-    const unsigned char* kk = (const unsigned char*)k;
+    const unsigned char* kk = (const unsigned char*)sipkey;
 
     assert((outlen == 8) || (outlen == 16));
     uint64_t v0 = UINT64_C(0x736f6d6570736575);
