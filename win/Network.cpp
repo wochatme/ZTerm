@@ -2,9 +2,10 @@
 #include "App.h"
 #include "Network.h"
 
+#define ZX_MESSAGE_HEAD_SIZE       150
 #define DEFAULT_POST_BUF_SIZE   (1<<18)
-
 #define HTTP_DOWNLOAD_LIMIT		(1<<24)
+
 typedef struct
 {
     HWND hWnd;
@@ -16,14 +17,76 @@ typedef struct
 static const char* version__ = "100";
 
 static HANDLE evLLM = NULL;
-static HANDLE evCheck = NULL;
 static CRITICAL_SECTION  csRegxMsg = { 0 };
+static MessageTask* regexQueue = nullptr;
 
-static MatchEntry* matchTable = NULL;
-static U32 matchNumber = 0;
-volatile LONG  regexListIsReady = 0;
-static RegexList* regexList = NULL;
+static void CleanUpRegexQueue()
+{
+    MessageTask* mp;
+    MessageTask* mq;
 
+    EnterCriticalSection(&csRegxMsg);
+    ////////////////////////////////
+    mp = regexQueue;
+    while (mp) // scan the link to find the message that has been processed
+    {
+        mq = mp->next;
+        if (mp->msg_state == 0) // this task is not processed yet.
+            break;
+        zt_pfree(mp);
+        mp = mq;
+    }
+    regexQueue = mp;
+    ////////////////////////////////
+    LeaveCriticalSection(&csRegxMsg);
+}
+
+static void PushIntoRegexQueue(U8* data, U32 length)
+{
+    MessageTask* mt = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, sizeof(MessageTask) + length + 1));
+    if (mt)
+    {
+        U32 i;
+        U8* p = (U8*)mt;
+        MessageTask* mp;
+        MessageTask* mq;
+
+        mt->msg_length = length;
+        mt->msg_body = p + sizeof(MessageTask);
+        p = mt->msg_body;
+        for (i = 0; i < length; i++)
+        {
+            *p++ = data[i];
+        }
+
+        EnterCriticalSection(&csRegxMsg);
+        ////////////////////////////////
+        mp = regexQueue;
+        while (mp) // scan the link to find the message that has been processed
+        {
+            mq = mp->next;
+            if (mp->msg_state == 0) // this task is not processed yet.
+                break;
+            zt_pfree(mp);
+            mp = mq;
+        }
+        regexQueue = mp;
+        if (regexQueue == nullptr)
+        {
+            regexQueue = mt;
+        }
+        else
+        {
+            while (mp->next) mp = mp->next;
+            mp->next = mt;  // put task as the last node
+        }
+        ////////////////////////////////
+        LeaveCriticalSection(&csRegxMsg);
+
+        if (evLLM)
+            SetEvent(evLLM);  // notify the LLM thread to process the message
+    }
+}
 
 static void PushIntoReceQueue(U8* data, U32 length)
 {
@@ -154,8 +217,9 @@ static DWORD WINAPI network_threadfunc(void* param)
     ATLASSERT(IsWindow(pTi->hWndUI));
 
     InterlockedIncrement(&g_threadCount);
+#if 0
     InterlockedIncrement(&g_threadCountBKG);
-
+#endif 
     idx = InterlockedExchange(&(pTi->threadSignal), 0);
     ATLASSERT(idx > 0 && idx < AI_NETWORK_THREAD_MAX);
 
@@ -166,9 +230,7 @@ static DWORD WINAPI network_threadfunc(void* param)
     postBuf = (U8*)VirtualAlloc(NULL, postMax, MEM_COMMIT, PAGE_READWRITE);
     if (postBuf == NULL)
     {
-        InterlockedDecrement(&g_threadCount);
-        InterlockedDecrement(&g_threadCountBKG);
-        return 0;
+        goto _exit_network_thread;
     }
 
     curl = curl_easy_init();
@@ -312,30 +374,12 @@ static DWORD WINAPI network_threadfunc(void* param)
 
             if (found)
             {
-                network_status = 0;
-#if 0
                 if (msg_body && msg_length)
                 {
-                    U8* message = nullptr;
-                    EnterCriticalSection(&g_csRegxMsg);
-                        message = static_cast<U8*>(zt_palloc(g_regxMemPool, msg_length + 1));
-                    LeaveCriticalSection(&g_csRegxMsg);
-#if 0
-                    if (message)
-                    {
-                        DWORD threadid = 0; /* required for Win9x */
-                        HANDLE hThread;
-
-                        memcpy_s(message, msg_length, msg_body, msg_length);
-                        message[msg_length] = '\0';
-
-                        hThread = CreateThread(NULL, 0, lvm_threadfunc, message, 0, &threadid);
-                        if (hThread) /* we don't need the thread handle */
-                            CloseHandle(hThread);
-                    }
-#endif
+                    PushIntoRegexQueue(msg_body, msg_length);
                 }
-#endif                 
+
+                network_status = 0;
                 curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postBuf);
                 rc = curl_easy_perform(curl);
                 if (rc == CURLE_OK)
@@ -345,37 +389,42 @@ static DWORD WINAPI network_threadfunc(void* param)
 
                 ::PostMessage(pTi->hWndUI, WM_NETWORK_STATUS, 0, network_status);
             }
-            else if (g_threadPing && idx == 1)
+            else
             {
-                LONG pingNow = InterlockedExchange(&g_threadPingNow, 0);
-                /* if we have more than one working thread, only the first thread will send the ping packet */
-                if (pingNow || ms_ping >= (cf->ping_seconds * 1000))
+                CleanUpRegexQueue();
+
+                if (g_threadPing && idx == 1)
                 {
-                    ms_ping = 0;
-
-                    ztGenerateRandomBytes(random, 40);
-                    ATLASSERT(postBuf);
-                    p = postBuf + 1;
-                    *p++ = 'p'; *p++ = version__[0]; *p++ = version__[1]; *p++ = version__[2];
-                    for (i = 0; i < AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH; i++)
+                    LONG pingNow = InterlockedExchange(&g_threadPingNow, 0);
+                    /* if we have more than one working thread, only the first thread will send the ping packet */
+                    if (pingNow || ms_ping >= (cf->ping_seconds * 1000))
                     {
-                        *p++ = cf->pubKeyHex[i];
-                    }
-                    ztRaw2HexString(random, 40, p, NULL);
-                    p += (40 + 40);
-                    *p++ = '\0';
-                    postBuf[0] = 'B';
-                    network_status = 0;
-                    curl_easy_setopt(curl, CURLOPT_WRITEDATA, postBuf);
-                    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postBuf + 1);
-                    rc = curl_easy_perform(curl);
-                    if (rc == CURLE_OK)
-                    {
-                        if (postBuf[0] == 'G')
-                            network_status = 1;
+                        ms_ping = 0;
 
+                        ztGenerateRandomBytes(random, 40);
+                        ATLASSERT(postBuf);
+                        p = postBuf + 1;
+                        *p++ = 'p'; *p++ = version__[0]; *p++ = version__[1]; *p++ = version__[2];
+                        for (i = 0; i < AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH; i++)
+                        {
+                            *p++ = cf->pubKeyHex[i];
+                        }
+                        ztRaw2HexString(random, 40, p, NULL);
+                        p += (40 + 40);
+                        *p++ = '\0';
+                        postBuf[0] = 'B';
+                        network_status = 0;
+                        curl_easy_setopt(curl, CURLOPT_WRITEDATA, postBuf);
+                        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postBuf + 1);
+                        rc = curl_easy_perform(curl);
+                        if (rc == CURLE_OK)
+                        {
+                            if (postBuf[0] == 'G')
+                                network_status = 1;
+
+                        }
+                        ::PostMessage(pTi->hWndUI, WM_NETWORK_STATUS, 0, network_status);
                     }
-                    ::PostMessage(pTi->hWndUI, WM_NETWORK_STATUS, 0, network_status);
                 }
             }
         }
@@ -387,9 +436,11 @@ static DWORD WINAPI network_threadfunc(void* param)
         VirtualFree(postBuf, 0, MEM_RELEASE);
     }
 
+_exit_network_thread:
     InterlockedDecrement(&g_threadCount);
+#if 0
     InterlockedDecrement(&g_threadCountBKG);
-
+#endif 
     return 0;
 }
 
@@ -421,69 +472,160 @@ static void StartAIThread(HWND hWnd)
 
 }
 
-static void PutMatchedListIntoReceQueue()
-{
-
-}
-
-static DWORD WINAPI check_threadfunc(void* param)
-{
-    InterlockedIncrement(&g_threadCount);
-
-    if (evCheck)
-    {
-        while (TRUE)
-        {
-            WaitForSingleObject(evCheck, INFINITE);
-            if (g_Quit)
-                break;
-
-            if (regexListIsReady)
-            {
-                EnterCriticalSection(&csRegxMsg);
-                if (matchNumber)
-                {
-                    PutMatchedListIntoReceQueue();
-                }
-                matchNumber = 0;
-                LeaveCriticalSection(&csRegxMsg);
-            }
-        }
-    }
-
-    InterlockedDecrement(&g_threadCount);
-    return 0;
-}
-
 static RegexList* DownLoadIndexFile(MemPoolContext mempool)
 {
-    return NULL;
+    RegexList* list = NULL;
+
+    list = static_cast<RegexList*>(zt_palloc0(mempool, sizeof(RegexList)));
+    if (list)
+    {
+        list->group = (U8*)"PostgreSQL";
+        list->pattern = (U8*)"PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+";
+        zt_siphash(list->pattern, strlen(reinterpret_cast<const char*>(list->pattern)), list->docId, 8);
+    }
+    return list;
 }
 
-void DoRegexMatch()
+void ScanRegexList(U8* message, U32 length, RegexList* listRegex)
 {
-    if (regexListIsReady)
+    int idx;
+    RegexList* list;
+    pcre2_code* re;
+    PCRE2_SPTR pattern;     /* PCRE2_SPTR is a pointer to unsigned code units of */
+    PCRE2_SPTR subject;     /* the appropriate width (in this case, 8 bits). */
+    PCRE2_SPTR name_table;
+    PCRE2_SIZE subject_length;
+    PCRE2_SIZE erroroffset = 0;
+    PCRE2_SIZE* ovector;
+    pcre2_match_data* match_data;
+    PCRE2_SPTR substring_start;
+    PCRE2_SIZE substring_length;
+
+    int errornumber = 0;
+    int rc;
+
+    subject = (PCRE2_SPTR)message;
+    subject_length = (PCRE2_SIZE)length;
+
+    list = listRegex;
+    idx = 0;
+
+    while (list && idx < 8)
     {
-        EnterCriticalSection(&csRegxMsg);
-        if (matchNumber)
+        pattern = (PCRE2_SPTR)list->pattern;
+        re = pcre2_compile(
+            pattern,               /* the pattern */
+            PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
+            0,                     /* default options */
+            &errornumber,          /* for error number */
+            &erroroffset,          /* for error offset */
+            NULL);                 /* use default compile context */
+
+        if (re)
         {
+            match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
+            rc = pcre2_match(
+                re,                   /* the compiled pattern */
+                subject,              /* the subject string */
+                subject_length,       /* the length of the subject */
+                0,                    /* start at offset 0 in the subject */
+                0,                    /* default options */
+                match_data,           /* block for storing the result */
+                NULL);                /* use default match context */
+
+            if (rc < 0)
+            {
+                pcre2_match_data_free(match_data);   /* Release memory used for the match */
+                pcre2_code_free(re);                 /*   data and the compiled pattern. */
+                goto _ScanNext_;
+            }
+
+            ovector = pcre2_get_ovector_pointer(match_data);
+            if (ovector[0] > ovector[1])
+            {
+                pcre2_match_data_free(match_data);
+                pcre2_code_free(re);
+                goto _ScanNext_;
+            }
+            substring_start = subject + ovector[0];
+            substring_length = ovector[1] - ovector[0];
+
+            if (substring_length)
+            {
+#if 0
+                matchTable[matchNumber].match = static_cast<U8*>(zt_palloc0(g_regxMemPool, substring_length + 1));
+                if (matchTable[matchNumber].match)
+                {
+                    memcpy_s(matchTable[matchNumber].match, substring_length, substring_start, substring_length);
+                    matchTable[matchNumber].group = list->group;
+                    zt_Raw2HexString(list->docId, 8, matchTable[matchNumber].docId, NULL);
+                    matchNumber++;
+                }
+#endif 
+                idx++;
+            }
+            pcre2_match_data_free(match_data);  /* Release the memory that was used */
+            pcre2_code_free(re);                /* for the match data and the pattern. */
         }
-        matchNumber = 0;
-        zt_pfree(matchTable);
+    _ScanNext_:
+        list = list->next;
+    }
+}
+
+void DoRegexMatch(MemPoolContext mempool, RegexList* list)
+{
+    if (list)
+    {
+        MessageTask* task;
+        U8* data = NULL;
+        U32 length = 0;
+
+        EnterCriticalSection(&csRegxMsg);
+        ////////////////////////////////
+        task = regexQueue;
+        while (task)
+        {
+            if (task->msg_state == 0) /* this message is new message */
+            {
+                task->msg_state = 1;
+                if (task->msg_body && task->msg_length)
+                {
+                    data = static_cast<U8*>(zt_palloc0(mempool, task->msg_length + 1));
+                    if (data)
+                    {
+                        length = task->msg_length;
+                        for(U32 i=0; i<length; i++)
+                            data[i] = task->msg_body[i];
+                    }
+                }
+                break;
+            }
+            task = task->next;
+        }
+        ////////////////////////////////
         LeaveCriticalSection(&csRegxMsg);
+
+        if (data && length)
+        {
+            ScanRegexList(data, length, list);
+            zt_pfree(data);
+        }
     }
 }
 
 static DWORD WINAPI lvm_threadfunc(void* param)
 {
     MemPoolContext regexMemPool = NULL;
-    InterlockedIncrement(&g_threadCount);
-    InterlockedIncrement(&g_threadCountBKG);
 
+    InterlockedIncrement(&g_threadCount);
+#if 0
+    InterlockedIncrement(&g_threadCountBKG);
+#endif 
     regexMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
     if (regexMemPool)
     {
-        regexList = DownLoadIndexFile(regexMemPool);
+        RegexList* regexList = DownLoadIndexFile(regexMemPool);
         if (regexList)
         {
             if (evLLM)
@@ -494,123 +636,24 @@ static DWORD WINAPI lvm_threadfunc(void* param)
                     if (g_Quit)
                         break;
 
-                    DoRegexMatch();
+                    DoRegexMatch(regexMemPool,regexList);
                 }
             }
         }
         zt_mempool_destroy(regexMemPool);
-        regexList = NULL;
     }
 
     InterlockedDecrement(&g_threadCount);
-    InterlockedDecrement(&g_threadCountBKG);
-    return 0;
-
 #if 0
-    U8* message = static_cast<U8*>(param);
-
-    matchNumber = 0;
-
-    if (message)
-    {
-        pcre2_code* re;
-        PCRE2_SPTR pattern;     /* PCRE2_SPTR is a pointer to unsigned code units of */
-        PCRE2_SPTR subject;     /* the appropriate width (in this case, 8 bits). */
-        PCRE2_SPTR name_table;
-        PCRE2_SIZE subject_length;
-        PCRE2_SIZE erroroffset = 0;
-        PCRE2_SIZE* ovector;
-        pcre2_match_data* match_data;
-        PCRE2_SPTR substring_start;
-        PCRE2_SIZE substring_length;
-
-        int errornumber = 0;
-        int rc;
-
-        subject = (PCRE2_SPTR)message;
-        subject_length = (PCRE2_SIZE)strlen((char*)subject);
-
-        RegexList* list = g_regexList;
-        while (list && matchNumber < 8)
-        {
-            pattern = (PCRE2_SPTR)list->pattern;
-
-            re = pcre2_compile(
-                pattern,               /* the pattern */
-                PCRE2_ZERO_TERMINATED, /* indicates pattern is zero-terminated */
-                0,                     /* default options */
-                &errornumber,          /* for error number */
-                &erroroffset,          /* for error offset */
-                NULL);                 /* use default compile context */
-            if (re)
-            {
-                match_data = pcre2_match_data_create_from_pattern(re, NULL);
-
-                rc = pcre2_match(
-                    re,                   /* the compiled pattern */
-                    subject,              /* the subject string */
-                    subject_length,       /* the length of the subject */
-                    0,                    /* start at offset 0 in the subject */
-                    0,                    /* default options */
-                    match_data,           /* block for storing the result */
-                    NULL);                /* use default match context */
-
-                if (rc < 0)
-                {
-                    pcre2_match_data_free(match_data);   /* Release memory used for the match */
-                    pcre2_code_free(re);                 /*   data and the compiled pattern. */
-                    goto _ScanNext_;
-                }
-
-                ovector = pcre2_get_ovector_pointer(match_data);
-                if (ovector[0] > ovector[1])
-                {
-                    pcre2_match_data_free(match_data);
-                    pcre2_code_free(re);
-                    goto _ScanNext_;
-                }
-                substring_start = subject + ovector[0];
-                substring_length = ovector[1] - ovector[0];
-
-                if (substring_length)
-                {
-                    matchTable[matchNumber].match = static_cast<U8*>(zt_palloc0(g_regxMemPool, substring_length + 1));
-                    if (matchTable[matchNumber].match)
-                    {
-                        memcpy_s(matchTable[matchNumber].match, substring_length, substring_start, substring_length);
-                        matchTable[matchNumber].group = list->group;
-                        zt_Raw2HexString(list->docId, 8, matchTable[matchNumber].docId, NULL);
-                        matchNumber++;
-                    }
-                }
-
-                pcre2_match_data_free(match_data);  /* Release the memory that was used */
-                pcre2_code_free(re);                /* for the match data and the pattern. */
-            }
-
-        _ScanNext_:
-            list = list->next;
-        }
-
-        //EnterCriticalSection(&g_csRegxMsg);
-        zt_pfree(message);
-        //LeaveCriticalSection(&g_csRegxMsg);
-    }
+    InterlockedDecrement(&g_threadCountBKG);
 #endif 
+    return 0;
 }
 
 static void StartLLMThread()
 {
     DWORD threadid = 0;
     HANDLE hThread = CreateThread(NULL, 0, lvm_threadfunc, NULL, 0, &threadid);
-    if (hThread) /* we don't need the thread handle */
-        CloseHandle(hThread);
-}
-
-static void StartCheckThread()
-{
-    DWORD threadid = 0;
-    HANDLE hThread = CreateThread(NULL, 0, check_threadfunc, NULL, 0, &threadid);
     if (hThread) /* we don't need the thread handle */
         CloseHandle(hThread);
 }
@@ -629,14 +672,8 @@ void ztStartupNetworkThread(HWND hWnd)
         if (evLLM)
             StartLLMThread();
 
-        evCheck = CreateEvent(NULL, FALSE, FALSE, NULL);
-
-        if (evCheck)
-            StartCheckThread();
-#if 0
         if(::IsWindow(hWnd))
             StartAIThread(hWnd);
-#endif 
     }
 }
 
@@ -646,9 +683,6 @@ void ztShutdownNetworkThread()
 
     // tell all threads to quit
     InterlockedIncrement(&g_Quit);
-
-    if (evCheck)
-        SetEvent(evCheck);
 
     if(evLLM)
         SetEvent(evLLM);
@@ -667,12 +701,6 @@ void ztShutdownNetworkThread()
     {
         CloseHandle(evLLM);
         evLLM = NULL;
-    }
-
-    if (evCheck)
-    {
-        CloseHandle(evCheck);
-        evCheck = NULL;
     }
 
     DeleteCriticalSection(&csRegxMsg);
@@ -867,9 +895,3 @@ static DWORD WINAPI checkpattern_threadfunc(void* param)
     return 0;
 }
 #endif 
-
-void ztCheckMatchedTable()
-{
-    if (evCheck)
-        SetEvent(evCheck);
-}

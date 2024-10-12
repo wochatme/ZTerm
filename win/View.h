@@ -940,7 +940,6 @@ public:
 	LRESULT OnTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		static int nCount = 0;
-		static bool canCheckRepeatly = false;
 		bHandled = FALSE;
 
 		if (wParam == TIMER_CHKGPT)
@@ -949,26 +948,26 @@ public:
 			if (nCount >= 4)
 			{
 				BOOL found = FALSE;
-				MessageTask* p;
+				MessageTask* task;
 
 				nCount = 0;
 
 				EnterCriticalSection(&g_csReceMsg);
 				//////////////////////////////////////////
-				p = g_receQueue;
-				while (p)
+				task = g_receQueue;
+				while (task)
 				{
-					if (p->msg_state == 0) /* this message is new message */
+					if (task->msg_state == 0) /* this message is new message */
 					{
-						p->msg_state = 1;
-						if (p->msg_body && p->msg_length)
+						task->msg_state = 1;
+						if (task->msg_body && task->msg_length)
 						{
-							m_viewGPT.AppendText((const char*)p->msg_body, p->msg_length);
+							m_viewGPT.AppendText((const char*)task->msg_body, task->msg_length);
 							found = TRUE;
 						}
 						break;
 					}
-					p = p->next;
+					task = task->next;
 				}
 				//////////////////////////////////////////
 				LeaveCriticalSection(&g_csReceMsg);
@@ -977,8 +976,6 @@ public:
 				{
 					KillTimer(TIMER_WAITAI);
 					m_nWaitCount = 0;
-					ztCheckMatchedTable();
-					canCheckRepeatly = true;
 				}
 				ztPushIntoSendQueue(NULL); // clean up the last processed message task
 			}
@@ -990,7 +987,6 @@ public:
 
 			if (m_nWaitCount == 0)
 			{
-				canCheckRepeatly = false;
 				*p++ = '\n';
 				*p++ = gsl::narrow_cast<uint8_t>(0xF0);
 				*p++ = gsl::narrow_cast<uint8_t>(0x9F);
@@ -1011,7 +1007,6 @@ public:
 			}
 			else
 			{
-				canCheckRepeatly = false;
 				txt[0] = '.'; txt[1] = '\0';
 				m_viewGPT.AppendText((const char*)txt, 1);
 			}
@@ -1021,8 +1016,6 @@ public:
 			{
 				KillTimer(TIMER_WAITAI);
 				m_nWaitCount = 0;
-				ztCheckMatchedTable();
-				canCheckRepeatly = true;
 			}
 		}
 
