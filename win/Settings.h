@@ -123,7 +123,8 @@ typedef struct RegexList
 
 typedef struct MatchEntry
 {
-    U8  docId[16+1];
+    U32 prop;
+    U8  docId[16];
     U8* group;
     U8* match;
 } MatchEntry;

@@ -40,15 +40,11 @@ MessageTask* g_sendQueue = nullptr;
 MessageTask* g_receQueue = nullptr;
 
 /* used to sync different threads */
-CRITICAL_SECTION     g_csSendMsg;
-CRITICAL_SECTION     g_csReceMsg;
-CRITICAL_SECTION     g_csRegxMsg;
+CRITICAL_SECTION     g_csSendMsg = { 0 };
+CRITICAL_SECTION     g_csReceMsg = { 0 };
 
 MemPoolContext g_sendMemPool = nullptr;
 MemPoolContext g_receMemPool = nullptr;
-MemPoolContext g_regxMemPool = nullptr;
-
-RegexList* g_regexList = nullptr;
 
 IDWriteFactory* g_pIDWriteFactory = nullptr;
 ID2D1Factory1* g_pD2DFactory = nullptr;
@@ -216,7 +212,6 @@ static int AppInit(HINSTANCE hInstance)
 	/* these two are Critial Sections to sync different threads */
 	InitializeCriticalSection(&g_csSendMsg);
 	InitializeCriticalSection(&g_csReceMsg);
-	InitializeCriticalSection(&g_csRegxMsg);
 
 	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
@@ -238,24 +233,16 @@ static int AppInit(HINSTANCE hInstance)
 	if (g_receMemPool == nullptr)
 		return 6;
 
-	g_regxMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
-	if (g_regxMemPool == nullptr)
-		return 7;
-
 	return 0;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
 {
-	UINT tries;
 
-	// tell all threads to quit
-	InterlockedIncrement(&g_Quit);
-	
-	{
-		BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
-		::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
-	}
+	BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
+	::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
+
+	ztShutdownNetworkThread();
 
 	ReleaseUnknown(g_pIDWriteFactory);
 	ReleaseUnknown(g_pD2DFactory);
@@ -270,20 +257,9 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 		hDLLD2D = {};
 	}
 
-	// wait for all threads to quit gracefully
-	tries = 20;
-	while (g_threadCount && tries > 0)
-	{
-		Sleep(1000);
-		tries--;
-	}
-
-	ATLASSERT(g_threadCount == 0);
-	ATLASSERT(g_threadCountBKG == 0);
 
 	zt_mempool_destroy(g_sendMemPool);
 	zt_mempool_destroy(g_receMemPool);
-	zt_mempool_destroy(g_regxMemPool);
 
 	g_bitmapBank.reset();
 
@@ -292,7 +268,6 @@ static int AppTerm(HINSTANCE hInstance = NULL)
 
 	DeleteCriticalSection(&g_csSendMsg);
 	DeleteCriticalSection(&g_csReceMsg);
-	DeleteCriticalSection(&g_csRegxMsg);
 
 	return 0;
 }

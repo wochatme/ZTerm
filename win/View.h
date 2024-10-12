@@ -940,6 +940,7 @@ public:
 	LRESULT OnTimer(UINT uMsg, WPARAM wParam, LPARAM lParam, BOOL& bHandled)
 	{
 		static int nCount = 0;
+		static bool canCheckRepeatly = false;
 		bHandled = FALSE;
 
 		if (wParam == TIMER_CHKGPT)
@@ -976,7 +977,8 @@ public:
 				{
 					KillTimer(TIMER_WAITAI);
 					m_nWaitCount = 0;
-					ztCheckMatchedPattern();
+					ztCheckMatchedTable();
+					canCheckRepeatly = true;
 				}
 				ztPushIntoSendQueue(NULL); // clean up the last processed message task
 			}
@@ -988,6 +990,7 @@ public:
 
 			if (m_nWaitCount == 0)
 			{
+				canCheckRepeatly = false;
 				*p++ = '\n';
 				*p++ = gsl::narrow_cast<uint8_t>(0xF0);
 				*p++ = gsl::narrow_cast<uint8_t>(0x9F);
@@ -1008,6 +1011,7 @@ public:
 			}
 			else
 			{
+				canCheckRepeatly = false;
 				txt[0] = '.'; txt[1] = '\0';
 				m_viewGPT.AppendText((const char*)txt, 1);
 			}
@@ -1017,7 +1021,8 @@ public:
 			{
 				KillTimer(TIMER_WAITAI);
 				m_nWaitCount = 0;
-				ztCheckMatchedPattern();
+				ztCheckMatchedTable();
+				canCheckRepeatly = true;
 			}
 		}
 

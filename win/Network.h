@@ -6,7 +6,11 @@
 
 #define WM_NETWORK_STATUS	(WM_USER + 101)
 
-U32 ztStartupNetworkThread(HWND hWnd);
+void ztStartupNetworkThread(HWND hWnd);
+void ztShutdownNetworkThread();
+
 void ztPushIntoSendQueue(MessageTask* task);
-void ztBounceNetworkThread(void);
-void ztCheckMatchedPattern();
+
+void ztCheckMatchedTable();
+
+//void ztBounceNetworkThread(void);
