@@ -187,8 +187,6 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	return nRet;
 }
 
-void PCRE2Test();
-
 static int AppInit(HINSTANCE hInstance)
 {
 	g_Quit = 0;
@@ -202,10 +200,9 @@ static int AppInit(HINSTANCE hInstance)
 	ztInitConfig(&ZTCONFIGURATION);
 
 	//AppSetDarkMode();
-	//PCRE2Test();
 	{
 		BOOL bFullDrag = TRUE;
-		::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
+		//::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
 		AppSetDragMode(bFullDrag);
 	}
 

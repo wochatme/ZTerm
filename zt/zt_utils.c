@@ -84,8 +84,9 @@ int zt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen)
 		idx = (input[i] & 0x0F);
 		output[(i << 1) + 1] = hex_chars[idx];
 	}
-
+#if 0
 	output[(i << 1)] = 0;
+#endif 
 	if (outlen)
 		*outlen = (i << 1);
 

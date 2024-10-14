@@ -113,18 +113,4 @@ int ScreenStretchBlt(U32* dst, int w, int h, U32* src, int sh, int len, int dx, 
 void UpdateSizeTip(HWND src, int cx, int cy);
 void EnableSizeTip(bool bEnable);
 
-typedef struct RegexList
-{
-    struct RegexList* next;
-    U8  docId[8];
-    U8* group;
-    U8* pattern;
-} RegexList;
 
-typedef struct MatchEntry
-{
-    U32 prop;
-    U8  docId[16];
-    U8* group;
-    U8* match;
-} MatchEntry;

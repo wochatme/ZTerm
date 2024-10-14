@@ -14,18 +14,58 @@ typedef struct
     U8* buffer;
 } HTTPDownload;
 
+typedef struct GroupName
+{
+    U8* name;
+} GroupName;
+
+typedef struct RegexList
+{
+    U32 property;
+    U32 grp_idx;
+    U8* pattern;
+    U8  docId[8];
+} RegexList;
+
 static const char* version__ = "100";
 
-static HANDLE evLLM = NULL;
-static CRITICAL_SECTION  csRegxMsg = { 0 };
-static MessageTask* regexQueue = nullptr;
+static const char* link_prefix = "https://zterm.ai/t/";
 
+static volatile LONG  regexCount = 0;
+static RegexList* regexList = nullptr;
+
+static U32 groupCount = 0;
+static GroupName* groupList = nullptr;
+
+static HANDLE evLLM = NULL;
+static CRITICAL_SECTION  csRegexMsg = { 0 };
+static CRITICAL_SECTION  csMatchMsg = { 0 };
+
+static MessageTask* regexQueue = nullptr;
+static MessageTask* matchQueue = nullptr;
+
+static MemPoolContext sendMemPool = nullptr;
+static MemPoolContext receMemPool = nullptr;
+static MemPoolContext regxMemPool = nullptr;
+
+typedef struct
+{
+    HWND hWndUI;
+    volatile LONG threadSignal;
+} ThreadInfo;
+
+static ThreadInfo _ti[AI_NETWORK_THREAD_MAX];
+
+static U32 sequence_id = 0;
+static U8  seqence_string[8] = { 0 };
+
+// called by network thread
 static void CleanUpRegexQueue()
 {
     MessageTask* mp;
     MessageTask* mq;
 
-    EnterCriticalSection(&csRegxMsg);
+    EnterCriticalSection(&csRegexMsg);
     ////////////////////////////////
     mp = regexQueue;
     while (mp) // scan the link to find the message that has been processed
@@ -38,28 +78,99 @@ static void CleanUpRegexQueue()
     }
     regexQueue = mp;
     ////////////////////////////////
-    LeaveCriticalSection(&csRegxMsg);
+    LeaveCriticalSection(&csRegexMsg);
 }
 
+// called by network thread
+static void CheckRegexResult()
+{
+    U8* p;
+    U32 i;
+    MessageTask* mp;
+    MessageTask* mq;
+    MessageTask* task = NULL;
+
+    EnterCriticalSection(&csMatchMsg);
+    ////////////////////////////////
+    mp = matchQueue;
+    while (mp) // scan the link to find the message that has been processed
+    {
+        mq = mp->next;
+        if (mp->msg_state == 0) // this task is not processed yet.
+        {
+            task = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, 
+                sizeof(MessageTask) + mp->msg_length + 1));
+            
+            if (task)
+            {
+                task->msg_body = reinterpret_cast<U8*>(task) + sizeof(MessageTask);
+                task->msg_length = mp->msg_length;
+                p = task->msg_body;
+                for (i = 0; i < mp->msg_length; i++)
+                {
+                    *p++ = mp->msg_body[i];
+                }
+                mp->msg_state = 1;
+                break;
+            }
+        }
+        mp = mq;
+    }
+    matchQueue = mp;
+    ////////////////////////////////
+    LeaveCriticalSection(&csMatchMsg);
+
+    if (task) // we find a matched result, put it into the receive queue
+    {
+        EnterCriticalSection(&g_csReceMsg);
+        /////////////////////////////////////////////////
+            mp = g_receQueue;
+            while (mp) // scan the link to find the message that has been processed
+            {
+                mq = mp->next;
+                if (mp->msg_state == 0) // this task is not processed yet.
+                    break;
+                zt_pfree(mp);
+                mp = mq;
+            }
+
+            g_receQueue = mp;
+
+            if (g_receQueue == nullptr)
+            {
+                g_receQueue = task;
+            }
+            else
+            {
+                while (mp->next) mp = mp->next;
+                mp->next = task;  // put task as the last node
+            }
+        /////////////////////////////////////////////////
+        LeaveCriticalSection(&g_csReceMsg);
+    }
+}
+
+// called by network thread
 static void PushIntoRegexQueue(U8* data, U32 length)
 {
-    MessageTask* mt = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, sizeof(MessageTask) + length + 1));
+    MessageTask* mt = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, 
+        sizeof(MessageTask) + length + 1));
     if (mt)
     {
         U32 i;
-        U8* p = (U8*)mt;
         MessageTask* mp;
         MessageTask* mq;
+        U8* p = reinterpret_cast<U8*>(mt);
 
         mt->msg_length = length;
         mt->msg_body = p + sizeof(MessageTask);
         p = mt->msg_body;
         for (i = 0; i < length; i++)
         {
-            *p++ = data[i];
+            p[i] = data[i];
         }
 
-        EnterCriticalSection(&csRegxMsg);
+        EnterCriticalSection(&csRegexMsg);
         ////////////////////////////////
         mp = regexQueue;
         while (mp) // scan the link to find the message that has been processed
@@ -81,7 +192,7 @@ static void PushIntoRegexQueue(U8* data, U32 length)
             mp->next = mt;  // put task as the last node
         }
         ////////////////////////////////
-        LeaveCriticalSection(&csRegxMsg);
+        LeaveCriticalSection(&csRegexMsg);
 
         if (evLLM)
             SetEvent(evLLM);  // notify the LLM thread to process the message
@@ -186,18 +297,6 @@ static size_t CurlCallback(char* message, size_t size, size_t nmemb, void* userd
     }
     return realsize;
 }
-
-
-typedef struct
-{
-    HWND hWndUI;
-    volatile LONG threadSignal;
-} ThreadInfo;
-
-static ThreadInfo _ti[AI_NETWORK_THREAD_MAX];
-
-static U32 sequence_id = 0;
-static U8  seqence_string[8] = { 0 };
 
 static DWORD WINAPI network_threadfunc(void* param)
 {
@@ -352,8 +451,9 @@ static DWORD WINAPI network_threadfunc(void* param)
                             *p++ = '0';
                         }
                         memcpy_s(p, postMax - ZX_MESSAGE_HEAD_SIZE, mt->msg_body, mt->msg_length);
-                        msg_length = mt->msg_length;
+                        // this is the screen data
                         msg_body = p;
+                        msg_length = mt->msg_length;
 
                         postLen = ZX_MESSAGE_HEAD_SIZE + mt->msg_length;
                         p += mt->msg_length;
@@ -376,7 +476,8 @@ static DWORD WINAPI network_threadfunc(void* param)
             {
                 if (msg_body && msg_length)
                 {
-                    PushIntoRegexQueue(msg_body, msg_length);
+                    if(regexCount > 0)
+                        PushIntoRegexQueue(msg_body, msg_length);
                 }
 
                 network_status = 0;
@@ -386,14 +487,17 @@ static DWORD WINAPI network_threadfunc(void* param)
                 {
                     network_status = 1;
                 }
-
                 ::PostMessage(pTi->hWndUI, WM_NETWORK_STATUS, 0, network_status);
-            }
-            else
-            {
-                CleanUpRegexQueue();
 
-                if (g_threadPing && idx == 1)
+                CheckRegexResult();
+            }
+            else if(idx == 1) // only network thread 1 can do the below work
+            {
+#if 0
+                CleanUpRegexQueue();
+                CheckRegexResult();
+#endif 
+                if (g_threadPing)
                 {
                     LONG pingNow = InterlockedExchange(&g_threadPingNow, 0);
                     /* if we have more than one working thread, only the first thread will send the ping packet */
@@ -472,24 +576,145 @@ static void StartAIThread(HWND hWnd)
 
 }
 
-static RegexList* DownLoadIndexFile(MemPoolContext mempool)
+static constexpr const char* g0{ "Redis" };
+static constexpr const char* g1{ "MySQL" };
+static constexpr const char* g2 { "PostgreSQL" };
+
+static constexpr const char* pattern0{ "Error: Redis connection to [0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]+ failed - connect ECONNREFUSED" };
+static constexpr const char* pattern1{ "[0-9]+, Connection was killed" };
+static constexpr const char* pattern2{ "PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+" };
+
+
+static RegexList* DownLoadIndexFile()
 {
+    char** ptable = NULL;
     RegexList* list = NULL;
 
-    list = static_cast<RegexList*>(zt_palloc0(mempool, sizeof(RegexList)));
-    if (list)
+    groupCount = 3;
+    groupList = static_cast<GroupName*>(std::malloc(sizeof(GroupName) * groupCount));
+
+    if (groupList)
     {
-        list->group = (U8*)"PostgreSQL";
-        list->pattern = (U8*)"PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+";
-        zt_siphash(list->pattern, strlen(reinterpret_cast<const char*>(list->pattern)), list->docId, 8);
+        char* s;
+        size_t total_bytes = 0;
+
+        total_bytes += (strlen(g0) + 1);
+        total_bytes += (strlen(g1) + 1);
+        total_bytes += (strlen(g2) + 1);
+
+        s = static_cast<char*>(zt_palloc0(regxMemPool, total_bytes));
+        if (s)
+        {
+            size_t i;
+            LONG m = 3;
+            char* p;
+            p = s;
+            groupList[0].name = reinterpret_cast<U8*>(p);
+
+            for (i = 0; i < strlen(g0); i++) *p++ = g0[i];
+            *p++ = '\0';
+
+            groupList[1].name = reinterpret_cast<U8*>(p);
+            for (i = 0; i < strlen(g1); i++) *p++ = g1[i];
+            *p++ = '\0';
+
+            groupList[2].name = reinterpret_cast<U8*>(p);
+            for (i = 0; i < strlen(g2); i++) *p++ = g2[i];
+            *p++ = '\0';
+             
+            ptable = static_cast<char**>(std::malloc(sizeof(char*) * m));
+            if (ptable)
+            {
+                total_bytes = 0;
+                total_bytes += (strlen(pattern0) + 1);
+                total_bytes += (strlen(pattern1) + 1);
+                total_bytes += (strlen(pattern2) + 1);
+
+                s = static_cast<char*>(zt_palloc0(regxMemPool, total_bytes));
+                list = static_cast<RegexList*>(zt_palloc0(regxMemPool, sizeof(RegexList) * m));
+                if (s && list)
+                {
+                    RegexList* node;
+
+                    p = s;
+                    ptable[0] = p;
+                    for (i = 0; i < strlen(pattern0); i++) *p++ = pattern0[i];
+                    *p++ = '\0';
+                    
+                    ptable[1] = p;
+                    for (i = 0; i < strlen(pattern1); i++) *p++ = pattern1[i];
+                    *p++ = '\0';
+
+                    ptable[2] = p;
+                    for (i = 0; i < strlen(pattern2); i++) *p++ = pattern2[i];
+                    *p++ = '\0';
+
+                    for (i = 0; i < m; i++)
+                    {
+                        node = list + i;
+                        node->grp_idx = i;
+                        node->pattern = reinterpret_cast<U8*>(ptable[i]);
+                        zt_siphash(node->pattern, strlen(reinterpret_cast<const char*>(node->pattern)), node->docId, 8);
+                    }
+                    InterlockedExchange(&regexCount, m);
+                }
+                else
+                {
+                    zt_pfree(s);
+                    zt_pfree(list);
+                    list = NULL;
+                }
+
+                std::free(ptable);
+            }
+        }
     }
+
     return list;
 }
 
-void ScanRegexList(U8* message, U32 length, RegexList* listRegex)
+//called by LLM thread
+static void PublishRegexResult(MessageTask* task)
 {
-    int idx;
+    MessageTask* mp;
+    MessageTask* mq;
+
+    EnterCriticalSection(&csMatchMsg);
+    ////////////////////////////////
+    mp = matchQueue;
+    while (mp) // scan the link to find the message that has been processed
+    {
+        mq = mp->next;
+        if (mp->msg_state == 0) // this task is not processed yet.
+            break;
+        zt_pfree(mp);
+        mp = mq;
+    }
+    matchQueue = mp;
+    if (matchQueue == nullptr)
+    {
+        matchQueue = task;
+    }
+    else
+    {
+        while (mp->next) mp = mp->next;
+        mp->next = task;  // put task as the last node
+    }
+
+    ////////////////////////////////
+    LeaveCriticalSection(&csMatchMsg);
+}
+
+#define MAX_REGULAR_MATCH   8
+void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
+{
+    int idx, m;
     RegexList* list;
+    char* s;
+    char* g;
+    char* match_table[MAX_REGULAR_MATCH];
+    U8 docId[16 + 1] = { 0 };
+
     pcre2_code* re;
     PCRE2_SPTR pattern;     /* PCRE2_SPTR is a pointer to unsigned code units of */
     PCRE2_SPTR subject;     /* the appropriate width (in this case, 8 bits). */
@@ -500,18 +725,29 @@ void ScanRegexList(U8* message, U32 length, RegexList* listRegex)
     pcre2_match_data* match_data;
     PCRE2_SPTR substring_start;
     PCRE2_SIZE substring_length;
+    PCRE2_SIZE total_length, group_length, i;
 
     int errornumber = 0;
     int rc;
 
+    for (i = 0; i < MAX_REGULAR_MATCH; i++)
+    {
+        match_table[i] = NULL;
+    }
+
     subject = (PCRE2_SPTR)message;
     subject_length = (PCRE2_SIZE)length;
 
-    list = listRegex;
+    
     idx = 0;
 
-    while (list && idx < 8)
+    for(LONG e=0; e < regexCount; e++)
     {
+        if (idx >= MAX_REGULAR_MATCH)
+            break;
+        
+        list = pattern_list + e;
+        
         pattern = (PCRE2_SPTR)list->pattern;
         re = pcre2_compile(
             pattern,               /* the pattern */
@@ -538,7 +774,7 @@ void ScanRegexList(U8* message, U32 length, RegexList* listRegex)
             {
                 pcre2_match_data_free(match_data);   /* Release memory used for the match */
                 pcre2_code_free(re);                 /*   data and the compiled pattern. */
-                goto _ScanNext_;
+                continue;
             }
 
             ovector = pcre2_get_ovector_pointer(match_data);
@@ -546,34 +782,117 @@ void ScanRegexList(U8* message, U32 length, RegexList* listRegex)
             {
                 pcre2_match_data_free(match_data);
                 pcre2_code_free(re);
-                goto _ScanNext_;
+                continue;
             }
+
             substring_start = subject + ovector[0];
             substring_length = ovector[1] - ovector[0];
 
             if (substring_length)
             {
-#if 0
-                matchTable[matchNumber].match = static_cast<U8*>(zt_palloc0(g_regxMemPool, substring_length + 1));
-                if (matchTable[matchNumber].match)
+                g = reinterpret_cast<char*>(groupList[list->grp_idx].name);
+
+                total_length = substring_length;
+                group_length = strlen((const char*)g);
+                total_length += group_length;
+                
+                /* format is:
+                * [group]: matched\n
+                * [T] https://zterm.ai/t/0123456789abcdef\n\n
+                */
+                total_length += (5 + 41 + 1);
+                s = static_cast<char*>(zt_palloc0(regxMemPool, total_length));
+                if (s)
                 {
-                    memcpy_s(matchTable[matchNumber].match, substring_length, substring_start, substring_length);
-                    matchTable[matchNumber].group = list->group;
-                    zt_Raw2HexString(list->docId, 8, matchTable[matchNumber].docId, NULL);
-                    matchNumber++;
+                    match_table[idx++] = s;
+                    *s++ = '[';
+                    for (i = 0; i < group_length; i++) *s++ = g[i];
+                    
+                    *s++ = ']'; *s++ = ':'; *s++ = ' ';
+                    
+                    for (i = 0; i < substring_length; i++) *s++ = substring_start[i];
+
+                    *s++ = '\n'; 
+                    *s++ = '['; *s++ = 'T';  *s++ = ']'; *s++ = ' ';
+                    
+                    for (i = 0; i < 19; i++) *s++ = link_prefix[i];
+
+                    zt_Raw2HexString(list->docId, 8, docId, NULL);
+                    for (i = 0; i < 16; i++) *s++ = docId[i];
+
+                    *s++ = '\n'; 
+                    if(e != regexCount - 1)
+                        *s++ = '\n';
                 }
-#endif 
-                idx++;
             }
             pcre2_match_data_free(match_data);  /* Release the memory that was used */
             pcre2_code_free(re);                /* for the match data and the pattern. */
         }
-    _ScanNext_:
-        list = list->next;
+    }
+
+    total_length = 0;
+    for (m = 0; m < MAX_REGULAR_MATCH; m++)
+    {
+        s = match_table[m];
+        if (s)
+        {
+            total_length += strlen((const char*)s);
+        }
+    }
+
+    if (total_length > 0)
+    {
+        MessageTask* mt;
+        /*
+        * 
+        */
+        total_length += 32;
+        mt = static_cast<MessageTask*>(zt_palloc0(regxMemPool, sizeof(MessageTask) + length));
+        if (mt)
+        {
+            size_t len, k;
+            char* q;
+            char* p;
+            
+            mt->msg_body = reinterpret_cast<U8*>(mt) + sizeof(MessageTask);
+            p = reinterpret_cast<char*>(mt->msg_body);
+            *p++ = '\n';
+            *p++ = 0xF0;
+            *p++ = 0x9F;
+            *p++ = 0x92;
+            *p++ = 0x8E;
+            *p++ = '\n';
+            for (i = 0; i < 8; i++) *p++ = '-';
+            *p++ = '\n';
+
+            for (m = 0; m < MAX_REGULAR_MATCH; m++)
+            {
+                q = match_table[m];
+                if (q)
+                {
+                    len = strlen((const char*)q);
+                    for (k = 0; k < len; k++)
+                        *p++ = q[k];
+                }
+            }
+
+            for (i = 0; i < 8; i++) *p++ = '-';
+            *p++ = '\n';
+
+            mt->msg_length = static_cast<U32>(strlen((const char*)mt->msg_body));
+            PublishRegexResult(mt);
+        }
+    }
+
+    for (m = 0; m < MAX_REGULAR_MATCH; m++)
+    {
+        if (match_table[m])
+            zt_pfree(match_table[m]);
+        match_table[m] = NULL;
     }
 }
 
-void DoRegexMatch(MemPoolContext mempool, RegexList* list)
+void DoRegexMatch(RegexList* list)
 {
     if (list)
     {
@@ -581,7 +900,7 @@ void DoRegexMatch(MemPoolContext mempool, RegexList* list)
         U8* data = NULL;
         U32 length = 0;
 
-        EnterCriticalSection(&csRegxMsg);
+        EnterCriticalSection(&csRegexMsg);
         ////////////////////////////////
         task = regexQueue;
         while (task)
@@ -591,7 +910,7 @@ void DoRegexMatch(MemPoolContext mempool, RegexList* list)
                 task->msg_state = 1;
                 if (task->msg_body && task->msg_length)
                 {
-                    data = static_cast<U8*>(zt_palloc0(mempool, task->msg_length + 1));
+                    data = static_cast<U8*>(zt_palloc0(regxMemPool, task->msg_length + 1));
                     if (data)
                     {
                         length = task->msg_length;
@@ -604,7 +923,7 @@ void DoRegexMatch(MemPoolContext mempool, RegexList* list)
             task = task->next;
         }
         ////////////////////////////////
-        LeaveCriticalSection(&csRegxMsg);
+        LeaveCriticalSection(&csRegexMsg);
 
         if (data && length)
         {
@@ -616,16 +935,14 @@ void DoRegexMatch(MemPoolContext mempool, RegexList* list)
 
 static DWORD WINAPI lvm_threadfunc(void* param)
 {
-    MemPoolContext regexMemPool = NULL;
-
     InterlockedIncrement(&g_threadCount);
 #if 0
     InterlockedIncrement(&g_threadCountBKG);
 #endif 
-    regexMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
-    if (regexMemPool)
+    regxMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
+    if (regxMemPool)
     {
-        RegexList* regexList = DownLoadIndexFile(regexMemPool);
+        regexList = DownLoadIndexFile();
         if (regexList)
         {
             if (evLLM)
@@ -636,11 +953,11 @@ static DWORD WINAPI lvm_threadfunc(void* param)
                     if (g_Quit)
                         break;
 
-                    DoRegexMatch(regexMemPool,regexList);
+                    DoRegexMatch(regexList);
                 }
             }
         }
-        zt_mempool_destroy(regexMemPool);
+        zt_mempool_destroy(regxMemPool);
     }
 
     InterlockedDecrement(&g_threadCount);
@@ -666,7 +983,8 @@ void ztStartupNetworkThread(HWND hWnd)
     {
         isDone = true;
 
-        InitializeCriticalSection(&csRegxMsg);
+        InitializeCriticalSection(&csRegexMsg);
+        InitializeCriticalSection(&csMatchMsg);
 
         evLLM = CreateEvent(NULL, FALSE, FALSE, NULL);
         if (evLLM)
@@ -703,7 +1021,8 @@ void ztShutdownNetworkThread()
         evLLM = NULL;
     }
 
-    DeleteCriticalSection(&csRegxMsg);
+    DeleteCriticalSection(&csRegexMsg);
+    DeleteCriticalSection(&csMatchMsg);
 }
 
 #if 0
@@ -796,102 +1115,3 @@ void ztPushIntoSendQueue(MessageTask* task)
     LeaveCriticalSection(&g_csSendMsg);
 }
 
-#if 0
-static DWORD WINAPI checkpattern_threadfunc(void* param)
-{
-    if (matchNumber)
-    {
-        MessageTask* mt = nullptr;
-        U32 size = 0;
-        U8 idx;
-        for (idx = 0; idx < matchNumber; idx++)
-        {
-            size += strlen(reinterpret_cast<const char*>(matchTable[idx].group));
-            size += strlen(reinterpret_cast<const char*>(matchTable[idx].match));
-            size += 4;
-            size += 17;
-            size += 17;
-        }
-        size += 16;
-        EnterCriticalSection(&g_csReceMsg);
-        mt = (MessageTask*)zt_palloc0(g_receMemPool, sizeof(MessageTask) + size);
-        if (mt)
-        {
-            MessageTask* mp;
-            MessageTask* mq;
-            U8* p;
-            size_t length;
-
-            mt->msg_body = reinterpret_cast<U8*>(mt) + sizeof(MessageTask);
-            p = p = mt->msg_body;
-            *p++ = '\n';
-            *p++ = 0xF0;
-            *p++ = 0x9F;
-            *p++ = 0x92;
-            *p++ = 0x8E;
-            *p++ = '\n';
-            mt->msg_length = 6;
-            for (idx = 0; idx < matchNumber; idx++)
-            {
-                length = strlen(reinterpret_cast<const char*>(matchTable[idx].group));
-                *p++ = '[';
-                for (size_t i = 0; i < length; i++)
-                {
-                    *p++ = matchTable[idx].group[i];
-                    mt->msg_length++;
-                }
-                matchTable[idx].group = NULL;
-
-                *p++ = ']'; *p++ = ':'; 
-                mt->msg_length += 2;
-                length = strlen(reinterpret_cast<const char*>(matchTable[idx].match));
-
-                for (size_t i = 0; i < length; i++)
-                {
-                    *p++ = matchTable[idx].match[i];
-                    mt->msg_length++;
-                }
-                zt_pfree(matchTable[idx].match);
-                matchTable[idx].match = NULL;
-
-                *p++ = '\n';
-                *p++ = 'h'; *p++ = 't'; *p++ = 't'; *p++ = 'p'; *p++ = 's';
-                *p++ = '/'; *p++ = '/'; *p++ = 'z'; *p++ = 't'; *p++ = 'e';
-                *p++ = 'r'; *p++ = 'm'; *p++ = '.'; *p++ = 'a'; *p++ = 'i';
-                *p++ = '/';
-                for (size_t i = 0; i < 16; i++)
-                {
-                    *p++ = matchTable[idx].docId[i];
-                }
-                *p++ = '\n';
-                mt->msg_length += 35;
-            }
-            *p++ = '\n';
-            mt->msg_length ++;
-
-            mp = g_receQueue;
-            while (mp) // scan the link to find the message that has been processed
-            {
-                mq = mp->next;
-                if (mp->msg_state == 0) // this task is not processed yet.
-                    break;
-                zt_pfree(mp);
-                mp = mq;
-            }
-            g_receQueue = mp;
-            if (g_receQueue == nullptr)
-            {
-                g_receQueue = mt;
-            }
-            else
-            {
-                while (mp->next) mp = mp->next;
-                mp->next = mt;  // put task as the last node
-            }
-        }
-        LeaveCriticalSection(&g_csReceMsg);
-    }
-    matchNumber = 0;
-    return 0;
-}
-#endif 
