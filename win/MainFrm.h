@@ -385,6 +385,7 @@ public:
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(IDM_AIASSISTANT, OnAIAssistant)
 		COMMAND_ID_HANDLER(IDM_SWITCHLAYOUT, OnSwitchLayout)
+		COMMAND_ID_HANDLER(IDM_SWITCHTAB, OnSwitchTab)
 #if 0
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 #endif 
@@ -392,7 +393,11 @@ public:
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
 
-	
+	LRESULT OnSwitchTab(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return m_view.DoSwitchTab();
+	}
+
 	LRESULT OnSwitchLayout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{
 		return m_view.DoSwitchLayout();

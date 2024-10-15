@@ -23,37 +23,23 @@
 
 CAppModule _Module;
 
-volatile LONG  g_threadCount = 0;
-volatile LONG  g_threadCountBKG = 0;
-volatile LONG  g_Quit = 0;
-volatile LONG  g_threadPing = 0;
-volatile LONG  g_threadPingNow = 1;
-
 DWORD guiState = 0;
 
 std::unique_ptr<BitmapBank> g_bitmapBank = nullptr;
 
 ZTConfig ZTCONFIGURATION = { 0 }; // the global configuration
 
-/* the message queue from the remote server */
-MessageTask* g_sendQueue = nullptr;
-MessageTask* g_receQueue = nullptr;
-
-/* used to sync different threads */
-CRITICAL_SECTION     g_csSendMsg = { 0 };
-CRITICAL_SECTION     g_csReceMsg = { 0 };
-
-MemPoolContext g_sendMemPool = nullptr;
-MemPoolContext g_receMemPool = nullptr;
-
+#if 0
 IDWriteFactory* g_pIDWriteFactory = nullptr;
+#endif 
 ID2D1Factory1* g_pD2DFactory = nullptr;
 
 static D2D1_DRAW_TEXT_OPTIONS d2dDrawTextOptions = D2D1_DRAW_TEXT_OPTIONS_NONE;
 
 static HMODULE hDLLD2D{};
+#if 0
 static HMODULE hDLLDWrite{};
-
+#endif 
 void LoadD2DOnce() noexcept
 {
 	DWORD loadLibraryFlags = 0;
@@ -71,9 +57,10 @@ void LoadD2DOnce() noexcept
 
 	typedef HRESULT(WINAPI* D2D1CFSig)(D2D1_FACTORY_TYPE factoryType, REFIID riid,
 		CONST D2D1_FACTORY_OPTIONS* pFactoryOptions, IUnknown** factory);
+#if 0
 	typedef HRESULT(WINAPI* DWriteCFSig)(DWRITE_FACTORY_TYPE factoryType, REFIID iid,
 		IUnknown** factory);
-
+#endif 
 	hDLLD2D = ::LoadLibraryEx(TEXT("D2D1.DLL"), 0, loadLibraryFlags);
 	D2D1CFSig fnD2DCF = DLLFunction<D2D1CFSig>(hDLLD2D, "D2D1CreateFactory");
 	if (fnD2DCF) {
@@ -83,6 +70,7 @@ void LoadD2DOnce() noexcept
 			nullptr,
 			reinterpret_cast<IUnknown**>(&g_pD2DFactory));
 	}
+#if 0
 	hDLLDWrite = ::LoadLibraryEx(TEXT("DWRITE.DLL"), 0, loadLibraryFlags);
 	DWriteCFSig fnDWCF = DLLFunction<DWriteCFSig>(hDLLDWrite, "DWriteCreateFactory");
 	if (fnDWCF) {
@@ -102,6 +90,7 @@ void LoadD2DOnce() noexcept
 				reinterpret_cast<IUnknown**>(&g_pIDWriteFactory));
 		}
 	}
+#endif 
 }
 
 static bool LoadD2D() noexcept
@@ -113,7 +102,10 @@ static bool LoadD2D() noexcept
 	catch (...) {
 		// ignore
 	}
+#if 0
 	return g_pIDWriteFactory && g_pD2DFactory;
+#endif 
+	return (g_pD2DFactory != nullptr);
 }
 
 static void GetMainWindowPosition(UINT dpi, RECT& position)
@@ -187,31 +179,22 @@ static int AppRun(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
 	return nRet;
 }
 
-static int AppInit(HINSTANCE hInstance)
+static void LoadConfiguration(ZTConfig* cf)
 {
-	g_Quit = 0;
-	g_threadCount = 0;
-	g_threadCountBKG = 0;
-	g_threadPing = 0;
+	BOOL bFullDrag = TRUE;
 
-	g_sendQueue = nullptr;
-	g_receQueue = nullptr;
-
-	ztInitConfig(&ZTCONFIGURATION);
-
+	//::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
+	AppSetDragMode(bFullDrag);
 	//AppSetDarkMode();
 	AppSetLeftAIMode();
-	{
-		BOOL bFullDrag = TRUE;
-		//::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);
-		AppSetDragMode(bFullDrag);
-	}
+}
 
-	/* these two are Critial Sections to sync different threads */
-	InitializeCriticalSection(&g_csSendMsg);
-	InitializeCriticalSection(&g_csReceMsg);
-
+static int AppInit(HINSTANCE hInstance)
+{
 	SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
+	ztInitConfig(&ZTCONFIGURATION);
+	LoadConfiguration(&ZTCONFIGURATION);
 
 	if (!LoadD2D())
 		return 1;
@@ -223,49 +206,39 @@ static int AppInit(HINSTANCE hInstance)
 	if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK)
 		return 3;
 
-	g_sendMemPool = zt_mempool_create("SendMsgPool", ALLOCSET_DEFAULT_SIZES);
-	if (g_sendMemPool == nullptr)
-		return 5;
-
-	g_receMemPool = zt_mempool_create("ReceMsgPool", ALLOCSET_DEFAULT_SIZES);
-	if (g_receMemPool == nullptr)
-		return 6;
+	if (ztInitNetworkResource())
+		return 4;
 
 	return 0;
 }
 
 static int AppTerm(HINSTANCE hInstance = NULL)
 {
-
 	BOOL bDragFullWindow = AppInFullDragMode() ? TRUE : FALSE;
 	::SystemParametersInfo(SPI_SETDRAGFULLWINDOWS, bDragFullWindow, NULL, 0);
 
 	ztShutdownNetworkThread();
 
-	ReleaseUnknown(g_pIDWriteFactory);
 	ReleaseUnknown(g_pD2DFactory);
+
+#if 0
+	ReleaseUnknown(g_pIDWriteFactory);
 	if (hDLLDWrite)
 	{
 		FreeLibrary(hDLLDWrite);
 		hDLLDWrite = {};
 	}
+#endif 
 	if (hDLLD2D)
 	{
 		FreeLibrary(hDLLD2D);
 		hDLLD2D = {};
 	}
 
-
-	zt_mempool_destroy(g_sendMemPool);
-	zt_mempool_destroy(g_receMemPool);
-
 	g_bitmapBank.reset();
 
 	curl_global_cleanup();
 	Scintilla_ReleaseResources();
-
-	DeleteCriticalSection(&g_csSendMsg);
-	DeleteCriticalSection(&g_csReceMsg);
 
 	return 0;
 }

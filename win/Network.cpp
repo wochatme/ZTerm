@@ -28,8 +28,29 @@ typedef struct RegexList
 } RegexList;
 
 static const char* version__ = "100";
-
 static const char* link_prefix = "https://zterm.ai/t/";
+
+static volatile LONG  g_threadCount = 0;
+static volatile LONG  g_threadCountBKG = 0;
+static volatile LONG  g_Quit = 0;
+static volatile LONG  g_threadPing = 0;
+static volatile LONG  g_threadPingNow = 1;
+
+/* the message queue from the remote server */
+static MessageTask* receQueue = nullptr;
+static MessageTask* sendQueue = nullptr;
+static MessageTask* regexQueue = nullptr;
+static MessageTask* matchQueue = nullptr;
+
+/* used to sync different threads */
+static CRITICAL_SECTION  csReceMsg  = { 0 };
+static CRITICAL_SECTION  csSendMsg  = { 0 };
+static CRITICAL_SECTION  csRegexMsg = { 0 };
+static CRITICAL_SECTION  csMatchMsg = { 0 };
+
+static MemPoolContext sendMemPool = nullptr;
+static MemPoolContext receMemPool = nullptr;
+static MemPoolContext regxMemPool = nullptr;
 
 static volatile LONG  regexCount = 0;
 static RegexList* regexList = nullptr;
@@ -38,15 +59,8 @@ static U32 groupCount = 0;
 static GroupName* groupList = nullptr;
 
 static HANDLE evLLM = NULL;
-static CRITICAL_SECTION  csRegexMsg = { 0 };
-static CRITICAL_SECTION  csMatchMsg = { 0 };
 
-static MessageTask* regexQueue = nullptr;
-static MessageTask* matchQueue = nullptr;
 
-static MemPoolContext sendMemPool = nullptr;
-static MemPoolContext receMemPool = nullptr;
-static MemPoolContext regxMemPool = nullptr;
 
 typedef struct
 {
@@ -59,6 +73,7 @@ static ThreadInfo _ti[AI_NETWORK_THREAD_MAX];
 static U32 sequence_id = 0;
 static U8  seqence_string[8] = { 0 };
 
+#if 0
 // called by network thread
 static void CleanUpRegexQueue()
 {
@@ -80,6 +95,7 @@ static void CleanUpRegexQueue()
     ////////////////////////////////
     LeaveCriticalSection(&csRegexMsg);
 }
+#endif 
 
 // called by network thread
 static void CheckRegexResult()
@@ -98,7 +114,7 @@ static void CheckRegexResult()
         mq = mp->next;
         if (mp->msg_state == 0) // this task is not processed yet.
         {
-            task = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, 
+            task = static_cast<MessageTask*>(zt_palloc0(receMemPool, 
                 sizeof(MessageTask) + mp->msg_length + 1));
             
             if (task)
@@ -122,9 +138,9 @@ static void CheckRegexResult()
 
     if (task) // we find a matched result, put it into the receive queue
     {
-        EnterCriticalSection(&g_csReceMsg);
+        EnterCriticalSection(&csReceMsg);
         /////////////////////////////////////////////////
-            mp = g_receQueue;
+            mp = receQueue;
             while (mp) // scan the link to find the message that has been processed
             {
                 mq = mp->next;
@@ -134,11 +150,11 @@ static void CheckRegexResult()
                 mp = mq;
             }
 
-            g_receQueue = mp;
+            receQueue = mp;
 
-            if (g_receQueue == nullptr)
+            if (receQueue == nullptr)
             {
-                g_receQueue = task;
+                receQueue = task;
             }
             else
             {
@@ -146,14 +162,14 @@ static void CheckRegexResult()
                 mp->next = task;  // put task as the last node
             }
         /////////////////////////////////////////////////
-        LeaveCriticalSection(&g_csReceMsg);
+        LeaveCriticalSection(&csReceMsg);
     }
 }
 
 // called by network thread
 static void PushIntoRegexQueue(U8* data, U32 length)
 {
-    MessageTask* mt = static_cast<MessageTask*>(zt_palloc0(g_receMemPool, 
+    MessageTask* mt = static_cast<MessageTask*>(zt_palloc0(receMemPool, 
         sizeof(MessageTask) + length + 1));
     if (mt)
     {
@@ -206,9 +222,9 @@ static void PushIntoReceQueue(U8* data, U32 length)
     U32 data_len = length - ZX_MESSAGE_HEAD_SIZE;
     ZTConfig* cf = &ZTCONFIGURATION;
 
-    EnterCriticalSection(&g_csReceMsg);
+    EnterCriticalSection(&csReceMsg);
     /////////////////////////////////////////////////
-    mt = (MessageTask*)zt_palloc0(g_receMemPool, sizeof(MessageTask) + data_len + 6 + 1);
+    mt = (MessageTask*)zt_palloc0(receMemPool, sizeof(MessageTask) + data_len + 6 + 1);
     if (mt)
     {
         MessageTask* mp;
@@ -227,7 +243,7 @@ static void PushIntoReceQueue(U8* data, U32 length)
         memcpy_s(p, data_len, data_buf, data_len);
         mt->msg_body[mt->msg_length - 1] = '\n';
 
-        mp = g_receQueue;
+        mp = receQueue;
         while (mp) // scan the link to find the message that has been processed
         {
             mq = mp->next;
@@ -236,10 +252,10 @@ static void PushIntoReceQueue(U8* data, U32 length)
             zt_pfree(mp);
             mp = mq;
         }
-        g_receQueue = mp;
-        if (g_receQueue == nullptr)
+        receQueue = mp;
+        if (receQueue == nullptr)
         {
-            g_receQueue = mt;
+            receQueue = mt;
         }
         else
         {
@@ -254,7 +270,7 @@ static void PushIntoReceQueue(U8* data, U32 length)
     }
 #endif 
     /////////////////////////////////////////////////
-    LeaveCriticalSection(&g_csReceMsg);
+    LeaveCriticalSection(&csReceMsg);
 }
 
 static size_t CurlCallback(char* message, size_t size, size_t nmemb, void* userdata)
@@ -399,9 +415,9 @@ static DWORD WINAPI network_threadfunc(void* param)
             msg_body = nullptr;
             msg_length = 0;
 
-            EnterCriticalSection(&g_csSendMsg);
+            EnterCriticalSection(&csSendMsg);
             /////////////////////////////////////////////////
-            mt = g_sendQueue;
+            mt = sendQueue;
             while (mt)
             {
                 if (0 == mt->msg_state)
@@ -470,7 +486,7 @@ static DWORD WINAPI network_threadfunc(void* param)
                 }
             }
             /////////////////////////////////////////////////
-            LeaveCriticalSection(&g_csSendMsg);
+            LeaveCriticalSection(&csSendMsg);
 
             if (found)
             {
@@ -983,9 +999,6 @@ void ztStartupNetworkThread(HWND hWnd)
     {
         isDone = true;
 
-        InitializeCriticalSection(&csRegexMsg);
-        InitializeCriticalSection(&csMatchMsg);
-
         evLLM = CreateEvent(NULL, FALSE, FALSE, NULL);
         if (evLLM)
             StartLLMThread();
@@ -1021,8 +1034,13 @@ void ztShutdownNetworkThread()
         evLLM = NULL;
     }
 
+    zt_mempool_destroy(sendMemPool);
+    zt_mempool_destroy(receMemPool);
+
     DeleteCriticalSection(&csRegexMsg);
     DeleteCriticalSection(&csMatchMsg);
+    DeleteCriticalSection(&csSendMsg);
+    DeleteCriticalSection(&csReceMsg);
 }
 
 #if 0
@@ -1085,9 +1103,9 @@ void ztPushIntoSendQueue(MessageTask* task)
     MessageTask* mp;
     MessageTask* mq;
 
-    EnterCriticalSection(&g_csSendMsg);
+    EnterCriticalSection(&csSendMsg);
     /////////////////////////////////////////////////
-    mp = g_sendQueue;
+    mp = sendQueue;
     while (mp) // scan the link to find the message that has been processed
     {
         mq = mp->next;
@@ -1101,10 +1119,10 @@ void ztPushIntoSendQueue(MessageTask* task)
         }
         mp = mq;
     }
-    g_sendQueue = mp;
-    if (g_sendQueue == nullptr)
+    sendQueue = mp;
+    if (sendQueue == nullptr)
     {
-        g_sendQueue = task;
+        sendQueue = task;
     }
     else
     {
@@ -1112,6 +1130,70 @@ void ztPushIntoSendQueue(MessageTask* task)
         mp->next = task;  // put task as the last node
     }
     /////////////////////////////////////////////////
-    LeaveCriticalSection(&g_csSendMsg);
+    LeaveCriticalSection(&csSendMsg);
 }
 
+int ztInitNetworkResource()
+{
+    g_Quit = 0;
+    g_threadCount = 0;
+    g_threadCountBKG = 0;
+    g_threadPing = 0;
+
+    sendQueue = nullptr;
+    receQueue = nullptr;
+
+    /* these two are Critial Sections to sync different threads */
+    InitializeCriticalSection(&csRegexMsg);
+    InitializeCriticalSection(&csMatchMsg);
+    InitializeCriticalSection(&csSendMsg);
+    InitializeCriticalSection(&csReceMsg);
+
+    sendMemPool = zt_mempool_create("SendMsgPool", ALLOCSET_DEFAULT_SIZES);
+    if (sendMemPool == nullptr)
+        return 1;
+
+    receMemPool = zt_mempool_create("ReceMsgPool", ALLOCSET_DEFAULT_SIZES);
+    if (receMemPool == nullptr)
+        return 1;
+
+    return 0;
+}
+
+MessageTask* ztAllocateMessageTask(size_t size)
+{
+    MessageTask* task = (MessageTask*)zt_palloc0(sendMemPool, size);
+    return task;
+}
+
+char* ztPickupResult(U32& size)
+{
+    char* message = nullptr;
+    MessageTask* task;
+
+    EnterCriticalSection(&csReceMsg);
+    //////////////////////////////////////////
+    task = receQueue;
+    while (task)
+    {
+        if (task->msg_state == 0) /* this message is new message */
+        {
+            task->msg_state = 1;
+            if (task->msg_body && task->msg_length)
+            {
+                message = static_cast<char*>(zt_palloc0(sendMemPool, task->msg_length + 1));
+                if (message)
+                {
+                    size = task->msg_length;
+                    for (U32 i = 0; i < task->msg_length; i++) message[i] = task->msg_body[i];
+                }
+            }
+            break;
+        }
+        task = task->next;
+    }
+    //////////////////////////////////////////
+    LeaveCriticalSection(&csReceMsg);
+
+    return message;
+}

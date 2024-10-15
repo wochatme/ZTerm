@@ -212,6 +212,7 @@ BEGIN
 #endif
     VK_F1,          IDM_AIASSISTANT,        VIRTKEY, CONTROL
     VK_F2,          IDM_SWITCHLAYOUT,       VIRTKEY, CONTROL
+    VK_F3,          IDM_SWITCHTAB,          VIRTKEY, CONTROL
 END
 
 

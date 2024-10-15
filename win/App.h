@@ -56,26 +56,10 @@ inline T DLLFunction(HMODULE hModule, LPCSTR lpProcName) noexcept {
 #define BACKGROUND_WHITE	0xFFFFFFFF
 #define BACKGROUND_DARK		0xFF171717
 #define BACKGROUND_LIGHT	0x00F0F0F0
-
+#if 0
 extern IDWriteFactory* g_pIDWriteFactory;
+#endif 
 extern ID2D1Factory1* g_pD2DFactory;
-
-extern volatile LONG g_threadCount;
-extern volatile LONG g_threadCountBKG;
-extern volatile LONG g_Quit;
-extern volatile LONG g_threadPing;
-extern volatile LONG g_threadPingNow;
-
-/* the message queue from the remote server */
-extern MessageTask* g_sendQueue;
-extern MessageTask* g_receQueue;
-
-extern MemPoolContext g_sendMemPool;
-extern MemPoolContext g_receMemPool;
-
-/* used to sync different threads */
-extern CRITICAL_SECTION  g_csSendMsg;
-extern CRITICAL_SECTION  g_csReceMsg;
 
 extern ZTConfig ZTCONFIGURATION;
 extern std::unique_ptr<BitmapBank> g_bitmapBank;

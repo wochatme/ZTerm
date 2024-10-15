@@ -40,7 +40,7 @@ typedef struct MessageTask
 #define AI_NETWORK_IS_BAD   0
 #define AI_NETWORK_IS_GOOD  1
 
-#define AI_NETWORK_THREAD_MIN   2
+#define AI_NETWORK_THREAD_MIN   1
 #define AI_NETWORK_THREAD_MAX   8
 
 #define AI_DEFAULT_PING_SECONDS 30

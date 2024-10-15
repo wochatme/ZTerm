@@ -440,7 +440,7 @@ public:
 		if (m_lpRectActive == lpRect)
 			src = const_cast<U32*>(xbmpChatLA);
 		sw = 32; sh = 24;
-		dy = height - sh - 2;
+		dy = height - sh - 4;
 		dx = 0;
 		ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
 		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + sw;
@@ -892,7 +892,7 @@ public:
 
 				mt_len = sizeof(MessageTask) + length + screen_len + 1;
 
-				mt = (MessageTask*)zt_palloc0(g_sendMemPool, mt_len);
+				mt = ztAllocateMessageTask(mt_len);
 				if (mt)
 				{
 					U8* s = (U8*)mt;
@@ -1007,7 +1007,7 @@ public:
 
 			q = ask + 6;
 			mt_len = sizeof(MessageTask) + quesion_length + utf8len + 8 + 1;
-			mt = (MessageTask*)zt_palloc0(g_sendMemPool, mt_len);
+			mt = ztAllocateMessageTask(mt_len);
 			if (mt)
 			{
 				U8* s = (U8*)mt;
@@ -1048,36 +1048,19 @@ public:
 			nCount++;
 			if (nCount >= 4)
 			{
-				BOOL found = FALSE;
-				MessageTask* task;
-
+				char* message;
+				U32 length = 0;
 				nCount = 0;
 
-				EnterCriticalSection(&g_csReceMsg);
-				//////////////////////////////////////////
-				task = g_receQueue;
-				while (task)
-				{
-					if (task->msg_state == 0) /* this message is new message */
-					{
-						task->msg_state = 1;
-						if (task->msg_body && task->msg_length)
-						{
-							m_viewGPT.AppendText((const char*)task->msg_body, task->msg_length);
-							found = TRUE;
-						}
-						break;
-					}
-					task = task->next;
-				}
-				//////////////////////////////////////////
-				LeaveCriticalSection(&g_csReceMsg);
-
-				if (found)
+				message = ztPickupResult(length);
+				if (message)
 				{
 					KillTimer(TIMER_WAITAI);
 					m_nWaitCount = 0;
+					m_viewGPT.AppendText((const char*)message, length);
+					zt_pfree(message);
 				}
+
 				ztPushIntoSendQueue(NULL); // clean up the last processed message task
 			}
 		}
@@ -1131,7 +1114,7 @@ public:
 		}
 	}
 
-	void DoSwitchTab(int idxTab)
+	void DoTabSwitch(int idxTab)
 	{
 		if (idxTab == RECT_CHAT || idxTab == RECT_BOOK)
 		{
@@ -1154,7 +1137,7 @@ public:
 			break;
 		case RECT_CHAT:
 		case RECT_BOOK:
-			DoSwitchTab(idx);
+			DoTabSwitch(idx);
 			break;
 		default:
 			break;
@@ -1274,8 +1257,24 @@ public:
 #endif 
 	}
 #endif 
+
+	
+	LRESULT DoSwitchTab()
+	{
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			int idxTab = RECT_CHAT;
+			if (m_lpRectActive == &m_rectButtons[idxTab])
+				idxTab = RECT_BOOK;
+			DoTabSwitch(idxTab);
+		}
+
+		return 0L;
+	}
+
 	LRESULT DoSwitchLayout()
 	{
+#if 0
 		if (m_nSinglePane == SPLIT_PANE_NONE)
 		{
 			HWND hWnd;
@@ -1298,6 +1297,7 @@ public:
 			InvalidateALLWin();
 			Invalidate();
 		}
+#endif 
 		return 0L;
 	}
 
