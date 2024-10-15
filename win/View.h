@@ -2,6 +2,9 @@
 
 #define WM_VIEW_BTNEVENT		(WM_USER + 100)
 
+#define	IDX_TREEVIEW			100
+#define	IDX_TREEVIEW_ADDNODE	101
+
 #define TIMER_CHKGPT	125
 #define TIMER_WAITAI	666
 
@@ -23,7 +26,7 @@
 
 #define ASK_WIN_HEIGHT		88
 #define GAP_WIN_HEIGHT		32
-#define LED_WIN_HEIGHT		24
+#define LED_WIN_HEIGHT		32
 
 #define RECT_QASK	0
 #define RECT_HIDE	1
@@ -68,6 +71,7 @@ class CView : public CWindowImpl<CView>
 
 	RECT m_rectButtons[RECT_LAST] = { 0 };
 	LPRECT m_lpRectPress = nullptr;
+	LPRECT m_lpRectActive = nullptr;
 
 	UINT32 m_crBackGround = BACKGROUND_COLOR_LIGHT;
 
@@ -115,6 +119,8 @@ public:
 	CTTYView m_viewTTY;
 	CGPTView m_viewGPT;
 	CASKView m_viewASK;
+	CTreeViewCtrl m_viewTree;
+	CImageList m_imageList;
 
 	BOOL PreTranslateMessage(MSG* pMsg)
 	{
@@ -193,6 +199,33 @@ public:
 			else
 				SetWindowTheme(m_viewASK.m_hWnd, L"Explorer", nullptr);
 		}
+
+		dwStyle = WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN
+			| TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS | TVS_SHOWSELALWAYS;
+
+		m_viewTree.Create(m_hWnd, rcDefault, NULL, dwStyle, 0, IDX_TREEVIEW);
+		if (m_viewTree.IsWindow())
+		{
+			m_imageList.Create(16, 16, ILC_COLOR32 | ILC_MASK, 4, 4);
+			HICON hIcon1 = LoadIcon(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDX_TREE_FOLDER));
+			HICON hIcon2 = LoadIcon(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDX_TREETXTFILE));
+			HICON hIcon3 = LoadIcon(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDX_TREERDOFILE));
+			HICON hIcon4 = LoadIcon(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDX_TREEWEBFILE));
+			m_imageList.AddIcon(hIcon1);
+			m_imageList.AddIcon(hIcon2);
+			m_imageList.AddIcon(hIcon3);
+			m_imageList.AddIcon(hIcon4);
+			DestroyIcon(hIcon1);
+			DestroyIcon(hIcon2);
+			DestroyIcon(hIcon3);
+			DestroyIcon(hIcon4);
+			m_viewTree.SetImageList(m_imageList);
+
+			PopulateKBTree();
+
+			m_viewTree.ShowWindow(SW_HIDE);
+		}
+		m_lpRectActive = &m_rectButtons[RECT_CHAT];
 
 		if (AppLeftAIMode())
 		{
@@ -384,20 +417,46 @@ public:
 		}
 	}
 
-	void UpdateLEDWin(U32* dst,int width, int height)
+	void UpdateLEDWin(U32* dst,int width, int height, int offsetX, int offsetY)
 	{
-		int dx, dy;
+		int dx, dy, idx;
 		int sw = 16;
 		int sh = 16;
 		U32* src;
+		LPRECT lpRect;
 
 		ScreenFillColor(dst, static_cast<U32>(width * height), BACKGROUND_DGRAY);
 
 		src = const_cast<U32*>(xbmpLGreenLED);
-
 		dy = (height - sh) >> 1;
 		dx = width - sw - dy;
 		ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
+
+		idx = RECT_CHAT;
+		lpRect = &m_rectButtons[idx];
+		src = const_cast<U32*>(xbmpChatLN);
+		if (m_lpRectPress == lpRect)
+			src = const_cast<U32*>(xbmpChatLP);
+		if (m_lpRectActive == lpRect)
+			src = const_cast<U32*>(xbmpChatLA);
+		sw = 32; sh = 24;
+		dy = height - sh - 2;
+		dx = 0;
+		ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
+		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + sw;
+		lpRect->top = offsetY + dy;  lpRect->bottom = lpRect->top + sh;
+
+		idx = RECT_BOOK;
+		lpRect = &m_rectButtons[idx];
+		dx += sw;
+		src = const_cast<U32*>(xbmpKBLN);
+		if(m_lpRectPress == lpRect)
+			src = const_cast<U32*>(xbmpKBLP);
+		if (m_lpRectActive == lpRect)
+			src = const_cast<U32*>(xbmpKBLA);
+		ScreenDrawRect(dst, width, height, src, sw, sh, dx, dy);
+		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + sw;
+		lpRect->top = offsetY + dy;  lpRect->bottom = lpRect->top + sh;
 	}
 
 	void DrawLEDWin()
@@ -424,7 +483,7 @@ public:
 				R = m_rcSplitter.right;
 			}
 
-			UpdateLEDWin(m_winLEDBuff, w, h);
+			UpdateLEDWin(m_winLEDBuff, w, h, L, T);
 
 			HRESULT hr = m_pD2DRenderTarget->CreateBitmap(D2D1::SizeU(w, h), m_winLEDBuff, (w << 2),
 				D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_R8G8B8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED)),
@@ -568,7 +627,7 @@ public:
 					if (::PtInRect(&m_rectButtons[i], pt))
 						break;
 				}
-				if (i < RECT_LAST)
+				if (i < RECT_LAST && (m_lpRectActive != &m_rectButtons[i]))
 				{
 					m_dwState |= STATE_SET_CURSOR;
 					::SetCursor(m_hCursorHand);
@@ -609,13 +668,15 @@ public:
 				if (::PtInRect(&m_rectButtons[i], pt))
 					break;
 			}
-			if (i < RECT_LAST) // we hit some button
+			if (i < RECT_LAST && (m_lpRectActive != &m_rectButtons[i])) // we hit some button
 			{
 				m_lpRectPress = &m_rectButtons[i];
 				m_dwState |= STATE_SET_CURSOR;
 				::SetCursor(m_hCursorHand);
-
-				InvalidateGAPWin();
+				if(i>= RECT_CHAT)
+					InvalidateLEDWin();
+				else
+					InvalidateGAPWin();
 				Invalidate();
 				SetCapture();
 			}
@@ -660,7 +721,7 @@ public:
 					if (::PtInRect(&m_rectButtons[i], pt))
 						break;
 				}
-				if (i < RECT_LAST) // we hit some button
+				if (i < RECT_LAST && (m_lpRectActive != &m_rectButtons[i])) // we hit some button
 				{
 					m_dwState |= STATE_SET_CURSOR;
 					::SetCursor(m_hCursorHand);
@@ -675,7 +736,10 @@ public:
 				if (m_lpRectPress)
 				{
 					m_lpRectPress = nullptr;
-					InvalidateGAPWin();
+					if (i >= RECT_CHAT)
+						InvalidateLEDWin();
+					else
+						InvalidateGAPWin();
 					Invalidate();
 				}
 			}
@@ -1067,6 +1131,16 @@ public:
 		}
 	}
 
+	void DoSwitchTab(int idxTab)
+	{
+		if (idxTab == RECT_CHAT || idxTab == RECT_BOOK)
+		{
+			m_lpRectActive = &m_rectButtons[idxTab];
+			InvalidateLEDWin();
+			UpdateSplitterLayout();
+		}
+	}
+
 	LRESULT OnButtonEvent(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM lParam, BOOL& /*bHandled*/)
 	{
 		int idx = static_cast<int>(lParam);
@@ -1077,6 +1151,10 @@ public:
 			break;
 		case RECT_HIDE:
 			DoHideAIWindow();
+			break;
+		case RECT_CHAT:
+		case RECT_BOOK:
+			DoSwitchTab(idx);
 			break;
 		default:
 			break;
@@ -1680,18 +1758,43 @@ public:
 				{
 					if (m_hWndPane[nPane] == m_viewGPT.m_hWnd)
 					{
-						int bottom = rect.bottom;
-						int top = bottom - m_nASKWindowHeight;
-						::SetWindowPos(m_viewASK.m_hWnd, NULL, rect.left, top, rect.right - rect.left, bottom - top, SWP_NOZORDER);
-						rect.bottom = top - m_nGAPWindowHeight;
-						rect.top += m_nLEDWindowHeight;
+						bool bShowChat = (m_lpRectActive == &m_rectButtons[RECT_CHAT]);
 						InvalidateRect(&rect);
-					}
+						if (bShowChat)
+						{
+							int bottom = rect.bottom;
+							int top = bottom - m_nASKWindowHeight;
 
-					if (m_hWndPane[nPane] != NULL)
-						::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+							::ShowWindow(m_viewTree.m_hWnd, SW_HIDE);
+
+							::SetWindowPos(m_viewASK.m_hWnd, NULL, rect.left, top, rect.right - rect.left, bottom - top, 
+								SWP_NOZORDER| SWP_SHOWWINDOW);
+
+							rect.bottom = top - m_nGAPWindowHeight;
+							rect.top += m_nLEDWindowHeight;
+							if (m_hWndPane[nPane] != NULL)
+								::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 
+									SWP_NOZORDER| SWP_SHOWWINDOW);
+						}
+						else
+						{
+							::ShowWindow(m_hWndPane[nPane], SW_HIDE);
+							::ShowWindow(m_viewASK.m_hWnd, SW_HIDE);
+							rect.top += m_nLEDWindowHeight;
+							if (m_viewTree.IsWindow())
+							{
+								::SetWindowPos(m_viewTree.m_hWnd, NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 
+									SWP_NOZORDER| SWP_SHOWWINDOW);
+							}
+						}
+					}
 					else
-						InvalidateRect(&rect);
+					{
+						if (m_hWndPane[nPane] != NULL)
+							::SetWindowPos(m_hWndPane[nPane], NULL, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER);
+						else
+							InvalidateRect(&rect);
+					}
 				}
 			}
 		}
@@ -1880,5 +1983,62 @@ public:
 		return ((m_dwExtendedStyle & SPLIT_NONINTERACTIVE) == 0);
 	}
 #endif 
+	void PopulateKBTree()
+	{
+		HTREEITEM htiRoot;
+		TVITEM tvItem = { 0 };
+		tvItem.mask = TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+
+		m_viewTree.DeleteAllItems();
+		htiRoot = m_viewTree.InsertItem(TVIF_TEXT | TVIF_STATE, L"PostgreSQL", 0, 0, 0, 0, 0, nullptr, nullptr);
+
+		if (htiRoot)
+		{
+			int idx;
+			HTREEITEM hti;
+			tvItem.hItem = htiRoot;
+			tvItem.iImage = 0; // Set image index to 0 for root node (image 1)
+			tvItem.iSelectedImage = 0; // Same image for selected state
+			m_viewTree.SetItem(&tvItem);
+
+			tvItem.mask = TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+			hti = m_viewTree.InsertItem(TVIF_TEXT | TVIF_STATE, L"Backup & Recovery", 0, 0, 0, 0, 0, htiRoot, nullptr);
+			if (hti)
+			{
+				idx = 1;
+				tvItem.hItem = hti;
+				tvItem.iImage = idx;
+				tvItem.iSelectedImage = idx;
+				m_viewTree.SetItem(&tvItem);
+				//m_viewTree.SetItemData(hti, node->docId);
+			}
+
+			tvItem.mask = TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+			hti = m_viewTree.InsertItem(TVIF_TEXT | TVIF_STATE, L"Stream Replication", 0, 0, 0, 0, 0, htiRoot, nullptr);
+			if (hti)
+			{
+				idx = 2;
+				tvItem.hItem = hti;
+				tvItem.iImage = idx;
+				tvItem.iSelectedImage = idx;
+				m_viewTree.SetItem(&tvItem);
+				//m_viewTree.SetItemData(hti, node->docId);
+			}
+
+			tvItem.mask = TVIF_IMAGE | TVIF_SELECTEDIMAGE;
+			hti = m_viewTree.InsertItem(TVIF_TEXT | TVIF_STATE, L"Logical Replication", 0, 0, 0, 0, 0, htiRoot, nullptr);
+			if (hti)
+			{
+				idx = 3;
+				tvItem.hItem = hti;
+				tvItem.iImage = idx;
+				tvItem.iSelectedImage = idx;
+				m_viewTree.SetItem(&tvItem);
+				//m_viewTree.SetItemData(hti, node->docId);
+			}
+
+			m_viewTree.Expand(htiRoot);
+		}
+	}
 };
 

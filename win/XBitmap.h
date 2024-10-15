@@ -7,6 +7,12 @@ extern const unsigned int xbmpLHideRN[24 * 24];
 extern const unsigned int xbmpLHideRP[24 * 24];
 extern const unsigned int xbmpLHideLN[24 * 24];
 extern const unsigned int xbmpLHideLP[24 * 24];
+extern const unsigned int xbmpKBLN[32 * 24];
+extern const unsigned int xbmpKBLP[32 * 24];
+extern const unsigned int xbmpKBLA[32 * 24];
+extern const unsigned int xbmpChatLN[32 * 24];
+extern const unsigned int xbmpChatLP[32 * 24];
+extern const unsigned int xbmpChatLA[32 * 24];
 
 //////////////////////////////////
 #define BITMAP_QUICKASK_N       0

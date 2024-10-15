@@ -122,6 +122,10 @@ END
 // remains consistent on all systems.
 IDR_MAINFRAME           ICON                    "res\\zterm.ico"
 
+IDX_TREE_FOLDER         ICON                    "res\\folder.ico"
+IDX_TREETXTFILE         ICON                    "res\\textfile.ico"
+IDX_TREERDOFILE         ICON                    "res\\rdofile.ico"
+IDX_TREEWEBFILE         ICON                    "res\\webfile.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //

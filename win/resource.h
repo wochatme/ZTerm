@@ -1,17 +1,21 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by XEdit.rc
 //
-#define IDC_BTN_BROWSER                 3
-#define IDC_BTN_FONT                    4
-#define IDCANCEL4                       5
-#define IDD_ABOUTZTERM                  100
-#define IDR_MAINFRAME                   128
-#define IDD_CONFIGURAION                201
-#define IDD_OPENURL                     203
+#define IDC_BTN_BROWSER             3
+#define IDC_BTN_FONT                4
+#define IDCANCEL4                   5
+#define IDD_ABOUTZTERM              100
+#define IDR_MAINFRAME               128
+#define IDD_CONFIGURAION            201
+#define IDD_OPENURL                 203
 
-#define IDM_AIASSISTANT					(0x0170)
-#define IDM_SWITCHLAYOUT				(0x0180)
+#define IDX_TREE_FOLDER             260
+#define IDX_TREETXTFILE             261
+#define IDX_TREERDOFILE             262
+#define IDX_TREEWEBFILE             263
+
+#define IDM_AIASSISTANT				(0x0170)
+#define IDM_SWITCHLAYOUT			(0x0180)
 
 #define IDC_EDIT_MY_PUBKEY              1001
 #define IDC_EDIT_SERVER_URL             1002
