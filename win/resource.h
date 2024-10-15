@@ -11,6 +11,7 @@
 #define IDD_OPENURL                     203
 
 #define IDM_AIASSISTANT					(0x0170)
+#define IDM_SWITCHLAYOUT				(0x0180)
 
 #define IDC_EDIT_MY_PUBKEY              1001
 #define IDC_EDIT_SERVER_URL             1002

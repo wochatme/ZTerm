@@ -200,6 +200,7 @@ static int AppInit(HINSTANCE hInstance)
 	ztInitConfig(&ZTCONFIGURATION);
 
 	//AppSetDarkMode();
+	AppSetLeftAIMode();
 	{
 		BOOL bFullDrag = TRUE;
 		//::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &bFullDrag, 0);

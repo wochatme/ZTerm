@@ -207,6 +207,7 @@ BEGIN
     VK_F6,          ID_PREV_PANE,           VIRTKEY, SHIFT
 #endif
     VK_F1,          IDM_AIASSISTANT,        VIRTKEY, CONTROL
+    VK_F2,          IDM_SWITCHLAYOUT,       VIRTKEY, CONTROL
 END
 
 

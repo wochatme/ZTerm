@@ -384,12 +384,19 @@ public:
 		MESSAGE_HANDLER(WM_CREATE, OnCreate)
 		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		COMMAND_ID_HANDLER(IDM_AIASSISTANT, OnAIAssistant)
+		COMMAND_ID_HANDLER(IDM_SWITCHLAYOUT, OnSwitchLayout)
 #if 0
 		COMMAND_ID_HANDLER(ID_APP_ABOUT, OnAppAbout)
 #endif 
 		CHAIN_MSG_MAP(CUpdateUI<CMainFrame>)
 		CHAIN_MSG_MAP(CFrameWindowImpl<CMainFrame>)
 	END_MSG_MAP()
+
+	
+	LRESULT OnSwitchLayout(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+	{
+		return m_view.DoSwitchLayout();
+	}
 
 	LRESULT OnAIAssistant(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
 	{

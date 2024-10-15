@@ -11,13 +11,12 @@
 #define SPLIT_PANE_NONE			-1
 
 // Splitter extended styles
-#define SPLIT_PROPORTIONAL		0x00000001
-#define SPLIT_NONINTERACTIVE	0x00000002
-#define SPLIT_RIGHTALIGNED		0x00000004
-#define SPLIT_BOTTOMALIGNED		SPLIT_RIGHTALIGNED
-#define SPLIT_GRADIENTBAR		0x00000008
-#define SPLIT_FLATBAR			0x00000020
-#define SPLIT_FIXEDBARSIZE		0x00000010
+#define SPLIT_PROPORTIONAL		(0x00000001)
+#define SPLIT_NONINTERACTIVE	(0x00000002)
+#define SPLIT_RIGHTALIGNED		(0x00000004)
+#define SPLIT_GRADIENTBAR		(0x00000008)
+#define SPLIT_FIXEDBARSIZE		(0x00000010)
+#define SPLIT_FLATBAR			(0x00000020)
 
 #define BACKGROUND_COLOR_LIGHT	(0xF0F0F0)
 #define BACKGROUND_COLOR_DARK	(0x171717)
@@ -105,7 +104,7 @@ public:
 	int m_cxyDragOffset = 0;		// internal
 	int m_nProportionalPos = 0;
 	bool m_bUpdateProportionalPos = true;
-	DWORD m_dwExtendedStyle = SPLIT_RIGHTALIGNED;      // splitter specific extended styles
+	DWORD m_dwExtendedStyle = 0;      // splitter specific extended styles
 	int m_nSinglePane = SPLIT_PANE_LEFT;           // single pane mode
 	int m_xySplitterDefPos = -1;         // default position
 	bool m_bProportionalDefPos = false;     // porportinal def pos
@@ -132,7 +131,9 @@ public:
 		MESSAGE_HANDLER(WM_NOTIFY, OnNotify)
 		MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
 		MESSAGE_HANDLER(WM_LBUTTONUP, OnLButtonUp)
+#if 0
 		MESSAGE_HANDLER(WM_LBUTTONDBLCLK, OnLButtonDoubleClick)
+#endif
 		MESSAGE_HANDLER(WM_CAPTURECHANGED, OnCaptureChanged)
 		MESSAGE_HANDLER(WM_SETCURSOR, OnSetCursor)
 		MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
@@ -195,12 +196,12 @@ public:
 
 		if (AppLeftAIMode())
 		{
-			//SetSplitterPosPct(30, false);
+			//m_dwExtendedStyle &= ~SPLIT_RIGHTALIGNED;
 			SetSplitterPanes(m_viewGPT.m_hWnd, m_viewTTY.m_hWnd, false);
 		}
 		else
 		{
-			//SetSplitterPosPct(70, false);
+			//m_dwExtendedStyle |= SPLIT_RIGHTALIGNED;
 			SetSplitterPanes(m_viewTTY.m_hWnd, m_viewGPT.m_hWnd, false);
 		}
 
@@ -298,7 +299,14 @@ public:
 			src = const_cast<U32*>(xbmpLQAskP);
 
 		dy = (height - wh) >> 1;
-		dx = dy;
+		if (AppLeftAIMode())
+		{
+			dx = width - dy - wh;
+		}
+		else
+		{
+			dx = dy;
+		}
 		ScreenDrawRect(dst, width, height, src, wh, wh, dx, dy);
 
 		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + wh;
@@ -307,12 +315,20 @@ public:
 		idx = RECT_HIDE;
 		lpRect = &m_rectButtons[idx];
 
-		src = const_cast<U32*>(xbmpLHideRN);
-		if (m_lpRectPress == lpRect)
-			src = const_cast<U32*>(xbmpLHideRP);
-
-		//dy = (height - wh) >> 1;
-		dx = width - wh;
+		if (AppLeftAIMode())
+		{
+			src = const_cast<U32*>(xbmpLHideLN);
+			if (m_lpRectPress == lpRect)
+				src = const_cast<U32*>(xbmpLHideLP);
+			dx = 0;
+		}
+		else
+		{
+			src = const_cast<U32*>(xbmpLHideRN);
+			if (m_lpRectPress == lpRect)
+				src = const_cast<U32*>(xbmpLHideRP);
+			dx = width - wh;
+		}
 		ScreenDrawRect(dst, width, height, src, wh, wh, dx, dy);
 
 		lpRect->left = offsetX + dx;  lpRect->right = lpRect->left + wh;
@@ -325,13 +341,23 @@ public:
 		{
 			int L, T, R, B;
 			ID2D1Bitmap* pBitmap = nullptr;
-			int w = m_rcSplitter.right - (m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge);
+			int w = 0;
 			int h = m_nGAPWindowHeight;
 
 			B = m_rcSplitter.bottom - m_nASKWindowHeight;
 			T = B - m_nGAPWindowHeight;
-			L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
-			R = m_rcSplitter.right;
+			if (AppLeftAIMode())
+			{
+				w = m_xySplitterPos - m_rcSplitter.left;
+				L = m_rcSplitter.left;
+				R = m_xySplitterPos;
+			}
+			else
+			{
+				w = m_rcSplitter.right - (m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge);
+				L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
+				R = m_rcSplitter.right;
+			}
 
 			UpdateGAPWin(m_winGapBuff, w, h, L, T);
 
@@ -379,8 +405,24 @@ public:
 		if (m_winLEDBuff)
 		{
 			ID2D1Bitmap* pBitmap = nullptr;
-			int w = m_rcSplitter.right - (m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge);
+			int L, T, R, B;
+			int w = 0;
 			int h = m_nLEDWindowHeight;
+
+			T = m_rcSplitter.top;
+			B = T + m_nLEDWindowHeight;
+			if (AppLeftAIMode())
+			{
+				w = m_xySplitterPos - m_rcSplitter.left;
+				L = m_rcSplitter.left;
+				R = m_xySplitterPos;
+			}
+			else
+			{
+				w = m_rcSplitter.right - (m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge);
+				L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
+				R = m_rcSplitter.right;
+			}
 
 			UpdateLEDWin(m_winLEDBuff, w, h);
 
@@ -390,11 +432,6 @@ public:
 
 			if (S_OK == hr && pBitmap)
 			{
-				int L, T, R, B;
-				T = m_rcSplitter.top;
-				B = T + m_nLEDWindowHeight;
-				L = m_xySplitterPos + m_cxySplitBar + m_cxyBarEdge;
-				R = m_rcSplitter.right;
 				D2D1_RECT_F area = D2D1::RectF(
 					static_cast<FLOAT>(L),
 					static_cast<FLOAT>(T),
@@ -646,13 +683,13 @@ public:
 		bHandled = FALSE;
 		return 1;
 	}
-
-	LRESULT OnLButtonDoubleClick(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+#if 0
+	LRESULT OnLButtonDoubleClick(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& bHandled)
 	{
 		//SetSplitterPos();   // default
 		return 0;
 	}
-
+#endif 
 	LRESULT OnCaptureChanged(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
 	{
 		if (m_lpRectPress == nullptr)
@@ -1074,7 +1111,8 @@ public:
 				InvalidateALLWin();
 				//Invalidate();
 			}
-			UpdateRightAlignPos();
+			if(!AppLeftAIMode())
+				UpdateRightAlignPos();
 			UpdateSplitterLayout();
 		}
 	}
@@ -1158,6 +1196,32 @@ public:
 #endif 
 	}
 #endif 
+	LRESULT DoSwitchLayout()
+	{
+		if (m_nSinglePane == SPLIT_PANE_NONE)
+		{
+			HWND hWnd;
+			int xySplitterPos;
+			AppSetLeftAIMode(!AppLeftAIMode());
+
+			hWnd = m_hWndPane[SPLIT_PANE_LEFT];
+			m_hWndPane[SPLIT_PANE_LEFT] = m_hWndPane[SPLIT_PANE_RIGHT];
+			m_hWndPane[SPLIT_PANE_RIGHT] = hWnd;
+
+			xySplitterPos = m_rcSplitter.right - m_rcSplitter.left - m_xySplitterPos - m_cxySplitBar - m_cxyBarEdge;
+			
+			SetSplitterPos(xySplitterPos, false);
+			UpdateSplitterLayout();
+			
+			hWnd = GetFocus();
+			::SetFocus(m_viewGPT.m_hWnd);
+			::SetFocus(m_viewASK.m_hWnd);
+			::SetFocus(hWnd);
+			InvalidateALLWin();
+			Invalidate();
+		}
+		return 0L;
+	}
 
 	LRESULT DoAIAssistant()
 	{
@@ -1255,7 +1319,8 @@ public:
 				StoreProportionalPos();
 			else if (IsRightAligned())
 #endif
-				StoreRightAlignPos();
+				if(!AppLeftAIMode())
+					StoreRightAlignPos();
 		}
 		else
 		{
@@ -1267,7 +1332,7 @@ public:
 
 		return bRet;
 	}
-
+#if 0
 	int GetSplitterPos() const
 	{
 		return m_xySplitterPos;
@@ -1283,7 +1348,7 @@ public:
 		if (bUpdate)
 			UpdateSplitterLayout();
 	}
-#if 0
+
 	int GetSplitterPosPct() const
 	{
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
@@ -1320,6 +1385,7 @@ public:
 		return true;
 	}
 
+#if 0
 	int GetSinglePaneMode() const
 	{
 		return m_nSinglePane;
@@ -1329,7 +1395,7 @@ public:
 	{
 		return m_dwExtendedStyle;
 	}
-#if 0
+
 	DWORD SetSplitterExtendedStyle(DWORD dwExtendedStyle, DWORD dwMask = 0)
 	{
 		DWORD dwPrevStyle = m_dwExtendedStyle;
@@ -1346,7 +1412,7 @@ public:
 
 		return dwPrevStyle;
 	}
-#endif
+
 	void SetSplitterDefaultPos(int xyPos = -1)
 	{
 		m_xySplitterDefPos = xyPos;
@@ -1360,7 +1426,7 @@ public:
 		m_xySplitterDefPos = ::MulDiv(nPct, m_nPropMax, 100);
 		m_bProportionalDefPos = true;
 	}
-
+#endif
 	// Splitter operations
 	void SetSplitterPanes(HWND hWndLeftTop, HWND hWndRightBottom, bool bUpdate = true)
 	{
@@ -1619,6 +1685,7 @@ public:
 						::SetWindowPos(m_viewASK.m_hWnd, NULL, rect.left, top, rect.right - rect.left, bottom - top, SWP_NOZORDER);
 						rect.bottom = top - m_nGAPWindowHeight;
 						rect.top += m_nLEDWindowHeight;
+						InvalidateRect(&rect);
 					}
 
 					if (m_hWndPane[nPane] != NULL)
@@ -1732,11 +1799,11 @@ public:
 
 	void GetSystemSettings(bool bUpdate)
 	{
+#if 0
 		if ((m_dwExtendedStyle & SPLIT_FIXEDBARSIZE) == 0)
 		{
 			m_cxySplitBar = ::GetSystemMetrics(SM_CXSIZEFRAME);
 		}
-
 
 		if ((GetExStyle() & WS_EX_CLIENTEDGE) != 0)
 		{
@@ -1748,7 +1815,7 @@ public:
 			m_cxyBarEdge = 0;
 			m_cxyMin = 2 * ::GetSystemMetrics(SM_CXEDGE);
 		}
-#if 0
+
 		::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0, &m_bFullDrag, 0);
 #endif 
 		if (bUpdate)
@@ -1759,7 +1826,7 @@ public:
 	{
 		return ((m_dwExtendedStyle & SPLIT_PROPORTIONAL) != 0);
 	}
-#endif
+
 	void StoreProportionalPos()
 	{
 		int cxyTotal = (m_rcSplitter.right - m_rcSplitter.left - m_cxySplitBar - m_cxyBarEdge);
@@ -1781,7 +1848,7 @@ public:
 			SetSplitterPos(xyNewPos, false);
 		}
 	}
-#if 0
+
 	bool IsRightAligned() const
 	{
 		return ((m_dwExtendedStyle & SPLIT_RIGHTALIGNED) != 0);
