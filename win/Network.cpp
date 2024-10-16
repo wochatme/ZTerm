@@ -60,7 +60,7 @@ static GroupName* groupList = nullptr;
 
 static HANDLE evLLM = NULL;
 
-
+static char* groupTable[1<<8] = { 0 };
 
 typedef struct
 {
@@ -72,6 +72,8 @@ static ThreadInfo _ti[AI_NETWORK_THREAD_MAX];
 
 static U32 sequence_id = 0;
 static U8  seqence_string[8] = { 0 };
+
+static U8* getFileByHTTP(const char* url, U32& bytes);
 
 #if 0
 // called by network thread
@@ -600,12 +602,32 @@ static constexpr const char* pattern0{ "Error: Redis connection to [0-9]{1,3}\\.
 static constexpr const char* pattern1{ "[0-9]+, Connection was killed" };
 static constexpr const char* pattern2{ "PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+" };
 
+static const char* default_KBG_URL = "http://zterm.ai/grp.idx";
 
 static RegexList* DownLoadIndexFile()
 {
     char** ptable = NULL;
     RegexList* list = NULL;
+#if 0
+    U32 bytes = 0;
+    U8* bindata = getFileByHTTP(default_KBG_URL, bytes);
 
+    if (bindata && bytes)
+    {
+        U8 idx;
+        U8* p = bindata;
+
+        while (p < bindata + bytes)
+        {
+            idx = *p;
+            p += 2;
+            while (p < bindata + bytes && *p) p++;
+            if( p < bindata + bytes) p++;
+        }
+
+        free(bindata);
+    }
+#endif 
     groupCount = 3;
     groupList = static_cast<GroupName*>(std::malloc(sizeof(GroupName) * groupCount));
 
@@ -1197,3 +1219,188 @@ char* ztPickupResult(U32& size)
 
     return message;
 }
+
+static size_t getFileSizeCallback(char* message, size_t size, size_t nmemb, void* userdata)
+{
+    size_t realsize = size * nmemb;
+    if (message && (realsize >= 4) && userdata)
+    {
+        U8* p = (U8*)userdata;
+        *p++ = message[0];
+        *p++ = message[1];
+        *p++ = message[2];
+        *p++ = message[3];
+    }
+    return realsize;
+}
+
+static size_t getFileDataCallback(char* message, size_t size, size_t nmemb, void* userdata)
+{
+    size_t realsize = size * nmemb;
+    HTTPDownload* dl = (HTTPDownload*)userdata;
+    if (message && dl)
+    {
+        if (dl->total >= dl->curr)
+        {
+            U32 bytes = (U32)realsize;
+            memcpy_s(dl->buffer + dl->curr, (dl->total - dl->curr), message, bytes);
+            dl->curr += bytes;
+        }
+    }
+    return realsize;
+}
+
+static U8* getFileByHTTP(const char* url, U32& bytes)
+{
+    CURL* curl = NULL;
+    U8* bindata = nullptr;
+    bytes = 0;
+
+    curl = curl_easy_init();
+    if (curl)
+    {
+        int i;
+        CURLcode curlCode;
+#if 0
+        ZXConfig* cf = &ZXCONFIGURATION;
+#endif 
+        U8 udata[4] = { 0 };
+
+        curl_easy_setopt(curl, CURLOPT_URL, url);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30);
+#if 0
+        if (cf->proxy_Type != AI_CURLPROXY_NO_PROXY && cf->proxy_Str[0])
+        {
+            long pxtype = CURLPROXY_HTTP;
+            switch (cf->proxy_Type)
+            {
+            case AI_CURLPROXY_HTTP:
+                pxtype = CURLPROXY_HTTP;
+                break;
+            case AI_CURLPROXY_HTTP_1_0:
+                pxtype = CURLPROXY_HTTP_1_0;
+                break;
+            case AI_CURLPROXY_HTTPS:
+                pxtype = CURLPROXY_HTTPS;
+                break;
+            case AI_CURLPROXY_HTTPS2:
+                pxtype = CURLPROXY_HTTPS2;
+                break;
+            case AI_CURLPROXY_SOCKS4:
+                pxtype = CURLPROXY_SOCKS4;
+                break;
+            case AI_CURLPROXY_SOCKS5:
+                pxtype = CURLPROXY_SOCKS5;
+                break;
+            case AI_CURLPROXY_SOCKS4A:
+                pxtype = CURLPROXY_SOCKS4A;
+                break;
+            case AI_CURLPROXY_SOCKS5_HOSTNAME:
+                pxtype = CURLPROXY_SOCKS5_HOSTNAME;
+                break;
+            default:
+                break;
+            }
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
+            curl_easy_setopt(curl, CURLOPT_PROXY, cf->proxy_Str);
+        }
+
+        curl_easy_setopt(curl, CURLOPT_RANGE, "0-3");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileSizeCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, udata);
+        curlCode = curl_easy_perform(curl);
+        if (curlCode == CURLE_OK)
+#endif 
+        {
+            U32 fsize = 22; // *((U32*)udata);
+            if (fsize < HTTP_DOWNLOAD_LIMIT)
+            {
+                bindata = (U8*)malloc(ZT_ALIGN_DEFAULT64(fsize));
+                if (bindata)
+                {
+                    HTTPDownload dlHTTP = { 0 };
+                    dlHTTP.buffer = bindata;
+                    dlHTTP.total = fsize;
+                    dlHTTP.curr = 0;
+                    curl_easy_setopt(curl, CURLOPT_RANGE, "0-");
+                    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &dlHTTP);
+                    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileDataCallback);
+                    curlCode = curl_easy_perform(curl);
+                    if (curlCode == CURLE_OK && (dlHTTP.curr == dlHTTP.total) && (fsize == dlHTTP.total))
+                    {
+                        bytes = fsize;
+                    }
+                    else
+                    {
+                        free(bindata);
+                        bindata = nullptr;
+                    }
+                }
+            }
+        }
+        curl_easy_cleanup(curl);
+    }
+    return bindata;
+}
+
+#if 0
+static U32 _step4(sqlite3* db)
+{
+    ZXConfig* cf = &ZXCONFIGURATION;
+    U32 status, utf16len, bytes, ret = WT_FAIL;
+    U8* bindata = nullptr;
+    U8* unzipbuf = nullptr;
+    U8* kburl = nullptr;
+
+    bytes = 0;
+    if (strlen((const char*)cf->kbdataURL))
+        kburl = cf->kbdataURL;
+    else
+        kburl = (U8*)default_KB_URL;
+
+    bindata = zx_GetFileByHTTP((const U8*)kburl, bytes);
+
+    if (bindata && bytes > KB_DATA_PAYLOAD)
+    {
+        uLongf  zipSize, unzipSize;
+        U32* p32 = (U32*)bindata;
+        zipSize = *p32;
+        if (bytes == (U32)zipSize)
+        {
+            p32 = (U32*)(bindata + 4);
+            unzipSize = *p32;
+            unzipbuf = (U8*)malloc(unzipSize);
+            if (unzipbuf)
+            {
+                uLongf destLen = unzipSize;
+                uLongf sourceLen = zipSize - KB_DATA_PAYLOAD;
+                int rc = uncompress2(unzipbuf, &unzipSize, bindata + KB_DATA_PAYLOAD, &sourceLen);
+                if (rc == Z_OK && destLen == unzipSize)
+                {
+                    U8 hash[AI_HASH256_LENGTH];
+                    wt_sha256_hash(unzipbuf, unzipSize, hash);
+                    if (memcmp(hash, bindata + 8, AI_HASH256_LENGTH) == 0) // the data looks good 
+                    {
+                        ZXConfig* cf = &ZXCONFIGURATION;
+                        for (U8 i = 0; i < AI_HASH256_LENGTH; i++) cf->my_kbhash[i] = hash[i];
+                        if (zx_ParseKBTree(unzipbuf, unzipSize))
+                            ret = WT_OK;
+                    }
+                }
+            }
+        }
+    }
+
+    if (bindata)
+    {
+        free(bindata);
+        bindata = nullptr;
+    }
+    if (unzipbuf)
+    {
+        free(unzipbuf);
+        unzipbuf = nullptr;
+    }
+    return ret;
+}
+#endif 

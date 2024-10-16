@@ -872,6 +872,7 @@ static const char* default_AI_URL = "https://zterm.ai/v1";
 static const char* default_AI_FONT = "Courier New";
 static const char* default_AI_PWD = "ZTerm@AI";
 static const char* default_KB_URL = "http://zterm.ai/kb.en";
+
 static const char* default_AI_PUBKEY = "02ffff4aa93fe0f04a287de969d8d4df49c4fef195ee203a3b4dca9b439b8ca3e2";
 
 static void GenerateRandom32Bytes(U8* random)

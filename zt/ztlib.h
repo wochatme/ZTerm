@@ -105,6 +105,8 @@ extern "C" {
 
 	int zt_siphash(const void*, const size_t, uint8_t*, const size_t);
 
+	unsigned int zt_crc32(const unsigned char*, const unsigned int);
+
 	U32	zt_UTF8ToUTF16(U8* input, U32 input_len, U16* output, U32* output_len);
 	U32	zt_UTF16ToUTF8(U16* input, U32 input_len, U8* output, U32* output_len);
 
