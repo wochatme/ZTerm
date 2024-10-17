@@ -2,9 +2,17 @@
 #include "App.h"
 #include "Network.h"
 
-#define ZX_MESSAGE_HEAD_SIZE       150
+#define MAX_REGULAR_MATCH       8
+#define ZX_MESSAGE_HEAD_SIZE    150
+#define GROUP_TABLE_SIZE        (1 << 8)
 #define DEFAULT_POST_BUF_SIZE   (1<<18)
 #define HTTP_DOWNLOAD_LIMIT		(1<<24)
+
+typedef struct
+{
+    HWND hWndUI;
+    volatile LONG threadSignal;
+} ThreadInfo;
 
 typedef struct
 {
@@ -22,8 +30,11 @@ typedef struct RegexList
     U16 grpidx;
 } RegexList;
 
-static const char* version__ = "100";
-static const char* link_prefix = "https://zterm.ai/t/";
+static constexpr const char* version__ = "100";
+static constexpr const char* link_prefix = "https://zterm.ai/t/";
+static constexpr const char* default_KBG_URL = "http://zterm.ai/grp.idx";
+static constexpr const char* default_KBP_URL = "http://zterm.ai/ptn.idx";
+static constexpr const char* prefixNULL = "[X]";
 
 static volatile LONG  g_threadCount = 0;
 static volatile LONG  g_threadCountBKG = 0;
@@ -31,9 +42,9 @@ static volatile LONG  g_Quit = 0;
 static volatile LONG  g_threadPing = 0;
 static volatile LONG  g_threadPingNow = 1;
 
-/* the message queue from the remote server */
-static MessageTask* receQueue = nullptr;
-static MessageTask* sendQueue = nullptr;
+/* the message queue used by different threads */
+static MessageTask* receQueue  = nullptr;
+static MessageTask* sendQueue  = nullptr;
 static MessageTask* regexQueue = nullptr;
 static MessageTask* matchQueue = nullptr;
 
@@ -47,19 +58,12 @@ static MemPoolContext sendMemPool = nullptr;
 static MemPoolContext receMemPool = nullptr;
 static MemPoolContext regxMemPool = nullptr;
 
+static char* groupTable[GROUP_TABLE_SIZE] = { NULL };
+
 static volatile LONG  regexCount = 0;
-static RegexList* regexList = nullptr;
+static RegexList*     regexList = nullptr;
 
 static HANDLE evLLM = NULL;
-
-static constexpr int groupTableSize = (1 << 8);
-static char* groupTable[1<<8] = { 0 };
-
-typedef struct
-{
-    HWND hWndUI;
-    volatile LONG threadSignal;
-} ThreadInfo;
 
 static ThreadInfo _ti[AI_NETWORK_THREAD_MAX];
 
@@ -327,9 +331,8 @@ static DWORD WINAPI network_threadfunc(void* param)
     ATLASSERT(IsWindow(pTi->hWndUI));
 
     InterlockedIncrement(&g_threadCount);
-#if 0
     InterlockedIncrement(&g_threadCountBKG);
-#endif 
+
     idx = InterlockedExchange(&(pTi->threadSignal), 0);
     ATLASSERT(idx > 0 && idx < AI_NETWORK_THREAD_MAX);
 
@@ -553,9 +556,7 @@ static DWORD WINAPI network_threadfunc(void* param)
 
 _exit_network_thread:
     InterlockedDecrement(&g_threadCount);
-#if 0
     InterlockedDecrement(&g_threadCountBKG);
-#endif 
     return 0;
 }
 
@@ -587,28 +588,23 @@ static void StartAIThread(HWND hWnd)
 
 }
 
-#if 0
-static constexpr const char* g0{ "Redis" };
-static constexpr const char* g1{ "MySQL" };
-static constexpr const char* g2 { "PostgreSQL" };
-
-static constexpr const char* pattern0{ "Error: Redis connection to [0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]+ failed - connect ECONNREFUSED" };
-static constexpr const char* pattern1{ "[0-9]+, Connection was killed" };
-static constexpr const char* pattern2{ "PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+" };
-#endif 
-static const char* default_KBG_URL = "http://zterm.ai/grp.idx";
-static const char* default_KBP_URL = "http://zterm.ai/ptn.idx";
-
-static void parseGroupData(U8* rawdata, U32 rawsize)
+static bool parseGroupData(U8* rawdata, U32 rawsize)
 {
+    bool result = false;
+    // clean up the group table at first 
+    for (int i = 0; i < GROUP_TABLE_SIZE; i++) groupTable[i] = NULL;
+
     if (rawdata && rawsize > 8)
     {
-        U32 size = 0;
         U8* p = rawdata + 4;
         if (p[0] == 'G' && p[1] == 'R' && p[2] == 'P')
         {
+            U8 version = p[3]; // will use in the future
+
+            U32 size = 0;
+
             p += 4;
-            // first scan to get the size
+            // first scan to get the size of the strings
             while (p < rawdata + rawsize)
             {
                 p += 2; //skip two bytes
@@ -618,8 +614,10 @@ static void parseGroupData(U8* rawdata, U32 rawsize)
                     size++;
                 }
 
-                if (p >= rawdata + rawsize || *p != '\0') //parser error!
-                    return;
+                if (p >= rawdata + rawsize) //parser error!
+                    return false;
+                if (*p != '\0') //parser error!
+                    return false;
 
                 p++;
                 size++;
@@ -627,10 +625,10 @@ static void parseGroupData(U8* rawdata, U32 rawsize)
 
             if (size > 0)
             {
-                U8 idx;
                 char* s = static_cast<char*>(zt_palloc0(regxMemPool, size));
                 if (s)
                 {
+                    U8 idx;
                     p = rawdata + 8;
                     while (p < rawdata + rawsize)
                     {
@@ -641,28 +639,38 @@ static void parseGroupData(U8* rawdata, U32 rawsize)
                         {
                             *s++ = *p++;
                         }
+
+                        ATLASSERT(p < rawdata + rawsize);
+                        ATLASSERT(*p == '\0');
+                        
                         *s++ = *p++;
                     }
                 }
             }
         }
+        result = true; // parsing is successful
     }
+    return result;
 }
 
-static void getGroupList(const char* url)
+static bool getGroupList(const char* url)
 {
+    bool result;
     U32 rawsize = 0;
     U8* rawdata = nullptr;
 
     rawdata = getFileByHTTP(url, rawsize);
-    // do the parser
-    parseGroupData(rawdata, rawsize);
+    
+    // do the parsing
+    result = parseGroupData(rawdata, rawsize);
 
     if (rawdata)
     {
         std::free(rawdata);
         rawdata = nullptr;
     }
+
+    return result;
 }
 
 static RegexList* parsePatternData(U8* rawdata, U32 rawsize, LONG& count)
@@ -670,7 +678,6 @@ static RegexList* parsePatternData(U8* rawdata, U32 rawsize, LONG& count)
     RegexList* list = NULL;
 
     count = 0;
-
     if (rawdata && rawsize > (4 + 4 + 12))
     {
         U32 size = 0;
@@ -683,52 +690,67 @@ static RegexList* parsePatternData(U8* rawdata, U32 rawsize, LONG& count)
             while (p < rawdata + upperBound)
             {
                 p += 12;
-                if (p < rawdata + upperBound && *p)
-                    count++;
                 while (p < rawdata + rawsize && *p)
                 {
                     p++;
                     size++;
                 }
-                if (p >= rawdata + rawsize || *p != '\0') //parser error!
+
+                if (p >= rawdata + rawsize) //parsing error!
                 {
                     count = 0;
                     return NULL;
                 }
+
+                if (*p != '\0') //parsing error!
+                {
+                    count = 0;
+                    return NULL;
+                }
+
                 p++;
                 size++;
+
+                if(size > 1)
+                    count++;
             }
 
             if (size > 0 && count > 0)
             {
-                RegexList* rL = static_cast<RegexList*>(zt_palloc0(regxMemPool, count*sizeof(RegexList)));
-                if (rL)
+                RegexList* listTab = static_cast<RegexList*>(zt_palloc0(regxMemPool, count*sizeof(RegexList)));
+                if (listTab)
                 {
                     char* s = static_cast<char*>(zt_palloc0(regxMemPool, size));
                     if (s)
                     {
                         int idx;
-                        list = rL;
+
+                        list = listTab;
+
                         p = rawdata + (4 + 4);
                         while (p < rawdata + upperBound)
                         {
-                            rL->property = static_cast<U16>(*p++);
+                            listTab->property = *p++;
                             p++;
 
-                            rL->grpidx = static_cast<U16>(*p++);
+                            listTab->grpidx = *p++; // so far we only use one byte
                             p++;
 
-                            for(idx=0; idx<8; idx++) rL->docId[idx]= *p++;
+                            for(idx=0; idx<8; idx++) listTab->docId[idx]= *p++;
                             
-                            rL->pattern = s;
+                            listTab->pattern = s;
                             
-                            while (p < rawdata + upperBound && *p)
+                            while (p < rawdata + rawsize && *p)
                             {
                                 *s++ = *p++;
                             }
                             *s++ = *p++;
-                            rL++;
+                            listTab++;
                         }
+                    }
+                    else
+                    {
+                        zt_pfree(listTab);
                     }
                 }
             }
@@ -745,13 +767,14 @@ static RegexList* getPatternList(const char* url, LONG& count)
     U8* rawdata = nullptr;
 
     rawdata = getFileByHTTP(url, rawsize);
-    // do the parser
+    
+    // do the parsing
     list = parsePatternData(rawdata, rawsize, cnt);
     count = cnt;
 
     if (rawdata)
     {
-        free(rawdata);
+        std::free(rawdata);
         rawdata = nullptr;
     }
 
@@ -803,9 +826,6 @@ static void PublishRegexResult(MessageTask* task)
     LeaveCriticalSection(&csMatchMsg);
 }
 
-static constexpr const char* prefixNULL = "[.]";
-
-#define MAX_REGULAR_MATCH   8
 
 void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
 {
@@ -1040,45 +1060,42 @@ void DoRegexMatch(RegexList* list)
 
 static DWORD WINAPI lvm_threadfunc(void* param)
 {
+    int i;
     InterlockedIncrement(&g_threadCount);
-#if 0
     InterlockedIncrement(&g_threadCountBKG);
-#endif 
 
-    for (int i = 0; i < groupTableSize; i++)
-        groupTable[i] = NULL;
+    regexList = NULL;
 
     regxMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
+
     if (regxMemPool)
     {
         LONG cnt = 0;
         regexList = DownLoadIndexFile(cnt);
-        if (regexList && cnt > 0)
+        if (regexList && cnt > 0 && evLLM)
         {
             InterlockedExchange(&regexCount, cnt);
-            if (evLLM)
+            while (TRUE)
             {
-                while (TRUE)
-                {
-                    WaitForSingleObject(evLLM, INFINITE);
-                    if (g_Quit)
-                        break;
+                WaitForSingleObject(evLLM, INFINITE);
+                if (g_Quit)
+                    break;
 
-                    DoRegexMatch(regexList);
-                }
+                DoRegexMatch(regexList);
             }
         }
-        zt_mempool_destroy(regxMemPool);
     }
 
     // clean up
     InterlockedExchange(&regexCount, 0);
-
-    for(int i=0; i< groupTableSize; i++)
-        groupTable[i] = NULL;
+    regexList = NULL;
+    for (i = 0; i < GROUP_TABLE_SIZE; i++) groupTable[i] = NULL;
+    zt_mempool_destroy(regxMemPool);
+    regxMemPool = NULL;
 
     InterlockedDecrement(&g_threadCount);
     InterlockedDecrement(&g_threadCountBKG);
+
     return 0;
 }
 
@@ -1125,9 +1142,8 @@ void ztShutdownNetworkThread()
     }
 
     ATLASSERT(g_threadCount == 0);
-#if 0
     ATLASSERT(g_threadCountBKG == 0);
-#endif 
+
     if (evLLM)
     {
         CloseHandle(evLLM);
@@ -1303,7 +1319,7 @@ static size_t getFileSizeCallback(char* message, size_t size, size_t nmemb, void
     size_t realsize = size * nmemb;
     if (message && (realsize >= 4) && userdata)
     {
-        U8* p = (U8*)userdata;
+        U8* p = static_cast<U8*>(userdata);
         *p++ = message[0];
         *p++ = message[1];
         *p++ = message[2];
@@ -1315,7 +1331,7 @@ static size_t getFileSizeCallback(char* message, size_t size, size_t nmemb, void
 static size_t getFileDataCallback(char* message, size_t size, size_t nmemb, void* userdata)
 {
     size_t realsize = size * nmemb;
-    HTTPDownload* dl = (HTTPDownload*)userdata;
+    HTTPDownload* dl = static_cast<HTTPDownload*>(userdata);
     if (message && dl)
     {
         if (dl->total >= dl->curr)
@@ -1327,7 +1343,6 @@ static size_t getFileDataCallback(char* message, size_t size, size_t nmemb, void
     }
     return realsize;
 }
-
 
 // download the file and unzip it, then return the unzipped raw data and length
 static U8* getFileByHTTP(const char* url, U32& bytes)
@@ -1343,12 +1358,11 @@ static U8* getFileByHTTP(const char* url, U32& bytes)
         if (curl)
         {
             int i;
+            U32 fsize = 0;
             CURLcode curlCode;
 #if 0
             ZXConfig* cf = &ZXCONFIGURATION;
 #endif 
-            U32 fsize = 0;
-
             curl_easy_setopt(curl, CURLOPT_URL, url);
             curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30);
 #if 0
@@ -1411,8 +1425,9 @@ static U8* getFileByHTTP(const char* url, U32& bytes)
                         curlCode = curl_easy_perform(curl);
                         if (curlCode == CURLE_OK && (dlHTTP.curr == dlHTTP.total) && (fsize == dlHTTP.total))
                         {
-                            uLongf  zipSize, unzipSize;
+                            uLongf zipSize;
                             U32* p32 = reinterpret_cast<U32*>(bindata);
+
                             zipSize = *p32;
                             if (zipSize == fsize)
                             {
@@ -1459,7 +1474,6 @@ static U8* getFileByHTTP(const char* url, U32& bytes)
             unzipBuf = NULL;
         }
     }
-
     return rawdata;
 }
 
