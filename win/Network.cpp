@@ -14,17 +14,12 @@ typedef struct
     U8* buffer;
 } HTTPDownload;
 
-typedef struct GroupName
-{
-    U8* name;
-} GroupName;
-
 typedef struct RegexList
 {
-    U32 property;
-    U32 grp_idx;
-    U8* pattern;
+    char* pattern;
     U8  docId[8];
+    U16 property;
+    U16 grpidx;
 } RegexList;
 
 static const char* version__ = "100";
@@ -55,11 +50,9 @@ static MemPoolContext regxMemPool = nullptr;
 static volatile LONG  regexCount = 0;
 static RegexList* regexList = nullptr;
 
-static U32 groupCount = 0;
-static GroupName* groupList = nullptr;
-
 static HANDLE evLLM = NULL;
 
+static constexpr int groupTableSize = (1 << 8);
 static char* groupTable[1<<8] = { 0 };
 
 typedef struct
@@ -594,6 +587,7 @@ static void StartAIThread(HWND hWnd)
 
 }
 
+#if 0
 static constexpr const char* g0{ "Redis" };
 static constexpr const char* g1{ "MySQL" };
 static constexpr const char* g2 { "PostgreSQL" };
@@ -601,112 +595,178 @@ static constexpr const char* g2 { "PostgreSQL" };
 static constexpr const char* pattern0{ "Error: Redis connection to [0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}:[0-9]+ failed - connect ECONNREFUSED" };
 static constexpr const char* pattern1{ "[0-9]+, Connection was killed" };
 static constexpr const char* pattern2{ "PANIC:[\\s]+stuck spinlock detected at [a-zA-Z](.)+, [a-zA-Z](.)+:[0-9]+" };
-
-static const char* default_KBG_URL = "http://zterm.ai/grp.idx";
-
-static RegexList* DownLoadIndexFile()
-{
-    char** ptable = NULL;
-    RegexList* list = NULL;
-#if 0
-    U32 bytes = 0;
-    U8* bindata = getFileByHTTP(default_KBG_URL, bytes);
-
-    if (bindata && bytes)
-    {
-        U8 idx;
-        U8* p = bindata;
-
-        while (p < bindata + bytes)
-        {
-            idx = *p;
-            p += 2;
-            while (p < bindata + bytes && *p) p++;
-            if( p < bindata + bytes) p++;
-        }
-
-        free(bindata);
-    }
 #endif 
-    groupCount = 3;
-    groupList = static_cast<GroupName*>(std::malloc(sizeof(GroupName) * groupCount));
+static const char* default_KBG_URL = "http://zterm.ai/grp.idx";
+static const char* default_KBP_URL = "http://zterm.ai/ptn.idx";
 
-    if (groupList)
+static void parseGroupData(U8* rawdata, U32 rawsize)
+{
+    if (rawdata && rawsize > 8)
     {
-        char* s;
-        size_t total_bytes = 0;
-
-        total_bytes += (strlen(g0) + 1);
-        total_bytes += (strlen(g1) + 1);
-        total_bytes += (strlen(g2) + 1);
-
-        s = static_cast<char*>(zt_palloc0(regxMemPool, total_bytes));
-        if (s)
+        U32 size = 0;
+        U8* p = rawdata + 4;
+        if (p[0] == 'G' && p[1] == 'R' && p[2] == 'P')
         {
-            size_t i;
-            LONG m = 3;
-            char* p;
-            p = s;
-            groupList[0].name = reinterpret_cast<U8*>(p);
-
-            for (i = 0; i < strlen(g0); i++) *p++ = g0[i];
-            *p++ = '\0';
-
-            groupList[1].name = reinterpret_cast<U8*>(p);
-            for (i = 0; i < strlen(g1); i++) *p++ = g1[i];
-            *p++ = '\0';
-
-            groupList[2].name = reinterpret_cast<U8*>(p);
-            for (i = 0; i < strlen(g2); i++) *p++ = g2[i];
-            *p++ = '\0';
-             
-            ptable = static_cast<char**>(std::malloc(sizeof(char*) * m));
-            if (ptable)
+            p += 4;
+            // first scan to get the size
+            while (p < rawdata + rawsize)
             {
-                total_bytes = 0;
-                total_bytes += (strlen(pattern0) + 1);
-                total_bytes += (strlen(pattern1) + 1);
-                total_bytes += (strlen(pattern2) + 1);
-
-                s = static_cast<char*>(zt_palloc0(regxMemPool, total_bytes));
-                list = static_cast<RegexList*>(zt_palloc0(regxMemPool, sizeof(RegexList) * m));
-                if (s && list)
+                p += 2; //skip two bytes
+                while (p < rawdata + rawsize && *p) // look for the zero byte
                 {
-                    RegexList* node;
+                    p++;
+                    size++;
+                }
 
-                    p = s;
-                    ptable[0] = p;
-                    for (i = 0; i < strlen(pattern0); i++) *p++ = pattern0[i];
-                    *p++ = '\0';
-                    
-                    ptable[1] = p;
-                    for (i = 0; i < strlen(pattern1); i++) *p++ = pattern1[i];
-                    *p++ = '\0';
+                if (p >= rawdata + rawsize || *p != '\0') //parser error!
+                    return;
 
-                    ptable[2] = p;
-                    for (i = 0; i < strlen(pattern2); i++) *p++ = pattern2[i];
-                    *p++ = '\0';
+                p++;
+                size++;
+            }
 
-                    for (i = 0; i < m; i++)
+            if (size > 0)
+            {
+                U8 idx;
+                char* s = static_cast<char*>(zt_palloc0(regxMemPool, size));
+                if (s)
+                {
+                    p = rawdata + 8;
+                    while (p < rawdata + rawsize)
                     {
-                        node = list + i;
-                        node->grp_idx = i;
-                        node->pattern = reinterpret_cast<U8*>(ptable[i]);
-                        zt_siphash(node->pattern, strlen(reinterpret_cast<const char*>(node->pattern)), node->docId, 8);
+                        idx = *p;
+                        groupTable[idx] = s;
+                        p += 2;
+                        while (p < rawdata + rawsize && *p)
+                        {
+                            *s++ = *p++;
+                        }
+                        *s++ = *p++;
                     }
-                    InterlockedExchange(&regexCount, m);
                 }
-                else
-                {
-                    zt_pfree(s);
-                    zt_pfree(list);
-                    list = NULL;
-                }
-
-                std::free(ptable);
             }
         }
     }
+}
+
+static void getGroupList(const char* url)
+{
+    U32 rawsize = 0;
+    U8* rawdata = nullptr;
+
+    rawdata = getFileByHTTP(url, rawsize);
+    // do the parser
+    parseGroupData(rawdata, rawsize);
+
+    if (rawdata)
+    {
+        std::free(rawdata);
+        rawdata = nullptr;
+    }
+}
+
+static RegexList* parsePatternData(U8* rawdata, U32 rawsize, LONG& count)
+{
+    RegexList* list = NULL;
+
+    count = 0;
+
+    if (rawdata && rawsize > (4 + 4 + 12))
+    {
+        U32 size = 0;
+        U32 upperBound = rawsize - 12;
+        U8* p = rawdata + 4;
+
+        if (p[0] == 'P' && p[1] == 'T' && p[2] == 'N')
+        {
+            p += 4;
+            while (p < rawdata + upperBound)
+            {
+                p += 12;
+                if (p < rawdata + upperBound && *p)
+                    count++;
+                while (p < rawdata + rawsize && *p)
+                {
+                    p++;
+                    size++;
+                }
+                if (p >= rawdata + rawsize || *p != '\0') //parser error!
+                {
+                    count = 0;
+                    return NULL;
+                }
+                p++;
+                size++;
+            }
+
+            if (size > 0 && count > 0)
+            {
+                RegexList* rL = static_cast<RegexList*>(zt_palloc0(regxMemPool, count*sizeof(RegexList)));
+                if (rL)
+                {
+                    char* s = static_cast<char*>(zt_palloc0(regxMemPool, size));
+                    if (s)
+                    {
+                        int idx;
+                        list = rL;
+                        p = rawdata + (4 + 4);
+                        while (p < rawdata + upperBound)
+                        {
+                            rL->property = static_cast<U16>(*p++);
+                            p++;
+
+                            rL->grpidx = static_cast<U16>(*p++);
+                            p++;
+
+                            for(idx=0; idx<8; idx++) rL->docId[idx]= *p++;
+                            
+                            rL->pattern = s;
+                            
+                            while (p < rawdata + upperBound && *p)
+                            {
+                                *s++ = *p++;
+                            }
+                            *s++ = *p++;
+                            rL++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return list;
+}
+
+static RegexList* getPatternList(const char* url, LONG& count)
+{
+    RegexList* list = NULL;
+    LONG cnt = 0;
+    U32 rawsize = 0;
+    U8* rawdata = nullptr;
+
+    rawdata = getFileByHTTP(url, rawsize);
+    // do the parser
+    list = parsePatternData(rawdata, rawsize, cnt);
+    count = cnt;
+
+    if (rawdata)
+    {
+        free(rawdata);
+        rawdata = nullptr;
+    }
+
+    return list;
+}
+
+static RegexList* DownLoadIndexFile(LONG& itemCount)
+{
+    LONG count = 0;
+    RegexList* list = NULL;
+
+    getGroupList(default_KBG_URL);
+    
+    list = getPatternList(default_KBP_URL, count);
+    itemCount = count;
 
     return list;
 }
@@ -743,9 +803,13 @@ static void PublishRegexResult(MessageTask* task)
     LeaveCriticalSection(&csMatchMsg);
 }
 
+static constexpr const char* prefixNULL = "[.]";
+
 #define MAX_REGULAR_MATCH   8
+
 void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
 {
+    U8 k;
     int idx, m;
     RegexList* list;
     char* s;
@@ -776,7 +840,6 @@ void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
     subject = (PCRE2_SPTR)message;
     subject_length = (PCRE2_SIZE)length;
 
-    
     idx = 0;
 
     for(LONG e=0; e < regexCount; e++)
@@ -828,7 +891,10 @@ void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
 
             if (substring_length)
             {
-                g = reinterpret_cast<char*>(groupList[list->grp_idx].name);
+                g = const_cast<char*>(prefixNULL);
+                k = static_cast<U8>(list->grpidx);
+                if (groupTable[k])
+                    g = groupTable[k];
 
                 total_length = substring_length;
                 group_length = strlen((const char*)g);
@@ -928,6 +994,7 @@ void ScanRegexList(U8* message, U32 length, RegexList* pattern_list)
             zt_pfree(match_table[m]);
         match_table[m] = NULL;
     }
+
 }
 
 void DoRegexMatch(RegexList* list)
@@ -977,12 +1044,18 @@ static DWORD WINAPI lvm_threadfunc(void* param)
 #if 0
     InterlockedIncrement(&g_threadCountBKG);
 #endif 
+
+    for (int i = 0; i < groupTableSize; i++)
+        groupTable[i] = NULL;
+
     regxMemPool = zt_mempool_create("RegexPool", ALLOCSET_DEFAULT_SIZES);
     if (regxMemPool)
     {
-        regexList = DownLoadIndexFile();
-        if (regexList)
+        LONG cnt = 0;
+        regexList = DownLoadIndexFile(cnt);
+        if (regexList && cnt > 0)
         {
+            InterlockedExchange(&regexCount, cnt);
             if (evLLM)
             {
                 while (TRUE)
@@ -998,10 +1071,14 @@ static DWORD WINAPI lvm_threadfunc(void* param)
         zt_mempool_destroy(regxMemPool);
     }
 
+    // clean up
+    InterlockedExchange(&regexCount, 0);
+
+    for(int i=0; i< groupTableSize; i++)
+        groupTable[i] = NULL;
+
     InterlockedDecrement(&g_threadCount);
-#if 0
     InterlockedDecrement(&g_threadCountBKG);
-#endif 
     return 0;
 }
 
@@ -1048,8 +1125,9 @@ void ztShutdownNetworkThread()
     }
 
     ATLASSERT(g_threadCount == 0);
+#if 0
     ATLASSERT(g_threadCountBKG == 0);
-
+#endif 
     if (evLLM)
     {
         CloseHandle(evLLM);
@@ -1250,157 +1328,138 @@ static size_t getFileDataCallback(char* message, size_t size, size_t nmemb, void
     return realsize;
 }
 
+
+// download the file and unzip it, then return the unzipped raw data and length
 static U8* getFileByHTTP(const char* url, U32& bytes)
 {
-    CURL* curl = NULL;
-    U8* bindata = nullptr;
+    U8* rawdata = NULL;
+    U8* unzipBuf = NULL;
+
     bytes = 0;
 
-    curl = curl_easy_init();
-    if (curl)
+    if (url)
     {
-        int i;
-        CURLcode curlCode;
-#if 0
-        ZXConfig* cf = &ZXCONFIGURATION;
-#endif 
-        U8 udata[4] = { 0 };
-
-        curl_easy_setopt(curl, CURLOPT_URL, url);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30);
-#if 0
-        if (cf->proxy_Type != AI_CURLPROXY_NO_PROXY && cf->proxy_Str[0])
+        CURL* curl = curl_easy_init();
+        if (curl)
         {
-            long pxtype = CURLPROXY_HTTP;
-            switch (cf->proxy_Type)
-            {
-            case AI_CURLPROXY_HTTP:
-                pxtype = CURLPROXY_HTTP;
-                break;
-            case AI_CURLPROXY_HTTP_1_0:
-                pxtype = CURLPROXY_HTTP_1_0;
-                break;
-            case AI_CURLPROXY_HTTPS:
-                pxtype = CURLPROXY_HTTPS;
-                break;
-            case AI_CURLPROXY_HTTPS2:
-                pxtype = CURLPROXY_HTTPS2;
-                break;
-            case AI_CURLPROXY_SOCKS4:
-                pxtype = CURLPROXY_SOCKS4;
-                break;
-            case AI_CURLPROXY_SOCKS5:
-                pxtype = CURLPROXY_SOCKS5;
-                break;
-            case AI_CURLPROXY_SOCKS4A:
-                pxtype = CURLPROXY_SOCKS4A;
-                break;
-            case AI_CURLPROXY_SOCKS5_HOSTNAME:
-                pxtype = CURLPROXY_SOCKS5_HOSTNAME;
-                break;
-            default:
-                break;
-            }
-            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
-            curl_easy_setopt(curl, CURLOPT_PROXY, cf->proxy_Str);
-        }
-
-        curl_easy_setopt(curl, CURLOPT_RANGE, "0-3");
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileSizeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, udata);
-        curlCode = curl_easy_perform(curl);
-        if (curlCode == CURLE_OK)
+            int i;
+            CURLcode curlCode;
+#if 0
+            ZXConfig* cf = &ZXCONFIGURATION;
 #endif 
-        {
-            U32 fsize = 22; // *((U32*)udata);
-            if (fsize < HTTP_DOWNLOAD_LIMIT)
+            U32 fsize = 0;
+
+            curl_easy_setopt(curl, CURLOPT_URL, url);
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30);
+#if 0
+            if (cf->proxy_Type != AI_CURLPROXY_NO_PROXY && cf->proxy_Str[0])
             {
-                bindata = (U8*)malloc(ZT_ALIGN_DEFAULT64(fsize));
-                if (bindata)
+                long pxtype = CURLPROXY_HTTP;
+                switch (cf->proxy_Type)
                 {
-                    HTTPDownload dlHTTP = { 0 };
-                    dlHTTP.buffer = bindata;
-                    dlHTTP.total = fsize;
-                    dlHTTP.curr = 0;
-                    curl_easy_setopt(curl, CURLOPT_RANGE, "0-");
-                    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &dlHTTP);
-                    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileDataCallback);
-                    curlCode = curl_easy_perform(curl);
-                    if (curlCode == CURLE_OK && (dlHTTP.curr == dlHTTP.total) && (fsize == dlHTTP.total))
+                case AI_CURLPROXY_HTTP:
+                    pxtype = CURLPROXY_HTTP;
+                    break;
+                case AI_CURLPROXY_HTTP_1_0:
+                    pxtype = CURLPROXY_HTTP_1_0;
+                    break;
+                case AI_CURLPROXY_HTTPS:
+                    pxtype = CURLPROXY_HTTPS;
+                    break;
+                case AI_CURLPROXY_HTTPS2:
+                    pxtype = CURLPROXY_HTTPS2;
+                    break;
+                case AI_CURLPROXY_SOCKS4:
+                    pxtype = CURLPROXY_SOCKS4;
+                    break;
+                case AI_CURLPROXY_SOCKS5:
+                    pxtype = CURLPROXY_SOCKS5;
+                    break;
+                case AI_CURLPROXY_SOCKS4A:
+                    pxtype = CURLPROXY_SOCKS4A;
+                    break;
+                case AI_CURLPROXY_SOCKS5_HOSTNAME:
+                    pxtype = CURLPROXY_SOCKS5_HOSTNAME;
+                    break;
+                default:
+                    break;
+                }
+                curl_easy_setopt(curl, CURLOPT_PROXYTYPE, pxtype);
+                curl_easy_setopt(curl, CURLOPT_PROXY, cf->proxy_Str);
+            }
+#endif 
+            curl_easy_setopt(curl, CURLOPT_RANGE, "0-3");
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileSizeCallback);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, static_cast<void*>(&fsize));
+
+            curlCode = curl_easy_perform(curl); // do the real download
+
+            if (curlCode == CURLE_OK)
+            {
+                if (fsize > 12 && fsize < HTTP_DOWNLOAD_LIMIT)
+                {
+                    U8* bindata = static_cast<U8*>(std::malloc(ZT_ALIGN_DEFAULT64(fsize)));
+                    if (bindata)
                     {
-                        bytes = fsize;
-                    }
-                    else
-                    {
-                        free(bindata);
-                        bindata = nullptr;
+                        HTTPDownload dlHTTP = { 0 };
+                        dlHTTP.buffer = bindata;
+                        dlHTTP.total = fsize;
+                        dlHTTP.curr = 0;
+                        curl_easy_setopt(curl, CURLOPT_RANGE, "0-");
+                        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &dlHTTP);
+                        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, getFileDataCallback);
+                        curlCode = curl_easy_perform(curl);
+                        if (curlCode == CURLE_OK && (dlHTTP.curr == dlHTTP.total) && (fsize == dlHTTP.total))
+                        {
+                            uLongf  zipSize, unzipSize;
+                            U32* p32 = reinterpret_cast<U32*>(bindata);
+                            zipSize = *p32;
+                            if (zipSize == fsize)
+                            {
+                                uLongf  unzipSize;
+                                p32 = reinterpret_cast<U32*>(bindata + 4);
+                                unzipSize = *p32;
+                                if (unzipSize > 12 && unzipSize < HTTP_DOWNLOAD_LIMIT)
+                                {
+                                    unzipBuf = static_cast<U8*>(std::malloc(unzipSize));
+                                    if (unzipBuf)
+                                    {
+                                        uLongf destLen = unzipSize;
+                                        uLongf sourceLen = zipSize - 8;
+                                        int rc = uncompress2(unzipBuf, &destLen, bindata + 8, &sourceLen);
+                                        if (rc == Z_OK && destLen == unzipSize && destLen > 8)
+                                        {
+                                            U32 crc32A, crc32B;
+                                            p32 = reinterpret_cast<U32*>(unzipBuf);
+                                            crc32A = *p32;
+                                            crc32B = zt_crc32(unzipBuf + 4, destLen - 4);
+                                            if (crc32A == crc32B)
+                                            {
+                                                rawdata = unzipBuf;
+                                                bytes = destLen;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        std::free(bindata);
                     }
                 }
             }
+            curl_easy_cleanup(curl);
         }
-        curl_easy_cleanup(curl);
     }
-    return bindata;
-}
 
-#if 0
-static U32 _step4(sqlite3* db)
-{
-    ZXConfig* cf = &ZXCONFIGURATION;
-    U32 status, utf16len, bytes, ret = WT_FAIL;
-    U8* bindata = nullptr;
-    U8* unzipbuf = nullptr;
-    U8* kburl = nullptr;
-
-    bytes = 0;
-    if (strlen((const char*)cf->kbdataURL))
-        kburl = cf->kbdataURL;
-    else
-        kburl = (U8*)default_KB_URL;
-
-    bindata = zx_GetFileByHTTP((const U8*)kburl, bytes);
-
-    if (bindata && bytes > KB_DATA_PAYLOAD)
+    if (rawdata == NULL)
     {
-        uLongf  zipSize, unzipSize;
-        U32* p32 = (U32*)bindata;
-        zipSize = *p32;
-        if (bytes == (U32)zipSize)
+        if (unzipBuf != NULL)
         {
-            p32 = (U32*)(bindata + 4);
-            unzipSize = *p32;
-            unzipbuf = (U8*)malloc(unzipSize);
-            if (unzipbuf)
-            {
-                uLongf destLen = unzipSize;
-                uLongf sourceLen = zipSize - KB_DATA_PAYLOAD;
-                int rc = uncompress2(unzipbuf, &unzipSize, bindata + KB_DATA_PAYLOAD, &sourceLen);
-                if (rc == Z_OK && destLen == unzipSize)
-                {
-                    U8 hash[AI_HASH256_LENGTH];
-                    wt_sha256_hash(unzipbuf, unzipSize, hash);
-                    if (memcmp(hash, bindata + 8, AI_HASH256_LENGTH) == 0) // the data looks good 
-                    {
-                        ZXConfig* cf = &ZXCONFIGURATION;
-                        for (U8 i = 0; i < AI_HASH256_LENGTH; i++) cf->my_kbhash[i] = hash[i];
-                        if (zx_ParseKBTree(unzipbuf, unzipSize))
-                            ret = WT_OK;
-                    }
-                }
-            }
+            std::free(unzipBuf);
+            unzipBuf = NULL;
         }
     }
 
-    if (bindata)
-    {
-        free(bindata);
-        bindata = nullptr;
-    }
-    if (unzipbuf)
-    {
-        free(unzipbuf);
-        unzipbuf = nullptr;
-    }
-    return ret;
+    return rawdata;
 }
-#endif 
+
