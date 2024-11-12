@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define ZT_OK		0
 #define ZT_FAIL		(-1)
@@ -123,6 +124,21 @@ extern "C" {
 	void zt_pfree(void* pointer);
 
 	int zt_Raw2HexString(U8* input, U8 len, U8* output, U8* outlen);
+
+	typedef struct zt_chacha20_context
+	{
+		uint32_t state[16];          /*! The state (before round operations). */
+		uint8_t  keystream8[64];     /*! Leftover keystream bytes. */
+		size_t   keystream_bytes_used; /*! Number of keystream bytes already used. */
+	}
+	zt_chacha20_context;
+
+	void zt_chacha20_init(zt_chacha20_context* ctx);
+	int zt_chacha20_setkey(zt_chacha20_context* ctx, const unsigned char key[32]);
+	int zt_chacha20_starts(zt_chacha20_context* ctx, const unsigned char nonce[12], uint32_t counter);
+	int zt_chacha20_update(zt_chacha20_context* ctx, size_t size, const unsigned char* input, unsigned char* output);
+	void zt_chacha20_free(zt_chacha20_context* ctx);
+
 
 #ifdef __cplusplus
 }

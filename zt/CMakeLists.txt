@@ -6,6 +6,7 @@ file(GLOB LIBZT_SRC
 	"zt_unicode.c"
 	"zt_utils.c"
 	"zt_aes256.c"
+	"zt_chacha20.c"
 	)
 
 add_library(${PROJECT_NAME} ${LIBZT_SRC})
