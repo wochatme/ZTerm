@@ -279,7 +279,7 @@ C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>dir
 C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.h
 #ifndef _ZTERM_H_
 #define _ZTERM_H_
-#endif // _ZTERM_H_
+#endif /* _ZTERM_H_ */
 
 C:\wterm\term0919\src\cascadia\WindowsTerminal\zterm>type zterm.cpp
 // This is most part of ZTerm logic
