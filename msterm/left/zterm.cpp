@@ -126,6 +126,40 @@ static bool LoadD2D() noexcept
     return (g_pD2DFactory != nullptr);
 }
 
+#define MAX_SCREEN_TEXTUTF8_SIZE (1 << 20)
+static U8 g_UTF8data[MAX_SCREEN_TEXTUTF8_SIZE] = { 0 };
+
+extern "C" wchar_t* TerminalGetWindowData();
+
+static U8* ztGetTerminalTextData(U32& bytes)
+{
+    U8* ptr = nullptr;
+    bytes = 0;
+
+    wchar_t* screen_data = TerminalGetWindowData();
+    if (screen_data)
+    {
+        U32 utf16len = (U32)wcslen(screen_data);
+        if (utf16len)
+        {
+            U32 utf8len = 0;
+            if (ZT_OK == zt_UTF16ToUTF8(reinterpret_cast<U16*>(screen_data), utf16len, nullptr, &utf8len))
+            {
+                if (utf8len && utf8len < MAX_SCREEN_TEXTUTF8_SIZE - 1)
+                {
+                    bytes = utf8len;
+                    zt_UTF16ToUTF8(reinterpret_cast<U16*>(screen_data), utf16len, g_UTF8data, nullptr);
+                    g_UTF8data[utf8len] = '\0';
+                    ptr = g_UTF8data;
+                }
+            }
+        }
+    }
+
+    return ptr;
+}
+
+
 static constexpr const wchar_t* gptPaneClassName{ L"GPT_PANE_WINDOW_CLASS" };
 
 static HWND g_hWndMain = NULL;
@@ -343,6 +377,7 @@ void NonClientIslandWindow::ztMakePaneWindow() noexcept
             ::SendMessage(hWnd, SCI_STYLESETFORE, STYLE_DEFAULT, RGB(250, 250, 250));
             ::SendMessage(hWnd, SCI_SETCARETFORE, RGB(250, 250, 250), 0);
             ::SendMessage(hWnd, SCI_STYLECLEARALL, 0, 0);
+            //::SendMessage(hWnd, SCI_SETIMEINTERACTION, SC_IME_WINDOWED, SC_IME_WINDOWED);
             ::SetWindowTheme(hWnd, L"DarkMode_Explorer", nullptr);
         }
     }
@@ -529,6 +564,53 @@ void NonClientIslandWindow::DoPaint()
     }
 }
 
+void NonClientIslandWindow::DrawGhostBar()
+{
+#if 0
+    if (m_xySplitterPos > SPLIT_MARGIN)
+    {
+        HDC hDC;
+        RECT rcWnd = {};
+        RECT rect;
+
+        rect.right = m_xySplitterPos;
+        rect.left = rect.right - SPLIT_MARGIN;
+        rect.top = m_rcSplitter.top + m_heightTitleBar;
+        rect.bottom = m_rcSplitter.bottom;
+
+        ::GetWindowRect(GetHandle(), &rcWnd);
+        MapWindowPoints(NULL, GetHandle(), (LPPOINT)&rcWnd, 2);
+        ::OffsetRect(&rect, -rcWnd.left, -rcWnd.top);
+
+        hDC = ::GetWindowDC(GetHandle());
+        if (hDC)
+        {
+            HBRUSH oldBrush = NULL;
+            HBRUSH halftoneBrush = NULL;
+            WORD grayPattern[8] = {};
+
+            for (int i = 0; i < 8; i++)
+                grayPattern[i] = (WORD)(0x5555 << (i & 1));
+
+            HBITMAP grayBitmap = CreateBitmap(8, 8, 1, 1, &grayPattern);
+            if (grayBitmap != NULL)
+            {
+                halftoneBrush = ::CreatePatternBrush(grayBitmap);
+                DeleteObject(grayBitmap);
+            }
+
+            if (halftoneBrush != NULL)
+            {
+                oldBrush = (HBRUSH)::SelectObject(hDC, halftoneBrush);
+                ::PatBlt(hDC, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, PATINVERT);
+                ::SelectObject(hDC, oldBrush);
+            }
+            ::ReleaseDC(GetHandle(), hDC);
+        }
+    }
+#endif 
+}
+
 [[nodiscard]] LRESULT NonClientIslandWindow::ztPaneWindowMessageHandler(UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept
 {
     switch (message)
@@ -639,9 +721,13 @@ void NonClientIslandWindow::DoPaint()
 
         if (InGPTMode())
         {
-#if 0
-            if (pt.x < SPLIT_MARGIN && pt.y > m_widthPaneWindow)
+            if (pt.x < m_rectClient.right && pt.x >= m_rectClient.right - SPLIT_MARGIN)
             {
+                bHit = true;
+                m_dwState |= GUI_SETCURSOR;
+                SetCursor(m_hCursorWE);
+                DrawGhostBar();
+#if 0
                 POINT pt{};
                 if (GetCursorPos(&pt))
                 {
@@ -670,9 +756,9 @@ void NonClientIslandWindow::DoPaint()
                         SetCapture(GetHandle());
                     }
                 }
+#endif
             }
             else
-#endif
             {
                 if (PtInRect(&m_rectButton[IDX_RECT_ASK], pt))
                 {
@@ -716,12 +802,14 @@ void NonClientIslandWindow::DoPaint()
         return 0;
     case WM_LBUTTONUP:
     {
-        //HWND hWndFocus;
+        HWND hWndFocus = GetFocus();
         POINT pt = { GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam) };
         LPRECT lpRectPress = m_lpRectPress;
 
         m_lpRectPress = nullptr;
         m_hitType = HIT_NONE;
+
+        //SetFocus(m_paneWindow.get());
 
         if (GetCapture() == m_paneWindow.get())
         {
@@ -768,22 +856,18 @@ void NonClientIslandWindow::DoPaint()
                 SetWindowPos(m_hWndGPT, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
             }
 #endif
-            HWND hWndFocus = GetFocus();
             SetFocus(m_hWndGPT);
             SetFocus(m_hWndASK);
-            SetFocus(hWndFocus);
         }
 
         if (lpRectPress)
         {
             InvalidateRect(m_paneWindow.get(), lpRectPress, TRUE);
         }
+        SetFocus(hWndFocus);
     }
         return 0;
-#if 0
-    case WM_CREATE:
-        break;
-#endif
+
     default:
         break;
     }
@@ -856,10 +940,21 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
 
             if (m_xySplitterPos < 0)
             {
-                m_xySplitterPos = ::MulDiv(33, m_rcSplitter.right - m_rcSplitter.left, 100);
+                m_xySplitterPos = ::MulDiv(50, m_rcSplitter.right - m_rcSplitter.left, 100);
             }
             OnSize(m_rcSplitter.right - m_rcSplitter.left, m_rcSplitter.bottom - m_rcSplitter.top);
         }
+        else if (GPT_NOTIFY_QUIK_ASK == lParam)
+        {
+            U32 utf8len = 0;
+            U8* utf8str = ztGetTerminalTextData(utf8len);
+            if (utf8str && utf8len)
+            {
+                AppendTextToGPTWindow((const char*)"\n----\n", 6);
+                AppendTextToGPTWindow((const char*)utf8str, utf8len);
+            }
+        }
+
     }
         bHandled = TRUE;
         return 0;

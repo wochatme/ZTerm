@@ -20,6 +20,25 @@ wil::unique_hwnd m_paneWindow;
 HWND m_hWndGPT = nullptr;
 HWND m_hWndASK = nullptr;
 
+void AppendTextToGPTWindow(const char* text, uint32_t /* length */)
+{
+    if (IsWindow(m_hWndGPT))
+    {
+#if 0
+        int totalLines;
+        //bool readonly = (bool)::SendMessage(m_hWnd, SCI_GETREADONLY, 0, 0);
+        SendMessage(m_hWndGPT, SCI_SETREADONLY, 0, 0);
+        SendMessage(m_hWndGPT, SCI_APPENDTEXT, length, (LPARAM)text);
+        totalLines = (int)SendMessage(m_hWndGPT, SCI_GETLINECOUNT, 0, 0);
+        SendMessage(m_hWndGPT, SCI_LINESCROLL, 0, totalLines);
+        SendMessage(m_hWndGPT, SCI_SETREADONLY, 1, 0);
+#endif
+        SendMessage(m_hWndGPT, SCI_SETREADONLY, 0, 0);
+        ::SendMessage(m_hWndGPT, SCI_SETTEXT, 0, (LPARAM)text);
+        SendMessage(m_hWndGPT, SCI_SETREADONLY, 1, 0);
+    }
+}
+
 // we use these 3 cursors to indicate different cases
 // when the mouse is over the vertical split line
 HCURSOR m_hCursorWE{ nullptr };
@@ -130,6 +149,7 @@ int GetFirstIntegralMultipleDeviceScaleFactor() noexcept
 HRESULT CreateDeviceDependantResource(LPRECT lpRect);
 
 void DoPaint();
+void DrawGhostBar();
 
 [[nodiscard]] static LRESULT __stdcall ztStaticPaneWndProc(HWND const window, UINT const message, WPARAM const wparam, LPARAM const lparam) noexcept;
 

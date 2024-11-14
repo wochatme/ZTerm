@@ -8,6 +8,8 @@
 #include "../types/inc/utils.hpp"
 #include "TerminalThemeHelpers.h"
 
+#include "zterm/zterm.cpp"
+
 using namespace winrt::Windows::UI;
 using namespace winrt::Windows::UI::Composition;
 using namespace winrt::Windows::UI::Xaml;
@@ -15,8 +17,6 @@ using namespace winrt::Windows::UI::Xaml::Hosting;
 using namespace winrt::Windows::Foundation::Numerics;
 using namespace ::Microsoft::Console;
 using namespace ::Microsoft::Console::Types;
-
-#include "zterm/zterm.cpp"
 
 static constexpr int AutohideTaskbarSize = 2;
 
@@ -31,6 +31,7 @@ NonClientIslandWindow::NonClientIslandWindow(const ElementTheme& requestedTheme)
 NonClientIslandWindow::~NonClientIslandWindow()
 {
     Close();
+    SetWindowLongPtr(m_paneWindow.get(), GWLP_USERDATA, 0); //-ZTERM
 }
 
 void NonClientIslandWindow::Close()
@@ -38,7 +39,6 @@ void NonClientIslandWindow::Close()
     // Avoid further callbacks into XAML/WinUI-land after we've Close()d the DesktopWindowXamlSource
     // inside `IslandWindow::Close()`. XAML thanks us for doing that by not crashing. Thank you XAML.
     SetWindowLongPtr(_dragBarWindow.get(), GWLP_USERDATA, 0);
-    SetWindowLongPtr(m_paneWindow.get(), GWLP_USERDATA, 0); // <== ZTERM
     IslandWindow::Close();
 }
 
@@ -104,7 +104,7 @@ void NonClientIslandWindow::MakeWindow() noexcept
                                          this));
     THROW_HR_IF_NULL(E_UNEXPECTED, _dragBarWindow);
 
-    ztMakePaneWindow(); // ZTERM
+    ztMakePaneWindow(); //-ZTERM
 }
 
 LRESULT NonClientIslandWindow::_dragBarNcHitTest(const til::point pointer)
@@ -320,7 +320,7 @@ void NonClientIslandWindow::_ResizeDragBarWindow() noexcept
         int offset = ztGetOffset(); //-ZTERM
         SetWindowPos(_dragBarWindow.get(),
                      HWND_TOP,
-                     rect.left + offset, // ZTERM
+                     rect.left + offset, //-ZTERM,
                      rect.top + _GetTopBorderHeight(),
                      rect.width(),
                      rect.height(),
@@ -508,7 +508,7 @@ til::rect NonClientIslandWindow::_GetDragAreaRect() const noexcept
 //   if the window went from maximized to restored or the opposite.
 void NonClientIslandWindow::OnSize(const UINT width, const UINT height)
 {
-    GetClientRect(GetHandle(), &m_rcSplitter); //ZTERM
+    GetClientRect(GetHandle(), &m_rcSplitter); //-ZTERM
 
     _UpdateMaximizedState();
 
@@ -592,7 +592,7 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
 
     int offset = ztGetOffset(); //-ZTERM
 
-    winrt::check_bool(SetWindowPos(m_paneWindow.get(), // ZTERM
+    winrt::check_bool(SetWindowPos(m_paneWindow.get(), //-ZTERM
                                    HWND_BOTTOM,
                                    newIslandPos.x,
                                    newIslandPos.y,
@@ -600,6 +600,7 @@ void NonClientIslandWindow::_UpdateIslandPosition(const UINT windowWidth, const 
                                    windowHeight - topBorderHeight,
                                    SWP_SHOWWINDOW | SWP_NOACTIVATE));
     InvalidateRect(m_paneWindow.get(), NULL, TRUE);
+
 
     winrt::check_bool(SetWindowPos(_interopWindowHandle,
                                    HWND_BOTTOM,
@@ -986,7 +987,7 @@ void NonClientIslandWindow::_UpdateFrameMargins() const noexcept
     LRESULT result; //-ZTERM
     BOOL bHandled;
 
-    ztAdjustLayoutDPI(_currentDpi); 
+    ztAdjustLayoutDPI(_currentDpi);
 
     bHandled = FALSE;
     result = ztMesssageHandler(message, wParam, lParam, bHandled);
