@@ -14,17 +14,19 @@
 #define IDS_ARM64_ARCHITECTURE 113
 #define IDS_ARM_ARCHITECTURE 114
 #define IDS_UNKNOWN_ARCHITECTURE 115
-//ZTERM
-#define IDD_ZTERM_CONF 201
-#define IDC_EDIT_URL 202
-#define IDC_EDIT_TIMEOUT 203
-#define IDC_COMBO_PROXYTYPE 204
-#define IDC_EDIT_PROXYSTRING 205
-#define IDC_EDIT_PUBLICKEY 206
-#define IDC_BUTTON_COPY 207
-#define IDC_CHECK_SHARESCREEN 208
-#define IDC_BUTTON_FONT 209
-#define IDC_STATIC_FONT 210
+
+//-ZTERM
+#define IDD_ZTERM_CONF          200
+#define IDC_EDIT_PUBLICKEY      201
+#define IDC_BTN_COPY            202
+#define IDC_CMB_PROXYTYPE       203
+#define IDC_EDIT_PROXYSTRING    204
+#define IDC_EDIT_DATACACHE      205
+#define IDC_BTN_BROWSER         206
+#define IDC_CHK_SHARESCREEN     207
+#define IDC_CHK_AUTOSAVE        208
+#define IDC_BTN_ABOUT           209
+#define IDC_BTN_MORE            210
 
 // Next default values for new objects
 //

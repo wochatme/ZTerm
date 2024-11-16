@@ -24,7 +24,7 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 // this file contains the bitmap data of the buttons
 // in the pane window
-#include "resource.h"
+#include "../resource.h"
 #include "bitmap.h"
 
 // each message is 150 bytes in the beginning.
@@ -142,6 +142,8 @@ typedef struct ZTConfig
 } ZTConfig;
 
 static ZTConfig ZTCONFIGURATION;
+
+static INT_PTR CALLBACK ZTermConfDialogProc(HWND, UINT, WPARAM, LPARAM);
 
 static const char* default_AI_URL = "https://zterm.ai/v1";
 static const char* default_AI_FONT = "Courier New";
@@ -3035,6 +3037,12 @@ LRESULT NonClientIslandWindow::ztMesssageHandler(UINT uMsg, WPARAM wParam, LPARA
                 }
             }
         }
+        else if (GPT_NOTIFY_CONFIG_GPT == lParam)
+        {
+            ZTConfig prev{};
+            memcpy_s(&prev, sizeof(ZTConfig), &ZTCONFIGURATION, sizeof(ZTConfig));
+            DialogBox(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDD_ZTERM_CONF), GetHandle(), ZTermConfDialogProc);
+        }
     }
         bHandled = TRUE;
         return 0;
@@ -3141,4 +3149,194 @@ U8* NonClientIslandWindow::GetInputData(U8* buffer, U32 maxSize, bool donotShare
             p = nullptr;
     }
     return p;
+}
+
+// this code is from ATL
+static BOOL CenterWindow(_Inout_opt_ HWND hWnd, _Inout_opt_ HWND hWndCenter = NULL)
+{
+    RECT rcDlg;
+    RECT rcArea;
+    RECT rcCenter;
+    HWND hWndParent;
+    DWORD dwStyle = (DWORD)::GetWindowLong(hWnd, GWL_STYLE);
+
+    if (hWndCenter == NULL)
+    {
+        if (dwStyle & WS_CHILD)
+            hWndCenter = ::GetParent(hWnd);
+        else
+            hWndCenter = ::GetWindow(hWnd, GW_OWNER);
+    }
+
+    // get coordinates of the window relative to its parent
+    ::GetWindowRect(hWnd, &rcDlg);
+    if (!(dwStyle & WS_CHILD))
+    {
+        // don't center against invisible or minimized windows
+        if (hWndCenter != NULL)
+        {
+            DWORD dwStyleCenter = ::GetWindowLong(hWndCenter, GWL_STYLE);
+            if (!(dwStyleCenter & WS_VISIBLE) || (dwStyleCenter & WS_MINIMIZE))
+                hWndCenter = NULL;
+        }
+
+        // center within screen coordinates
+        HMONITOR hMonitor = NULL;
+        if (hWndCenter != NULL)
+        {
+            hMonitor = ::MonitorFromWindow(hWndCenter, MONITOR_DEFAULTTONEAREST);
+        }
+        else
+        {
+            hMonitor = ::MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+        }
+
+        MONITORINFO minfo = { 0 };
+        minfo.cbSize = sizeof(MONITORINFO);
+        ::GetMonitorInfo(hMonitor, &minfo);
+
+        rcArea = minfo.rcWork;
+
+        if (hWndCenter == NULL)
+            rcCenter = rcArea;
+        else
+            ::GetWindowRect(hWndCenter, &rcCenter);
+    }
+    else
+    {
+        // center within parent client coordinates
+        hWndParent = ::GetParent(hWnd);
+
+        ::GetClientRect(hWndParent, &rcArea);
+        ::GetClientRect(hWndCenter, &rcCenter);
+        ::MapWindowPoints(hWndCenter, hWndParent, (POINT*)&rcCenter, 2);
+    }
+
+    int DlgWidth = rcDlg.right - rcDlg.left;
+    int DlgHeight = rcDlg.bottom - rcDlg.top;
+
+    // find dialog's upper left based on rcCenter
+    int xLeft = (rcCenter.left + rcCenter.right) / 2 - DlgWidth / 2;
+    int yTop = (rcCenter.top + rcCenter.bottom) / 2 - DlgHeight / 2;
+
+    // if the dialog is outside the screen, move it inside
+    if (xLeft + DlgWidth > rcArea.right)
+        xLeft = rcArea.right - DlgWidth;
+    if (xLeft < rcArea.left)
+        xLeft = rcArea.left;
+
+    if (yTop + DlgHeight > rcArea.bottom)
+        yTop = rcArea.bottom - DlgHeight;
+    if (yTop < rcArea.top)
+        yTop = rcArea.top;
+
+    // map screen coordinates to child coordinates
+    return ::SetWindowPos(hWnd, NULL, xLeft, yTop, -1, -1, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static constexpr const WCHAR* pxtype0 = L"0 - NO PROXY";
+static constexpr const WCHAR* pxtype1 = L"1 - CURLPROXY_HTTP";
+static constexpr const WCHAR* pxtype2 = L"2 - CURLPROXY_HTTPS";
+static constexpr const WCHAR* pxtype3 = L"3 - CURLPROXY_HTTPS2";
+static constexpr const WCHAR* pxtype4 = L"4 - CURLPROXY_HTTP_1_0";
+static constexpr const WCHAR* pxtype5 = L"5 - CURLPROXY_SOCKS4";
+static constexpr const WCHAR* pxtype6 = L"6 - CURLPROXY_SOCKS4A";
+static constexpr const WCHAR* pxtype7 = L"7 - CURLPROXY_SOCKS5";
+static constexpr const WCHAR* pxtype8 = L"8 - CURLPROXY_SOCKS5_HOSTNAME";
+
+static WCHAR wbuffer[300] = { 0 };
+
+INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM)
+{
+    HWND hWndCtl;
+    ZTConfig* cf = &ZTCONFIGURATION;
+
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        if (IsWindow(g_hWndMain))
+        {
+            hWndCtl = GetDlgItem(hDlg, IDC_EDIT_PUBLICKEY);
+            if (::IsWindow(hWndCtl))
+            {
+                if (ZT_OK == zt_UTF8ToUTF16(cf->pubKeyHex, AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH, reinterpret_cast<U16*>(wbuffer), NULL))
+                {
+                    wbuffer[AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH] = L'\0';
+                    SendMessage(hWndCtl, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(wbuffer));
+                }
+            }
+
+            hWndCtl = GetDlgItem(hDlg, IDC_CMB_PROXYTYPE);
+            if (::IsWindow(hWndCtl))
+            {
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype0);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype1);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype2);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype3);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype4);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype5);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype6);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype7);
+                SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)pxtype8);
+
+                SendMessage(hWndCtl, CB_SETCURSEL, 0, 0);
+            }
+
+            CheckDlgButton(hDlg, IDC_CHK_SHARESCREEN, BST_CHECKED);
+            CheckDlgButton(hDlg, IDC_CHK_AUTOSAVE, BST_CHECKED);
+
+            CenterWindow(hDlg, g_hWndMain);
+        }
+        return (INT_PTR)TRUE;
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        else if (LOWORD(wParam) == IDC_BTN_ABOUT)
+        {
+            MessageBox(hDlg, L"ZTerm@AI\n\nAny feedback, shoot email to support@zterm.ai", L"About ZTerm@AI", MB_OK);
+        }
+        else if (LOWORD(wParam) == IDC_BTN_MORE)
+        {
+            MessageBox(hDlg, L"More advanced configuration", L"About ZTerm@AI", MB_OK);
+        }
+        else if (LOWORD(wParam) == IDC_BTN_COPY)
+        {
+            hWndCtl = GetDlgItem(hDlg, IDC_EDIT_PUBLICKEY);
+            if (::IsWindow(hWndCtl))
+            {
+                int charCount = GetWindowText(hWndCtl, wbuffer, AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH + 1);
+                if (AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH == charCount)
+                {
+                    wbuffer[AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH] = L'\0';
+                    if (OpenClipboard(hDlg))
+                    {
+                        size_t textSize = (AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH + 1) * sizeof(wchar_t);
+                        EmptyClipboard();
+                        HGLOBAL hClipboardData = GlobalAlloc(GMEM_MOVEABLE, textSize);
+                        if (hClipboardData)
+                        {
+                            void* pClipboardData = GlobalLock(hClipboardData);
+                            if (pClipboardData)
+                            {
+                                //wmemcpy(reinterpret_cast <wchar_t*>(pClipboardData), wbuffer, AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH);
+                                memcpy(pClipboardData, wbuffer, textSize);
+                                GlobalUnlock(hClipboardData);
+                                SetClipboardData(CF_UNICODETEXT, hClipboardData);
+                            }
+                        }
+                        CloseClipboard();
+                    }
+                }
+            }
+        }
+        break;
+    case WM_CLOSE:
+        EndDialog(hDlg, IDCANCEL);
+        return (INT_PTR)TRUE;
+
+    }
+    return 0;
 }

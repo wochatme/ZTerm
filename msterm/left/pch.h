@@ -107,12 +107,27 @@ TRACELOGGING_DECLARE_PROVIDER(g_hWindowsTerminalProvider);
 #include <dcomp.h>
 
 #include <bcrypt.h>
+
 #define CURL_STATICLIB
 #include "zterm/curl/curl.h"
 #include "zterm/zlib/zlib.h"
 #include "zterm/scintilla/Sci_Position.h"
 #include "zterm/scintilla/Scintilla.h"
 #include "zterm/zt/ztlib.h"
+
+#ifndef PCRE2_STATIC
+#define PCRE2_STATIC
+#endif
+/* The PCRE2_CODE_UNIT_WIDTH macro must be defined before including pcre2.h.
+For a program that uses only one code unit width, setting it to 8, 16, or 32
+makes it possible to use generic function names such as pcre2_compile(). Note
+that just changing 8 to 16 (for example) is not sufficient to convert this
+program to process 16-bit characters. Even in a fully 16-bit environment, where
+string-handling functions such as strcmp() and printf() work with 16-bit
+characters, the code for handling the table of named substrings will still need
+to be modified. */
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include "zterm/pcre2/pcre2.h"
 
 #pragma comment(lib, "Imm32.lib")
 #pragma comment(lib, "Bcrypt.lib")
