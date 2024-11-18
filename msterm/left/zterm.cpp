@@ -109,7 +109,7 @@ typedef struct MessageTask
 #define AI_HASH256_LENGTH 32
 #define AI_SESSION_LENGTH 64
 #define AI_NET_URL_LENGTH 256
-#define AI_DATA_CACHE_LEN MAX_PATH
+#define AI_VAULT_PATH_LEN MAX_PATH
 #define AI_FONTNAMELENGTH 32
 
 typedef struct ZTConfig
@@ -121,6 +121,8 @@ typedef struct ZTConfig
 
     U8 documentId[AI_DOCUMENTLENGTH + 1];
     U8 sessionId[AI_SESSION_LENGTH + 1];
+
+    U8 vaultPath[AI_VAULT_PATH_LEN + 1];
 
     U8 pubKeyHex[AI_PUB_KEY_LENGTH + AI_PUB_KEY_LENGTH + 1]; /* cache */
     U8 serverURL[AI_NET_URL_LENGTH + 1];
@@ -143,7 +145,10 @@ typedef struct ZTConfig
 
 static ZTConfig ZTCONFIGURATION;
 
+static wchar_t g_AppPath[MAX_PATH + 1] = { 0 };
+
 static INT_PTR CALLBACK ZTermConfDialogProc(HWND, UINT, WPARAM, LPARAM);
+static INT_PTR CALLBACK ZTermMoreDialogProc(HWND, UINT, WPARAM, LPARAM);
 
 static const char* default_AI_URL = "https://zterm.ai/v1";
 static const char* default_AI_FONT = "Courier New";
@@ -151,7 +156,7 @@ static const char* default_AI_PWD = "ZTerm@AI";
 static const char* default_KB_URL = "http://zterm.ai/kb.en";
 static const char* default_AI_PUBKEY = "02ffff4aa93fe0f04a287de969d8d4df49c4fef195ee203a3b4dca9b439b8caeee";
 
-// generate a random data of size bytes
+    // generate a random data of size bytes
 static U32 ztGenerateRandomData(U8* rndata, U32 size)
 {
     if (rndata)
@@ -193,7 +198,44 @@ static U32 ztGenerateRandomData(U8* rndata, U32 size)
 static void ztInitConfig(ZTConfig* cf)
 {
     int i;
+    DWORD len;
     U8 random[32];
+
+    g_AppPath[0] = L'\0';
+
+    len = GetModuleFileNameW(HINST_THISCOMPONENT, g_AppPath, MAX_PATH);
+
+    cf->vaultPath[0] = '\0';
+    if (len > 0 && len < MAX_PATH - 10)
+    {
+        DWORD idx;
+        for (idx = len - 1; idx > 0; idx--)
+        {
+            if (g_AppPath[idx] == L'\\')
+                break;
+        }
+        g_AppPath[idx] = L'\0';
+
+        if (idx > 0 && idx < MAX_PATH - 10)
+        {
+            U32 utf8len = 0;
+            U32 utf16len = gsl::narrow_cast<U32>(wcslen(g_AppPath));
+            if (ZT_OK == zt_UTF16ToUTF8(reinterpret_cast<U16*>(g_AppPath), utf16len, NULL, &utf8len))
+            {
+                if (utf8len > 0 && utf8len < MAX_PATH - 10)
+                {
+                    zt_UTF16ToUTF8(reinterpret_cast<U16*>(g_AppPath), utf16len, cf->vaultPath, NULL);
+                    cf->vaultPath[utf8len + 0] = '\\';
+                    cf->vaultPath[utf8len + 1] = 'v';
+                    cf->vaultPath[utf8len + 2] = 'a';
+                    cf->vaultPath[utf8len + 3] = 'u';
+                    cf->vaultPath[utf8len + 4] = 'l';
+                    cf->vaultPath[utf8len + 5] = 't';
+                    cf->vaultPath[utf8len + 6] = '\0';
+                }
+            }
+        }
+    }
 
     cf->property = AI_DEFAULT_PROP;
 
@@ -3234,6 +3276,25 @@ static BOOL CenterWindow(_Inout_opt_ HWND hWnd, _Inout_opt_ HWND hWndCenter = NU
     return ::SetWindowPos(hWnd, NULL, xLeft, yTop, -1, -1, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+static void selectVaultFolder(HWND hwndOwner, LPTSTR path)
+{
+    if (path)
+    {
+        BROWSEINFO bi = { 0 };
+        bi.hwndOwner = hwndOwner;
+        bi.lpszTitle = L"Select vault foder:";
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_USENEWUI;
+
+        LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+
+        if (pidl != NULL)
+        {
+            SHGetPathFromIDList(pidl, path);
+            CoTaskMemFree(pidl);
+        }
+    }
+}
+
 static constexpr const WCHAR* pxtype0 = L"0 - NO PROXY";
 static constexpr const WCHAR* pxtype1 = L"1 - CURLPROXY_HTTP";
 static constexpr const WCHAR* pxtype2 = L"2 - CURLPROXY_HTTPS";
@@ -3245,7 +3306,7 @@ static constexpr const WCHAR* pxtype7 = L"7 - CURLPROXY_SOCKS5";
 static constexpr const WCHAR* pxtype8 = L"8 - CURLPROXY_SOCKS5_HOSTNAME";
 
 static WCHAR wbuffer[300] = { 0 };
-
+static HWND hDlgParent = NULL;
 INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM)
 {
     HWND hWndCtl;
@@ -3282,6 +3343,18 @@ INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPA
                 SendMessage(hWndCtl, CB_SETCURSEL, 0, 0);
             }
 
+            hWndCtl = GetDlgItem(hDlg, IDC_EDIT_DATACACHE);
+            if (::IsWindow(hWndCtl))
+            {
+                U32 utf16len = 0;
+                U32 utf8len = gsl::narrow_cast<U32>(strlen((const char*)cf->vaultPath));
+                if (ZT_OK == zt_UTF8ToUTF16(cf->vaultPath, utf8len, reinterpret_cast<U16*>(wbuffer), &utf16len))
+                {
+                    wbuffer[utf16len] = L'\0';
+                    SendMessage(hWndCtl, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(wbuffer));
+                }
+            }
+
             CheckDlgButton(hDlg, IDC_CHK_SHARESCREEN, BST_CHECKED);
             CheckDlgButton(hDlg, IDC_CHK_AUTOSAVE, BST_CHECKED);
 
@@ -3300,7 +3373,9 @@ INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPA
         }
         else if (LOWORD(wParam) == IDC_BTN_MORE)
         {
-            MessageBox(hDlg, L"More advanced configuration", L"About ZTerm@AI", MB_OK);
+            //MessageBox(hDlg, L"More advanced configuration", L"About ZTerm@AI", MB_OK);
+            hDlgParent = hDlg;
+            DialogBox(HINST_THISCOMPONENT, MAKEINTRESOURCE(IDD_MOREOPTIONS), hDlg, ZTermMoreDialogProc);
         }
         else if (LOWORD(wParam) == IDC_BTN_COPY)
         {
@@ -3332,11 +3407,108 @@ INT_PTR CALLBACK ZTermConfDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPA
                 }
             }
         }
+        else if (LOWORD(wParam) == IDC_BTN_BROWSER)
+        {
+            U32 utf16len;
+
+            wbuffer[0] = L'\0';
+            selectVaultFolder(hDlg, wbuffer);
+
+            if (wbuffer[0] != L'\0')
+            {
+                utf16len = gsl::narrow_cast<U32>(wcslen(wbuffer));
+                if (utf16len)
+                {
+                    U32 utf8len = 0;
+                    if (ZT_OK == zt_UTF16ToUTF8(reinterpret_cast<U16*>(wbuffer), utf16len, NULL, &utf8len))
+                    {
+                        if (utf8len < MAX_PATH)
+                        {
+                            //zt_UTF16ToUTF8(reinterpret_cast<U16*>(wbuffer), utf16len, cf->vaultPath, NULL);
+                            hWndCtl = GetDlgItem(hDlg, IDC_EDIT_DATACACHE);
+                            if (::IsWindow(hWndCtl))
+                            {
+                                SendMessage(hWndCtl, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(wbuffer));
+                            }
+                        }
+                    }
+                }
+            }
+        }
         break;
     case WM_CLOSE:
         EndDialog(hDlg, IDCANCEL);
         return (INT_PTR)TRUE;
 
+    }
+    return 0;
+}
+
+INT_PTR CALLBACK ZTermMoreDialogProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM)
+{
+    HWND hWndCtl;
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+        hWndCtl = GetDlgItem(hDlg, IDC_CMB_REGEX);
+        if (::IsWindow(hWndCtl))
+        {
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"2");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"4");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"8");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"16");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"32");
+            SendMessage(hWndCtl, CB_SETCURSEL, 2, 0);
+        }
+
+        hWndCtl = GetDlgItem(hDlg, IDC_CMB_THREADS);
+        if (::IsWindow(hWndCtl))
+        {
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"2");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"4");
+            SendMessage(hWndCtl, CB_ADDSTRING, 0, (LPARAM)L"8");
+            SendMessage(hWndCtl, CB_SETCURSEL, 0, 0);
+        }
+
+        hWndCtl = GetDlgItem(hDlg, IDC_EDIT_PERCENT);
+        if (::IsWindow(hWndCtl))
+        {
+            SendMessage(hWndCtl, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(L"33"));
+        }
+
+        hWndCtl = GetDlgItem(hDlg, IDC_EDIT_TIMEOUT);
+        if (::IsWindow(hWndCtl))
+        {
+            SendMessage(hWndCtl, WM_SETTEXT, 0, reinterpret_cast<LPARAM>(L"30"));
+        }
+
+        hWndCtl = GetDlgItem(hDlg, IDC_STATIC_FONT0);
+        if (::IsWindow(hWndCtl))
+        {
+            SetWindowText(hWndCtl, L"Courier New - 11 points");
+        }
+
+        hWndCtl = GetDlgItem(hDlg, IDC_STATIC_FONT1);
+        if (::IsWindow(hWndCtl))
+        {
+            SetWindowText(hWndCtl, L"Courier New - 11 points");
+        }
+
+        if (IsWindow(hDlgParent))
+            CenterWindow(hDlg, hDlgParent);
+    }
+        return (INT_PTR)TRUE;
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    case WM_CLOSE:
+        EndDialog(hDlg, IDCANCEL);
+        return (INT_PTR)TRUE;
     }
     return 0;
 }

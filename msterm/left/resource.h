@@ -27,7 +27,17 @@
 #define IDC_CHK_AUTOSAVE        208
 #define IDC_BTN_ABOUT           209
 #define IDC_BTN_MORE            210
+#define IDC_CHK_SHOWAI          211
 
+#define IDD_MOREOPTIONS         300
+#define IDC_CMB_REGEX           301
+#define IDC_CMB_THREADS         302
+#define IDC_EDIT_TIMEOUT        303
+#define IDC_BTN_FONT0           304
+#define IDC_BTN_FONT1           305
+#define IDC_STATIC_FONT0        306
+#define IDC_STATIC_FONT1        307
+#define IDC_EDIT_PERCENT        308
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED

@@ -107,7 +107,7 @@ TRACELOGGING_DECLARE_PROVIDER(g_hWindowsTerminalProvider);
 #include <dcomp.h>
 
 #include <bcrypt.h>
-
+#include <shlobj_core.h>
 #define CURL_STATICLIB
 #include "zterm/curl/curl.h"
 #include "zterm/zlib/zlib.h"

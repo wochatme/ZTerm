@@ -1,0 +1,8 @@
+-- scintilla quick start
+
+https://github.com/wochatme/ZTerm/blob/main/doc/scintillaQuickStart.md
+
+
+git clone https://github.com/rizonesoft/Notepad3.git
+cd Notepad3
+Version.cmd
