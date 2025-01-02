@@ -1,6 +1,6 @@
 # 付费系统的设计方案
 
-## 加密概述。
+## 加密概述
 非对称加密采用比特币所使用的secp256k1。对称加密采用AES256。哈希函数采用SHA256。
 
 secp256k1的源码见：
@@ -18,7 +18,7 @@ https://github.com/bitcoin-core/secp256k1
 S = sha256(USR, PWD);
 P = secp(S)
 ```
-其中P是私钥S对应的公钥。 系统并不保存S，而是保存<USR, P>在一张表U里。表U的主键(primary key)是USR。
+其中P是私钥S对应的公钥。 系统并不保存S，而是把记录<USR, P>保存在一张表U里。表U的主键(primary key)是USR，P也是唯一非空类型的列。
 
 当用户输入USR, PWD时，通过计算P，和保存在U中的记录进行对比，从而验证用户是否合法。
 
