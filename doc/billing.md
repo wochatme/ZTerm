@@ -18,7 +18,14 @@ https://github.com/bitcoin-core/secp256k1
 S = sha256(USR, PWD);
 P = secp(S)
 ```
-其中P是私钥S对应的公钥。 系统并不保存S，而是把记录<USR, P>保存在一张表U里。表U的主键(primary key)是USR，P也是唯一非空类型的列。
+其中P是私钥S对应的公钥，长度为33个字节。 系统并不保存S，而是把记录<USR, P>保存在一张表U里。表U的主键(primary key)是USR，P也是唯一非空类型的列。U表的结构如下：
+```
+CREATE TABLE U(
+  USR VARCHAR PRIMARY KEY,
+  P CHAR(66) UNIQUE NOT NULL,
+  ... -- 其它的用户信息
+);
+```
 
 当用户输入USR, PWD时，通过计算P，和保存在U中的记录进行对比，从而验证用户是否合法。
 
