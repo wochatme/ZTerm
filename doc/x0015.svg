@@ -1,44 +1,37 @@
 <svg version="1.1" width="600" height="330" xmlns="http://www.w3.org/2000/svg" >
 <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" /></marker></defs>
 
-
-<path d="M 20 65 h 400 v -20 h -400 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 80 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<g transform="translate(70, 0)">
+<path d="M 80 65 h 300 v -20 h -300 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 180 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
 <path d="M 200 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
 
+<text x="185" y="62" style="font-size:17px;font-family:'Courier New'">*</text>
 
-<path d="M 80 165 h 500 v -20 h -500 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 80 40 v -5 a 5 5 0 0 1 5 -5 h 40 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 40 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<path d="M 200 40 v -5 a 5 5 0 0 1 5 -5 h 80 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 80 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
 
-<!--
-<path d="M 20 65 h 300 v -20 h -300 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 40 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 60 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 80 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 100 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<text x="60" y="20" style="font-size:11px;font-family:'Microsoft Yahei UI'">电子邮件地址，m个字节</text>
+<text x="240" y="20" style="font-size:11px;font-family:'Microsoft Yahei UI'">口令的明文，n个字节</text>
+</g>
+<path d="M 280 200 h 40 v -40 h -40 v 40" stroke="#0000FF" stroke-width="1" fill="none"/>
+<text x="325" y="185" style="font-size:13px;font-family:'Microsoft Yahei'">SHA256哈希算法</text>
 
-<path d="M 180 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 260 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
-<path d="M 320 45 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 150 70 v 20 L 280 125 V 148" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"  />
+<path d="M 450 70 v 20 L 320 125 V 148" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)"  />
 
-<text x="27" y="59" style="font-size:13px;font-family:'Arial'">c</text>
-<text x="46" y="59" style="font-size:13px;font-family:'Arial'">1</text>
-<text x="66" y="59" style="font-size:13px;font-family:'Arial'">0</text>
-<text x="86" y="59" style="font-size:13px;font-family:'Arial'">0</text>
+<path d="M 300 202 v 10" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"  />
 
-<text x="120" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">66字节</text>
-<text x="200" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">64字节</text>
-<text x="270" y="60" style="font-size:13px;font-family:'Microsoft Yahei UI'">16字节</text>
+<path d="M 200 245 h 200 v -20 h -200 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 220 225 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 240 225 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 260 225 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
+<path d="M 380 225 v 20" stroke="#0000FF" stroke-width="1" fill="none"/>
 
-<path d="M 40 68 v 5 a 5 5 0 0 0 5 5 h 20 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 20 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
-<path d="M 180 68 v 5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
-<path d="M 100 42 v -5 a 5 5 0 0 1 5 -5 h 30 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 30 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
-<path d="M 260 42 v -5 a 5 5 0 0 1 5 -5 h 20 a 5 5 0 0 0 5 -5 a 5 5 0 0 0 5 5 h 20 a 5 5 0 0 1 5 5 v 5" stroke="#000000" stroke-width="1" fill="none"/>
+<text x="290" y="237" style="font-size:17px;font-family:'Courier New'">......</text>
 
-<text x="10" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">1.协议的版本信息</text>
-<text x="180" y="100" style="font-size:13px;font-family:'Microsoft Yahei'">3.文档的编号</text>
-<text x="110" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">2.用户的公钥</text>
-<text x="255" y="20" style="font-size:13px;font-family:'Microsoft Yahei'">4.该域保留</text>
-<path d="M 30 20 V 33" stroke="#000000" stroke-width="1" fill="none" marker-end="url(#arrowhead)"/>
-<text x="10" y="15" style="font-size:13px;font-family:'Microsoft Yahei'">消息包的类型</text>
--->
+<path d="M 200 250 v 5 a 5 5 0 0 0 5 5 h 90 a 5 5 0 0 1 5 5 a 5 5 0 0 1 5 -5 h 90 a 5 5 0 0 0 5 -5 v -5" stroke="#000000" stroke-width="1" fill="none"/>
+
+<text x="260" y="278" style="font-size:13px;font-family:'Microsoft Yahei'">私钥，32字节</text>
+
 </svg>
